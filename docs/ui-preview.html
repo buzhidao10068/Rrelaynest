@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rrelaynest</title>
+<script>
+// FOUC guard: apply theme before paint
+(function(){
+  try {
+    var t = localStorage.getItem('rrelaynest-theme') || 'system';
+    var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    if (dark) document.documentElement.classList.add('dark');
+  } catch(e){}
+})();
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // 把 shadcn token 映射到 CSS 变量,裸类名(bg-primary/bg-card/border-border…)才会生效
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          background: 'hsl(var(--background))',
+          foreground: 'hsl(var(--foreground))',
+          card: 'hsl(var(--card))',
+          'card-foreground': 'hsl(var(--card-foreground))',
+          muted: 'hsl(var(--muted))',
+          'muted-foreground': 'hsl(var(--muted-foreground))',
+          border: 'hsl(var(--border))',
+          input: 'hsl(var(--input))',
+          primary: 'hsl(var(--primary))',
+          'primary-foreground': 'hsl(var(--primary-foreground))',
+          accent: 'hsl(var(--accent))',
+          'accent-foreground': 'hsl(var(--accent-foreground))',
+        },
+        borderRadius: { lg: 'var(--radius)' },
+      },
+    },
+  };
+</script>
+<style>
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --radius: 0.5rem;
+  }
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 5.5%;
+    --card-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 18%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --radius: 0.5rem;
+  }
+  html { font-family: Inter, ui-sans-serif, system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  body { background: hsl(var(--background)); color: hsl(var(--foreground)); margin: 0; }
+  [data-view] { display: none; }
+  [data-view].active { display: block; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 6px; }
+</style>
+</head>
+
+<body class="antialiased">
+
+<!-- ============ 登录页 ============ -->
+<div data-view="login">
+  <div class="flex min-h-screen items-center justify-center p-6" style="background:hsl(var(--background));">
+    <div class="w-[400px] space-y-6 rounded-lg border border-border bg-card p-8 shadow-sm">
+      <div class="flex flex-col items-center gap-2">
+        <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+        </div>
+        <h1 class="text-2xl font-semibold tracking-tight">Rrelaynest</h1>
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">管理面板登录</p>
+      </div>
+      <div class="space-y-2">
+        <label class="text-sm font-medium">管理员密码</label>
+        <input type="password" placeholder="请输入管理员密码" onkeydown="if(event.key==='Enter')showView('dashboard')"
+               class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none placeholder:text-[hsl(var(--muted-foreground))] focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+      </div>
+      <button onclick="showView('dashboard')" class="h-10 w-full rounded-md bg-primary text-sm font-medium text-primary-foreground transition hover:opacity-90">登录</button>
+      <p class="text-center text-xs text-[hsl(var(--muted-foreground))]">仅限授权管理员访问 · Rrelaynest 中转站管理系统</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Dashboard(抽屉 + 弹窗都是覆盖层) ============ -->
+<div data-view="dashboard">
+  <div class="relative min-h-screen overflow-hidden" style="background:hsl(var(--background));">
+    <!-- 顶栏:只留汉堡 + 标题 -->
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
+      <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span class="text-base font-semibold">Rrelaynest</span>
+      </div>
+    </header>
+
+    <div class="space-y-6 p-6">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="rounded-lg border border-border bg-card p-5">
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">站点总数</p>
+          <p class="mt-1 text-3xl font-semibold">8</p>
+        </div>
+        <div class="rounded-lg border border-border bg-card p-5">
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">合计余额</p>
+          <p class="mt-1 text-3xl font-semibold">¥1,234.56</p>
+        </div>
+        <div class="rounded-lg border border-border bg-card p-5">
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">今日已签到</p>
+          <p class="mt-1 text-3xl font-semibold">5/6</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-2">
+        <button id="batchBtn" onclick="toggleBatch()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          批量
+        </button>
+        <div class="flex gap-2">
+          <button id="compactBtn" onclick="toggleCompact()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="3" y1="6" y2="6"/><line x1="21" x2="3" y1="12" y2="12"/><line x1="21" x2="3" y1="18" y2="18"/></svg>
+            紧凑
+          </button>
+          <button class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            全部爬取
+          </button>
+          <button onclick="openModal('create')" class="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            新增站点
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-hidden rounded-lg border border-border bg-card">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-border text-left text-[hsl(var(--muted-foreground))]">
+              <th class="px-4 py-3 font-medium">
+                <button onclick="toggleSort('name')" class="inline-flex items-center gap-1 hover:text-[hsl(var(--foreground))]">
+                  站点名称
+                  <svg data-sort-icon="name" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-40"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>
+                </button>
+              </th>
+              <th class="px-4 py-3 font-medium">地址</th>
+              <th class="px-4 py-3 font-medium">
+                <button onclick="toggleSort('bal')" class="inline-flex items-center gap-1 hover:text-[hsl(var(--foreground))]">
+                  余额
+                  <svg data-sort-icon="bal" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-40"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>
+                </button>
+              </th>
+              <th class="px-4 py-3 font-medium">折算RMB</th>
+              <th class="px-4 py-3 font-medium">汇率</th>
+              <th class="px-4 py-3 font-medium">
+                <button onclick="toggleSort('ck')" class="inline-flex items-center gap-1 hover:text-[hsl(var(--foreground))]">
+                  签到状态
+                  <svg data-sort-icon="ck" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-40"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>
+                </button>
+              </th>
+              <th class="px-4 py-3 font-medium">
+                <button onclick="toggleSort('scraped')" class="inline-flex items-center gap-1 hover:text-[hsl(var(--foreground))]">
+                  上次爬取
+                  <svg data-sort-icon="scraped" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-40"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>
+                </button>
+              </th>
+              <th class="px-4 py-3 font-medium text-right">操作</th>
+            </tr>
+          </thead>
+          <tbody id="siteRows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 批量拓展栏:Apple 毛玻璃浮动条,批量模式且有选中时从底部浮现 -->
+    <div id="batchBar" class="pointer-events-none absolute inset-x-0 bottom-6 z-30 flex translate-y-24 justify-center opacity-0 transition-all duration-300">
+      <div class="pointer-events-auto flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
+           style="-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);">
+        <span class="pl-2 text-sm font-medium"><span id="batchCount">0</span> 项已选</span>
+        <span class="h-5 w-px bg-[hsl(var(--border))]"></span>
+        <button onclick="selectAll()" class="rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-[hsl(var(--accent))]"><span id="selectAllLabel">全选</span></button>
+        <button onclick="batchDelete()" class="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+          删除
+        </button>
+        <span class="h-5 w-px bg-[hsl(var(--border))]"></span>
+        <button onclick="toggleBatch()" class="rounded-lg px-3 py-1.5 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]">取消</button>
+      </div>
+    </div>
+
+    <!-- 抽屉遮罩 + 左侧抽屉 -->
+    
+
+    <!-- 编辑弹窗(覆盖层) -->
+    <div id="modalWrap" class="absolute inset-0 z-[60] hidden items-center justify-center p-4">
+      <div onclick="closeModal()" class="absolute inset-0 bg-black/50"></div>
+      <div class="relative w-full max-w-[540px] space-y-5 rounded-lg border border-border bg-card p-6 shadow-xl">
+        <div class="flex items-start justify-between">
+          <div>
+            <h2 id="modalTitle" class="text-lg font-semibold">编辑站点</h2>
+            <p id="modalDesc" class="text-sm text-[hsl(var(--muted-foreground))]">修改中转站的连接信息与签到设置</p>
+          </div>
+          <button onclick="closeModal()" class="flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">站点名称</label>
+          <input id="m_name" value="OpenAI-Relay" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">站点地址</label>
+          <input id="m_url" value="https://relay.openai-proxy.com" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">Access Token</label>
+          <input id="m_token" type="password" value="xxxxxxxxxxxx" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+          <p id="m_tokenHint" class="text-xs text-[hsl(var(--muted-foreground))]">留空则保留原 token（加密存储，不回显）</p>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">汇率 (1 RMB = ? 站点货币)</label>
+            <input id="m_rate" value="7.2" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium">货币</label>
+            <input id="m_currency" value="USD" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">注册邮箱</label>
+          <input id="m_email" value="admin@example.com" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">备注</label>
+          <textarea id="m_note" rows="2" class="w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]">GPT-4 主力站</textarea>
+        </div>
+        <!-- 启用自动签到:开关默认在左(关闭态) -->
+        <div class="flex items-center gap-4 rounded-lg border border-border p-4">
+          <button id="toggleSwitch" data-on="false" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--muted))] transition">
+            <span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-0 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span>
+          </button>
+          <div>
+            <p class="text-sm font-medium">启用自动签到</p>
+            <p class="text-xs text-[hsl(var(--muted-foreground))]">每日跨天自动签到（需站点支持 /api/user/checkin）</p>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button onclick="closeModal()" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">取消</button>
+          <button id="modalSubmit" onclick="closeModal()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 设置(独立整屏:左分区导航 + 右内容) ============ -->
+<div data-view="settings">
+  <div class="min-h-screen" style="background:hsl(var(--background));">
+    <!-- 顶栏:汉堡 + 标题(与 Dashboard 一致,入口对称) -->
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
+      <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span class="text-base font-semibold">设置</span>
+      </div>
+      </header>
+
+    <!-- 整屏布局:左分区导航 + 右内容 -->
+    <div class="mx-auto flex max-w-[1100px] gap-6 p-6">
+      <!-- 左分区导航 -->
+      <nav id="settingsNav" class="w-52 shrink-0 space-y-1">
+        <button onclick="showSettingsSection('general')" data-snav="general" class="snav-item flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          通用偏好
+        </button>
+        <button onclick="showSettingsSection('security')" data-snav="security" class="snav-item flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          安全
+        </button>
+        <button onclick="showSettingsSection('checkin')" data-snav="checkin" class="snav-item flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
+          签到
+        </button>
+        <button onclick="showSettingsSection('data')" data-snav="data" class="snav-item flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
+          数据与关于
+        </button>
+      </nav>
+
+      <!-- 右内容:各分区(共用 renderSettingsBody 注入) -->
+      <div id="settingsBody" class="min-w-0 flex-1"></div>
+    </div>
+  </div>
+</div>
+
+
+
+<div id="overlay" class="fixed inset-0 z-40 hidden bg-black/50"></div>
+    <aside id="drawer" class="fixed inset-y-0 left-0 z-50 flex w-[280px] -translate-x-full flex-col border-r border-border bg-card shadow-xl transition-transform duration-300">
+      <div class="flex items-center gap-2 border-b border-border px-4 py-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span class="text-base font-semibold">Rrelaynest</span>
+        <button onclick="closeDrawer()" class="ml-auto flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="关闭">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+
+      <nav class="space-y-1 p-3">
+        <a onclick="goDashboard()" data-nav="dashboard" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+          仪表盘
+        </a>
+        <a onclick="showSettings()" data-nav="settings" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          设置
+        </a>
+        <a class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          关于
+        </a>
+      </nav>
+
+      <div class="mx-3 border-t border-border"></div>
+
+      <div class="space-y-1 p-3">
+        <p class="px-3 pb-1 text-xs uppercase tracking-wide text-[hsl(var(--muted-foreground))]">操作</p>
+        <div class="rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
+          <div class="flex items-center gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            爬取间隔
+          </div>
+          <div class="mt-2 flex items-center gap-2">
+            <input id="intervalInput" type="number" min="1" value="30"
+                   class="h-8 w-20 rounded-md border border-input bg-[hsl(var(--background))] px-2 text-sm text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+            <span class="text-xs">分钟</span>
+            <!-- 圆圈包裹的 ! 信息图标:悬停显示推荐范围 -->
+            <span class="group relative inline-flex">
+              <span class="flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-[hsl(var(--muted-foreground))] text-[11px] font-semibold leading-none text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--foreground))] hover:text-[hsl(var(--foreground))]">!</span>
+              <span role="tooltip"
+                    class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-[hsl(var(--foreground))] px-3 py-2 text-xs leading-relaxed text-[hsl(var(--background))] shadow-lg group-hover:block">
+                推荐 15–60 分钟。过短会频繁请求各站接口、易触发限流；过长则余额/签到状态更新不及时。
+                <span class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-[hsl(var(--foreground))]"></span>
+              </span>
+            </span>
+          </div>
+        </div>
+        <button class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+          导出
+        </button>
+        <div class="flex items-center gap-3 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+          主题
+          <div class="ml-auto inline-flex overflow-hidden rounded-md border border-border text-xs">
+            <button data-theme="light"  class="theme-seg px-2 py-1">亮色</button>
+            <button data-theme="dark"   class="theme-seg px-2 py-1 border-l border-border">暗色</button>
+            <button data-theme="system" class="theme-seg px-2 py-1 border-l border-border">跟随</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-auto border-t border-border p-3">
+        <div class="flex items-center gap-3 rounded-md px-3 py-2">
+          <div class="flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-sm font-medium">A</div>
+          <div class="leading-tight">
+            <p class="text-sm font-medium">admin</p>
+            <p class="text-xs text-[hsl(var(--muted-foreground))]">admin@example.com</p>
+          </div>
+        </div>
+        <button onclick="showView('login')" class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+          退出
+        </button>
+      </div>
+    </aside>
+
+<script>
+  // ---- 视图切换(登录 ↔ dashboard;块7 用 vue-router / v-if) ----
+  function showView(v) {
+    document.querySelectorAll('[data-view]').forEach(function (el) {
+      el.classList.toggle('active', el.dataset.view === v);
+    });
+    // 侧边栏导航高亮:随当前视图(仪表盘/设置)
+    document.querySelectorAll('.nav-item').forEach(function (a) {
+      var on = a.getAttribute('data-nav') === v;
+      a.classList.toggle('bg-[hsl(var(--accent))]', on);
+      a.classList.toggle('font-medium', on);
+      a.classList.toggle('text-[hsl(var(--accent-foreground))]', on);
+      a.classList.toggle('text-[hsl(var(--muted-foreground))]', !on);
+    });
+    closeDrawer(); closeModal();
+  }
+  // 回主页(与 showSettings 对称:都经侧边栏导航项触发)
+  function goDashboard() {
+    showView('dashboard');
+  }
+
+  // ---- 抽屉 ----
+  function openDrawer() {
+    document.getElementById('drawer').classList.remove('-translate-x-full');
+    document.getElementById('overlay').classList.remove('hidden');
+  }
+  function closeDrawer() {
+    var d = document.getElementById('drawer'), o = document.getElementById('overlay');
+    if (d) d.classList.add('-translate-x-full');
+    if (o) o.classList.add('hidden');
+  }
+  document.getElementById('overlay').addEventListener('click', closeDrawer);
+
+  // ---- 弹窗 ----
+  // 设置签到开关的开/关视觉
+  function setSwitch(on) {
+    var s = document.getElementById('toggleSwitch');
+    if (!s) return;
+    s.dataset.on = on ? 'true' : 'false';
+    s.classList.toggle('bg-primary', on);
+    s.classList.toggle('bg-[hsl(var(--muted))]', !on);
+    s.firstElementChild.classList.toggle('translate-x-5', on);
+    s.firstElementChild.classList.toggle('translate-x-0', !on);
+  }
+  // mode: 'create' 新建(空表单) | 'edit' 编辑(填入 site 数据)
+  function openModal(mode, site) {
+    mode = mode || 'create';
+    var val = function (id, v) { var el = document.getElementById(id); if (el) el.value = v; };
+    if (mode === 'edit' && site) {
+      document.getElementById('modalTitle').textContent = '编辑站点';
+      document.getElementById('modalDesc').textContent = '修改中转站的连接信息与签到设置';
+      val('m_name', site.name); val('m_url', 'https://' + site.url);
+      val('m_token', ''); val('m_rate', site.rate); val('m_currency', site.cur || 'USD');
+      val('m_email', site.email || ''); val('m_note', site.note || '');
+      document.getElementById('m_token').placeholder = '留空则保留原 token';
+      document.getElementById('m_tokenHint').textContent = '留空则保留原 token（加密存储，不回显）';
+      setSwitch(site.ck !== 'off');
+      document.getElementById('modalSubmit').textContent = '保存';
+    } else {
+      document.getElementById('modalTitle').textContent = '新增站点';
+      document.getElementById('modalDesc').textContent = '添加一个新的 new-api 中转站';
+      val('m_name', ''); val('m_url', ''); val('m_token', '');
+      val('m_rate', '7.2'); val('m_currency', 'USD'); val('m_email', ''); val('m_note', '');
+      document.getElementById('m_token').placeholder = '输入站点的 Access Token';
+      document.getElementById('m_tokenHint').textContent = 'Access Token 将加密存储，不回显';
+      setSwitch(false);
+      document.getElementById('modalSubmit').textContent = '创建';
+    }
+    var m = document.getElementById('modalWrap');
+    m.classList.remove('hidden'); m.classList.add('flex');
+  }
+  // 行内编辑:按站名从 sites 找到该行数据,以编辑模式打开弹窗
+  function editSite(name) {
+    var s = sites.filter(function (x) { return x.name === name; })[0];
+    openModal('edit', s);
+  }
+  function closeModal() {
+    var m = document.getElementById('modalWrap');
+    if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+  }
+
+  // ---- 主题(块7 会封装成 composables/useTheme.ts) ----
+  var mql = window.matchMedia('(prefers-color-scheme: dark)');
+  function applyTheme(t) {
+    var dark = t === 'dark' || (t === 'system' && mql.matches);
+    document.documentElement.classList.toggle('dark', dark);
+    document.querySelectorAll('.theme-seg').forEach(function (b) {
+      var on = b.dataset.theme === t;
+      b.classList.toggle('bg-[hsl(var(--accent))]', on);
+      b.classList.toggle('text-[hsl(var(--accent-foreground))]', on);
+      b.classList.toggle('text-[hsl(var(--muted-foreground))]', !on);
+    });
+  }
+  function setTheme(t) { localStorage.setItem('rrelaynest-theme', t); applyTheme(t); }
+  document.querySelectorAll('.theme-seg').forEach(function (b) {
+    b.addEventListener('click', function () { setTheme(b.dataset.theme); });
+  });
+  mql.addEventListener('change', function () {
+    if ((localStorage.getItem('rrelaynest-theme') || 'system') === 'system') applyTheme('system');
+  });
+
+  // ---- 自动签到开关(默认关,滑块在左) ----
+  var sw = document.getElementById('toggleSwitch');
+  sw.addEventListener('click', function () {
+    var on = sw.dataset.on !== 'true'; sw.dataset.on = on;
+    sw.classList.toggle('bg-primary', on);
+    sw.classList.toggle('bg-[hsl(var(--muted))]', !on);
+    sw.firstElementChild.classList.toggle('translate-x-5', on);
+    sw.firstElementChild.classList.toggle('translate-x-0', !on);
+  });
+
+  // 表格紧凑模式(通用偏好里可切换,影响行高)
+  var compactMode = false;
+
+  // ---- 站点表格数据 ----
+  // 排序用原始值:rmbNum(折RMB数值,用于余额列跨币种可比)、ckOrder(签到状态优先级)、
+  //             scrapedMin(距今分钟数,未爬取=Infinity)
+  var sites = [
+    { name:'OpenAI-Relay', url:'api.openai-relay.com',   bal:'$48.20',  rmb:'¥346.94', rate:'7.20', ck:'signed',  scraped:'2 分钟前',  rmbNum:346.94, scrapedMin:2 },
+    { name:'GPT中转-A',     url:'gpt-zhongzhuan.net',     bal:'¥520.00', rmb:'¥520.00', rate:'1.00', ck:'manual',  scraped:'15 分钟前', rmbNum:520.00, scrapedMin:15 },
+    { name:'Claude-Pool',  url:'pool.claude-cn.io',      bal:'$120.50', rmb:'¥867.60', rate:'7.20', ck:'signed',  scraped:'1 小时前',  rmbNum:867.60, scrapedMin:60 },
+    { name:'API聚合站',     url:'api-juhe.cn',            bal:'¥88.00',  rmb:'¥88.00',  rate:'1.00', ck:'off',     scraped:'未爬取',    rmbNum:88.00,  scrapedMin:Infinity },
+    { name:'DeepSeek-Hub', url:'hub.deepseek-relay.com', bal:'$12.30',  rmb:'¥88.56',  rate:'7.20', ck:'manual',  scraped:'3 小时前',  rmbNum:88.56,  scrapedMin:180 },
+  ];
+  // 签到状态排序优先级:已签 < 需手动 < 未启用
+  var ckOrder = { signed: 0, manual: 1, off: 2 };
+  var badge = {
+    signed: '<span class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">● 已签 +$0.10</span>',
+    manual: '<span class="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">● 需手动</span>',
+    off:    '<span class="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">● 未启用</span>',
+  };
+  var actIcon = {
+    scrape:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+    checkin:'<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>',
+    edit:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
+    del:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  };
+  function iconBtn(kind, danger, onclick) {
+    return '<button ' + (onclick ? 'onclick="' + onclick + '"' : '') + ' class="flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))] '
+      + (danger ? 'text-red-500' : 'text-[hsl(var(--muted-foreground))]') + '">'
+      + '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+      + actIcon[kind] + '</svg></button>';
+  }
+  function rowHtml(s) {
+    var sel = selected.has(s.name);
+    // 批量模式:站名前圆点。未选=白底描边(⚪),已选=黑底带勾(⚫)
+    var dot = batchMode
+      ? '<button onclick="toggleSelect(\'' + s.name.replace(/'/g, "\\'") + '\')" '
+        + 'class="mr-3 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border align-middle transition '
+        + (sel
+            ? 'border-[hsl(var(--foreground))] bg-[hsl(var(--foreground))] text-[hsl(var(--background))]'
+            : 'border-[hsl(var(--muted-foreground))] bg-[hsl(var(--background))]')
+        + '">'
+        + (sel ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' : '')
+        + '</button>'
+      : '';
+    var pad = compactMode ? 'px-4 py-1.5' : 'px-4 py-3';   // 紧凑模式减小行高
+    return '<tr class="border-b border-border last:border-0 hover:bg-[hsl(var(--accent))]/40' + (sel ? ' bg-[hsl(var(--accent))]/40' : '') + '">'
+      + '<td class="' + pad + ' font-medium">' + dot + s.name + '</td>'
+      + '<td class="' + pad + ' text-[hsl(var(--muted-foreground))]">' + s.url + '</td>'
+      + '<td class="' + pad + '">' + s.bal + '</td>'
+      + '<td class="' + pad + '">' + s.rmb + '</td>'
+      + '<td class="' + pad + ' text-[hsl(var(--muted-foreground))]">' + s.rate + '</td>'
+      + '<td class="' + pad + '">' + badge[s.ck] + '</td>'
+      + '<td class="' + pad + ' text-[hsl(var(--muted-foreground))]">' + s.scraped + '</td>'
+      + '<td class="' + pad + '"><div class="flex justify-end gap-1">'
+      + iconBtn('scrape') + iconBtn('checkin') + iconBtn('edit', false, "editSite('" + s.name.replace(/'/g, "\\'") + "')") + iconBtn('del', true)
+      + '</div></td></tr>';
+  }
+
+  // ---- 多列排序:每次点同一列 null(原始) → asc → desc → null;点别的列从 asc 起 ----
+  // 各列比较器:返回 a<b 时为负。名称按中文/字母序,余额按折RMB数值,签到按优先级,爬取按距今分钟
+  var comparators = {
+    name:    function (a, b) { return a.name.localeCompare(b.name, 'zh-Hans-CN'); },
+    bal:     function (a, b) { return a.rmbNum - b.rmbNum; },
+    ck:      function (a, b) { return ckOrder[a.ck] - ckOrder[b.ck]; },
+    scraped: function (a, b) { return a.scrapedMin - b.scrapedMin; },
+  };
+  var sortKey = null, sortDir = null;
+  var ICON_BOTH = '<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>';
+  var ICON_UP   = '<path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>';
+  var ICON_DOWN = '<path d="m21 16-4 4-4-4"/><path d="M17 4v16"/>';
+  function renderRows() {
+    var list = sites.slice();
+    if (sortKey && sortDir) {
+      var cmp = comparators[sortKey];
+      list.sort(function (a, b) { var r = cmp(a, b); return sortDir === 'asc' ? r : -r; });
+    }
+    document.getElementById('siteRows').innerHTML = list.map(rowHtml).join('');
+    // 更新所有列表头图标:当前列显示 上/下 箭头并高亮,其余列复位为双向淡显
+    document.querySelectorAll('[data-sort-icon]').forEach(function (ic) {
+      var col = ic.getAttribute('data-sort-icon');
+      if (col === sortKey && sortDir === 'asc') {
+        ic.setAttribute('class', 'text-[hsl(var(--foreground))]'); ic.innerHTML = ICON_UP;
+      } else if (col === sortKey && sortDir === 'desc') {
+        ic.setAttribute('class', 'text-[hsl(var(--foreground))]'); ic.innerHTML = ICON_DOWN;
+      } else {
+        ic.setAttribute('class', 'opacity-40'); ic.innerHTML = ICON_BOTH;
+      }
+    });
+  }
+  function toggleSort(key) {
+    if (sortKey !== key) { sortKey = key; sortDir = 'asc'; }        // 换列:从升序开始
+    else { sortDir = sortDir === 'asc' ? 'desc' : sortDir === 'desc' ? null : 'asc'; }
+    if (sortDir === null) sortKey = null;                           // 三态归位:回原始顺序
+    renderRows();
+  }
+
+  // ---- 批量选择 ----
+  var batchMode = false;
+  var selected = new Set();
+  function toggleBatch() {
+    batchMode = !batchMode;
+    if (!batchMode) selected.clear();
+    var btn = document.getElementById('batchBtn');
+    // 激活态:批量按钮反色高亮,且激活时去掉 hover 变色(保持单一颜色)
+    btn.classList.toggle('bg-primary', batchMode);
+    btn.classList.toggle('text-primary-foreground', batchMode);
+    btn.classList.toggle('hover:bg-primary', batchMode);
+    btn.classList.toggle('bg-card', !batchMode);
+    btn.classList.toggle('hover:bg-[hsl(var(--accent))]', !batchMode);
+    renderRows();
+    syncBatchBar();
+  }
+  function toggleSelect(name) {
+    if (selected.has(name)) selected.delete(name); else selected.add(name);
+    renderRows();
+    syncBatchBar();
+  }
+  function selectAll() {
+    if (selected.size === sites.length) selected.clear();
+    else sites.forEach(function (s) { selected.add(s.name); });
+    renderRows();
+    syncBatchBar();
+  }
+  function batchDelete() {
+    if (!selected.size) return;
+    sites = sites.filter(function (s) { return !selected.has(s.name); });
+    selected.clear();
+    renderRows();
+    syncBatchBar();
+  }
+  // 毛玻璃浮动栏:进入批量模式即浮现,同步已选数量与全选态
+  function syncBatchBar() {
+    var bar = document.getElementById('batchBar');
+    bar.classList.toggle('translate-y-24', !batchMode);
+    bar.classList.toggle('opacity-0', !batchMode);
+    bar.classList.toggle('pointer-events-none', !batchMode);
+    document.getElementById('batchCount').textContent = selected.size;
+    document.getElementById('selectAllLabel').textContent =
+      (selected.size === sites.length && sites.length) ? '取消全选' : '全选';
+  }
+
+  renderRows();
+  syncBatchBar();
+
+  // ---- 设置(左分区导航 + 右内容;整屏 & 弹窗共用同一套内容) ----
+  var SETTINGS_SECTIONS = {
+    general: {
+      title: '通用偏好',
+      body:
+        '<div class="space-y-6">'
+        + '<div><h3 class="text-base font-semibold">通用偏好</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">界面与展示相关的偏好设置。</p></div>'
+        + '<div class="space-y-1.5"><label class="text-sm font-medium">默认货币显示</label>'
+        + '<input value="RMB(折算)" class="h-10 w-64 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" /></div>'
+        + '</div>',
+    },
+    security: {
+      title: '安全',
+      body:
+        '<div class="space-y-6">'
+        + '<div><h3 class="text-base font-semibold">安全</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">登录密码、两步验证与登录方式。</p></div>'
+        // 修改密码:三输入框统一宽度对齐(w-80)
+        + '<div class="rounded-lg border border-border p-5"><p class="text-sm font-medium">修改密码</p>'
+        + '<div class="mt-4 space-y-3">'
+        + '<div class="flex items-center gap-4"><label class="w-24 shrink-0 text-right text-sm text-[hsl(var(--muted-foreground))]">当前密码</label>'
+        + '<input type="password" placeholder="输入当前密码" class="h-10 w-80 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" /></div>'
+        + '<div class="flex items-center gap-4"><label class="w-24 shrink-0 text-right text-sm text-[hsl(var(--muted-foreground))]">新密码</label>'
+        + '<input type="password" placeholder="输入新密码" class="h-10 w-80 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" /></div>'
+        + '<div class="flex items-center gap-4"><label class="w-24 shrink-0 text-right text-sm text-[hsl(var(--muted-foreground))]">确认新密码</label>'
+        + '<input type="password" placeholder="再次输入新密码" class="h-10 w-80 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" /></div>'
+        + '<div class="flex items-center gap-4"><span class="w-24 shrink-0"></span>'
+        + '<button class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">更新密码</button></div>'
+        + '</div></div>'
+        // 两步验证(TOTP):参考 new-api 的行式卡片 + 状态标签 + 操作按钮
+        + '<div class="rounded-lg border border-border p-5">'
+        + '<div class="flex items-start gap-3">'
+        + '<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--muted))]"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>'
+        + '<div class="min-w-0 flex-1"><div class="flex items-center gap-2"><p class="text-sm font-medium">两步验证 (2FA)</p>'
+        + '<span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">未启用</span></div>'
+        + '<p class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">使用 TOTP 验证器 App(如 Google Authenticator / 1Password)生成动态验证码,登录时二次校验。</p></div>'
+        + '<button class="shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">启用</button></div></div>'
+        // Passkey:参考 new-api 卡片 + 已注册列表
+        + '<div class="rounded-lg border border-border p-5">'
+        + '<div class="flex items-start gap-3">'
+        + '<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--muted))]"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="7" r="4"/><path d="M10.4 11.5a6 6 0 0 0-5.4 5.9V20h6"/><circle cx="17" cy="16" r="3"/><path d="m21 21-1.5-1.5"/></svg></span>'
+        + '<div class="min-w-0 flex-1"><div class="flex items-center gap-2"><p class="text-sm font-medium">Passkey</p>'
+        + '<span class="rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">1 个已注册</span></div>'
+        + '<p class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">用指纹 / 面容 / 硬件密钥(WebAuthn)免密登录,更安全便捷。</p></div>'
+        + '<button class="shrink-0 rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">添加 Passkey</button></div>'
+        + '<div class="mt-4 space-y-2 border-t border-border pt-4">'
+        + '<div class="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-[hsl(var(--accent))]"><span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>MacBook Pro · Touch ID</span>'
+        + '<span class="flex items-center gap-3"><span class="text-xs text-[hsl(var(--muted-foreground))]">3 天前</span><button class="text-xs font-medium text-red-500 hover:underline">移除</button></span></div>'
+        + '</div></div>'
+        // 会话
+        + '<div class="rounded-lg border border-border p-5"><p class="text-sm font-medium">会话</p><p class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">登录会话有效期 7 天(HttpOnly + Secure Cookie)。</p>'
+        + '<button class="mt-3 rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-[hsl(var(--accent))]">登出所有设备</button></div>'
+        + '</div>',
+    },
+    checkin: {
+      title: '签到',
+      body:
+        '<div class="space-y-6">'
+        + '<div><h3 class="text-base font-semibold">签到</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">自动签到的全局默认行为。</p></div>'
+        + '<div class="flex items-center gap-4 rounded-lg border border-border p-4">'
+        + '<button data-toggle="checkinDefault" onclick="toggleSetting(this)" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--muted))] transition"><span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-0 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span></button>'
+        + '<div><p class="text-sm font-medium">新增站点默认开启签到</p><p class="text-xs text-[hsl(var(--muted-foreground))]">新建站点时预勾选自动签到。</p></div></div>'
+        + '<div class="space-y-1.5"><label class="text-sm font-medium">跨天重置时区</label>'
+        + '<input value="Asia/Shanghai (UTC+8)" class="h-10 w-64 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />'
+        + '<p class="text-xs text-[hsl(var(--muted-foreground))]">用于判定"新的一天",决定何时把签到状态重置为未签。</p></div>'
+        + '<div class="rounded-lg border border-border p-4"><p class="text-sm font-medium">Turnstile 站点</p>'
+        + '<p class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">开启了人机验证的站点无法自动签到,会标记为"需手动",不影响其他站。</p></div>'
+        + '</div>',
+    },
+    data: {
+      title: '数据与关于',
+      body:
+        '<div class="space-y-6">'
+        + '<div><h3 class="text-base font-semibold">数据与关于</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">导出数据与版本信息。</p></div>'
+        + '<div class="flex flex-wrap gap-2">'
+        + '<button class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">导出 CSV</button>'
+        + '<button class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">导出 JSON</button></div>'
+        + '<p class="text-xs text-[hsl(var(--muted-foreground))]">导出内容不含 token 明文。</p>'
+        + '<div class="rounded-lg border border-border p-4 text-sm"><div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">应用</span><span class="font-medium">Rrelaynest</span></div>'
+        + '<div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">版本</span><span class="font-medium">v1.0.0</span></div>'
+        + '<div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">部署</span><span class="font-medium">Cloudflare Workers / Docker</span></div></div>'
+        + '<div class="rounded-lg border border-red-500/40 p-4"><p class="text-sm font-medium text-red-500">危险区</p>'
+        + '<p class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">清空所有站点及爬取数据,不可恢复。</p>'
+        + '<button class="mt-3 rounded-md bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600">清空全部数据</button></div>'
+        + '</div>',
+    },
+  };
+  var settingsSection = 'general';
+  function renderSettings() {
+    var sec = SETTINGS_SECTIONS[settingsSection];
+    var pageBody = document.getElementById('settingsBody');
+    if (pageBody) pageBody.innerHTML = sec.body;
+    // 导航高亮:整屏与弹窗共用 .snav-item[data-snav]
+    document.querySelectorAll('.snav-item').forEach(function (b) {
+      var on = b.getAttribute('data-snav') === settingsSection;
+      b.classList.toggle('bg-[hsl(var(--accent))]', on);
+      b.classList.toggle('font-medium', on);
+      b.classList.toggle('text-[hsl(var(--accent-foreground))]', on);
+      b.classList.toggle('text-[hsl(var(--muted-foreground))]', !on);
+    });
+    // 重新绑定注入内容里的主题切换段(通用偏好里有一组)
+    applyTheme(localStorage.getItem('rrelaynest-theme') || 'system');
+    document.querySelectorAll('#settingsBody .theme-seg').forEach(function (b) {
+      b.addEventListener('click', function () { setTheme(b.dataset.theme); });
+    });
+  }
+  function showSettingsSection(key) {
+    settingsSection = key;
+    renderSettings();
+  }
+  // 通用开关:点击在 开/关 间切换(操作 DOM,视觉即时更新)
+  function toggleSetting(btn) {
+    var on = btn.getAttribute('data-on') !== 'true';
+    btn.setAttribute('data-on', on ? 'true' : 'false');
+    btn.classList.toggle('bg-primary', on);
+    btn.classList.toggle('bg-[hsl(var(--muted))]', !on);
+    var knob = btn.firstElementChild;
+    knob.classList.toggle('translate-x-5', on);
+    knob.classList.toggle('translate-x-0', !on);
+  }
+  // 表格紧凑模式:中心化状态,主区「紧凑」按钮激活态反色 + 重渲表格(行高随之变化)
+  function toggleCompact() {
+    compactMode = !compactMode;
+    syncCompactBtn();
+    renderRows();
+  }
+  // 同步主区「紧凑」按钮视觉(激活=反色高亮,与批量按钮一致)
+  function syncCompactBtn() {
+    var b = document.getElementById('compactBtn');
+    if (!b) return;
+    b.classList.toggle('bg-primary', compactMode);
+    b.classList.toggle('text-primary-foreground', compactMode);
+    b.classList.toggle('bg-card', !compactMode);
+  }
+  // 侧边栏「设置」入口:切到设置视图(默认整屏形式)+ 首次渲染
+  function showSettings() {
+    showView('settings');
+    settingsSection = 'general';
+    renderSettings();
+  }
+
+  // ---- 初始化 ----
+  applyTheme(localStorage.getItem('rrelaynest-theme') || 'system');
+  renderSettings();
+  syncCompactBtn();
+  showView('login');
+</script>
+</body>
+</html>

@@ -95,6 +95,37 @@ export interface Database {
 - CSV：站点名/地址/币种/汇率/余额/折RMB/邮箱/签到状态/备注/上次爬取。`Content-Disposition: attachment`。
 - JSON：结构化站点数组，供备份/迁移。**两者都不含 token 明文**（TD4）。
 
+### 主题切换（R8，新增，纯前端）
+- **CSS 变量分层**（对齐 shadcn-vue）：`frontend/style.css` 的 `:root` 定义亮色 token
+  （`--background`/`--foreground`/`--card`/`--border`/`--primary`/`--muted-foreground` 等），
+  `.dark` 选择器覆盖成暗色值。所有组件只引用变量，不写死颜色。
+- **切换机制**：给 `document.documentElement` 加/去 `dark` class。三档状态：
+  - `light` / `dark`：显式，直接决定是否加 `dark` class。
+  - `system`：读 `window.matchMedia('(prefers-color-scheme: dark)')`，并 `addEventListener('change')`
+    实时跟随；组件卸载时移除监听。
+- **持久化**：选择写 `localStorage['rrelaynest-theme']`（值 `light|dark|system`，缺省 `system`）。
+- **防闪白（FOUC）**：在 `index.html` 的 `<head>` 内联一段极短脚本，在 Vue 挂载前读 localStorage +
+  matchMedia 先把 `dark` class 打上，避免首屏先渲染亮色再跳暗色。
+- **composable**：`frontend/composables/useTheme.ts` 暴露 `theme`（ref）+ `setTheme(mode)`，
+  封装上述逻辑；`main.ts` 初始化。登录页与 Dashboard 均生效（因为作用在 `<html>` 上，全局）。
+- **入口 UI**：主题切换器收进侧边栏（见下）；登录页右上角保留同款切换器。
+
+### 侧边栏（R9，新增，纯前端）
+- **触发**：Dashboard **左上角**一个汉堡图标（lucide `menu`），点击从左侧滑出抽屉式侧边栏；
+  遮罩层（半透明）盖住主内容，点遮罩或按 `Esc` 关闭。宽约 260px，`transform: translateX` 过渡。
+- **结构**（对齐用户确认的三块）：
+  1. **品牌头**：shield 图标 + `Rrelaynest`，下方 muted 副标题「中转站管理」。
+  2. **导航项**：`仪表盘` / `设置` / `关于`（lucide 图标 + 文案）；当前项高亮。本次为单页应用，
+     导航项以「滚动/切换主内容区」或占位为主，不引入 router 依赖（保持轻量）。
+  3. **操作区**（把原顶栏操作收纳进来）：`全部爬取` / `导出（CSV/JSON）` / `爬取间隔设置` /
+     `主题切换（亮/暗/跟随系统）`。
+  4. **底部**：账户信息（单用户，显示「管理员」）+ `退出登录`。
+- **顶栏精简**：原顶栏操作迁入侧边栏后，Dashboard 顶栏只留「汉堡图标 + 标题」和 1~2 个高频操作
+  （如 `全部爬取`），降低顶栏拥挤度。
+- **状态**：侧边栏开关状态为纯前端局部 state（`ref(false)`），不持久化、不涉后端。
+  移动窄屏下为覆盖式抽屉；宽屏可选常驻，本次先做覆盖式（实现简单、两端一致）。
+- **无新依赖**：用 Vue `<Transition>` + CSS transform 实现滑入滑出，不引入抽屉组件库。
+
 ## Schema 变更（相对废弃版）
 
 新增列 / 键，其余 4 表照搬：
