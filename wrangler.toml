@@ -1,0 +1,29 @@
+name = "rrelaynest"
+main = "src/worker/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 本地开发端口（7738 也是用户的本地代理出口，固定）
+[dev]
+port = 7738
+
+# 前端构建产物作为静态资源托管，非 /api/* 的请求回落到 SPA
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Cron 每 5 分钟触发一次；实际是否执行由面板设定的间隔（settings.scrape_interval_min）决定
+[triggers]
+crons = ["*/5 * * * *"]
+
+# D1 数据库绑定
+[[d1_databases]]
+binding = "DB"
+database_name = "rrelaynest-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# 需要通过 `wrangler secret put` 设置的密钥（勿写入仓库）：
+#   ADMIN_PASSWORD  登录密码
+#   SESSION_SECRET  会话 cookie 签名密钥
+#   ENCRYPTION_KEY  站点 access token 的加密密钥（32 字节，base64）

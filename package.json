@@ -1,0 +1,33 @@
+{
+  "name": "rrelaynest",
+  "version": "0.1.0",
+  "description": "集中管理 LLM API 中转站（new-api）的自部署面板，可部署到 Cloudflare Workers 或 Docker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:worker": "wrangler dev --port 7738",
+    "build": "vite build",
+    "deploy": "npm run build && wrangler deploy",
+    "start:node": "node --enable-source-maps dist-server/index.js",
+    "build:server": "tsc -p tsconfig.server.json",
+    "db:init": "wrangler d1 execute rrelaynest-db --local --file=./schema.sql",
+    "db:init:remote": "wrangler d1 execute rrelaynest-db --remote --file=./schema.sql",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.14",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vue": "^3.5.13",
+    "wrangler": "^3.99.0"
+  }
+}

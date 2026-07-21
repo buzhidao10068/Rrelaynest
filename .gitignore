@@ -1,0 +1,23 @@
+# 依赖与构建产物
+node_modules/
+dist/
+dist-server/
+
+# 本地密钥（勿提交）
+.dev.vars
+*.local
+
+# Docker / SQLite 本地数据
+data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Wrangler
+.wrangler/
+
+# 编辑器 / 系统
+.DS_Store
+.idea/
+.vscode/
+*.log
