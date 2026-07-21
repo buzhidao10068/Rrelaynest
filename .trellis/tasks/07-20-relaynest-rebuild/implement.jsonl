@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/big-question/workers-nodejs-compat.md", "reason": "双入口(Workers + Node/Docker)的核心约束:哪些 API 跨平台可用、哪些需适配层,直接决定 DB 抽象与两个 index 入口的写法"}
+{"file": ".trellis/spec/backend/security.md", "reason": "自研 auth(HMAC 会话 cookie)与 AES-GCM token 加密的安全基线,照搬废弃版时对齐 secret 处理、cookie 属性"}
+{"file": ".trellis/spec/big-question/system-constraints.md", "reason": "sites/site_groups/site_models 的唯一约束与写前检查:爬取落库用 DELETE+INSERT 替换,需保证 UNIQUE(site_id,*) 不产生重复/非确定读"}
+{"file": ".trellis/spec/backend/database.md", "reason": "D1 原生 SQL 的 prepare/bind/batch 事务用法,scrape-runner 批量替换分组/模型依赖事务语义"}
+{"file": ".trellis/spec/shared/timestamp.md", "reason": "统一时间戳(ms)约定,sites 的 last_scraped_at/last_checkin_at 与 cron 跨天重置判定需一致口径"}
