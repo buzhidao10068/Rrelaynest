@@ -1,7 +1,19 @@
 # 续接说明 / HANDOFF
 
 > 新终端接手本任务时，先读这个文件，再读 `prd.md` / `design.md` / `implement.md`。
-> 最近更新：2026-07-21 会话。任务处于 **Phase 2 执行中**（`task.py start` 已执行，status=in_progress）。
+> 最近更新：2026-07-22 会话。任务处于 **Phase 2 执行中**（`task.py start` 已执行，status=in_progress）。
+
+## 🔑 恢复本任务的一句话（新终端直接照做）
+
+```
+读 H:\学习\Github\Rrelaynest\.trellis\tasks\07-20-relaynest-rebuild\HANDOFF.md 恢复任务进度。
+UI 活文件在仓库 docs/ui-preview.html，改前先 Read
+（含中文，字符串匹配易失败，可用 Python 按 ASCII 锚点定位；改完用 node 校验 JS 语法）。
+桌面 C:\Users\Fjfangjie\Desktop\rrelaynest-ui\preview.html 只是快照，仓库改完需 copy 到桌面备份。
+```
+
+- 本文件是唯一入口，已串好 prd/design/implement 引用与全部 UI 交互清单，不用逐个点名。
+- 需要看**原始对话记录**时：`C:\Users\Fjfangjie\.claude\projects\H-----Github-Rrelaynest\` 下的 `.jsonl`。
 
 ## 一句话现状
 
@@ -78,7 +90,8 @@
 - pencil 出满 5 张（`01-login` / `02-dashboard` / `03-site-editor` / `04-dashboard-dark-theme` /
   `05-sidebar`，均在桌面 `rrelaynest-ui\`）。但 pencil 每张 3-6 分钟、走 cc-switch 本地网关时好时坏，
   且产出是 `.png` 死图，离可跑代码隔一层。用户遂决定**改用手写单文件 HTML 交互预览**。
-- **当前主交付物：`C:\Users\Fjfangjie\Desktop\rrelaynest-ui\preview.html`**——自包含单文件
+- **当前主交付物：仓库 `docs/ui-preview.html`**——自包含单文件
+  > ⚠ **活文件在仓库**:实际在改的是仓库 `docs/ui-preview.html`(最新)，桌面 `C:\Users\Fjfangjie\Desktop\rrelaynest-ui\preview.html` 只是备份快照。继续在仓库改后需重新 copy 到桌面，二者才不脱节。
   （Tailwind CDN + shadcn zinc CSS 变量 token + `darkMode:'class'`），真实部署流：登录→Dashboard，
   抽屉/弹窗/主题切换/表格排序/批量全部可交互。这份 HTML 就是块 7 Vue 代码的直接骨架。
 - **preview.html 已实现并经用户逐条确认的交互**：① 主题三档（亮/暗/跟随系统，localStorage + FOUC 防闪白）；
@@ -94,6 +107,36 @@
   ⑪ **R13 紧凑模式**：主区「紧凑」按钮切换表格行高 + 按钮反色（中心化 `compactMode`，从设置页移出）。
   ⑫ **新建/编辑分离**：`openModal('create')` 空表单（标题「新增站点」/按钮「创建」），
   行内铅笔 `editSite(name)→openModal('edit',site)` 填入数据（标题「编辑站点」/按钮「保存」）；批量按钮激活后固定反色、去 hover。
+- **2026-07-22 追加的交互（本轮会话，均已落地 + 语法校验过）**：
+  ⑬ **主页全逻辑打通**：行内爬取/签到/删除、全部爬取、导出 CSV/JSON、爬取间隔持久化(localStorage)、
+    Toast(success/error/info 三色，右下角，主题自适应，2.4s 淡出)、Esc 关闭优先级(签到窗→编辑窗→自定义面板→抽屉)。
+    preview 端用确定性伪随机模拟(不用 Math.random)，块 7 Vue 里换成真实 API 即可。
+  ⑭ **无 Token 警告**：站名后红色实心三角(叠白 `!`)，悬停 tooltip；`hasToken` 为 false 时爬取按钮置灰。
+    弹窗 Access Token 改为**选填**(留空可先建档)。
+  ⑮ **签到三层递进 + 金额链路**：弹窗签到区=「签到」主开关→勾选后展开「启用自动签到」+「默认签到增加金额(开关+金额输入)」。
+    手动签到:有默认金额→直接按预设额签到不弹窗；无默认金额→弹金额小窗手动填。签到金额经 `applyCheckin()` **累加到余额**。
+    徽章 `badgeFor(s)` 动态显示「已签 +金额」。字段:`autoCheckin`/`defAmtEnabled`/`defAmt`/`ckAmount`。
+    签到按钮置灰矩阵:无 Token 且签到 off 才灰(无 Token 但已配签到仍可点，手动记账)。
+  ⑯ **可编辑余额**：弹窗加「当前余额(站点货币)」输入框。中心化 `balNum` 为唯一数据源，`recalcBalance()` 派生
+    `bal`/`rmbNum`/`rmb`(= balNum × rate)。爬取/签到/编辑保存都走它。
+  ⑰ **自定义视图面板**(取代原「紧凑」按钮，位于「自定义」按钮)：右侧滑出窄面板(无全屏遮罩，左侧表格实时可见)，
+    含紧凑模式开关 + 列显隐勾选 + **列拖拽重排**(6 点手柄，HTML5 drag，`columns[]` 为列序唯一源)。点面板外/Esc 关闭。
+    原「排序字段/方向」下拉已删(排序统一走点表头三态循环)。
+  ⑱ **列宽可调 + 自动调整**：表格 `table-layout:fixed`，每列表头右缘可拖拽调宽(`.col-resizer`，最小 60px，存 `columns[].width`)；
+    「自定义」和「全部爬取」间加**「自动调整」**按钮(清内联宽→auto 布局测量→回写，封顶 420px；多次点击已修复只增不减的 bug)。
+  ⑲ **站点行拖拽重排**：仅未排序 + 非批量时可拖，且**只有从 6 点手柄(`.row-grip`)按下才触发**(mousedown 临时置 draggable，
+    dragend/mouseup 撤销)，避免行内选字/点按钮误触。调整 `sites` 原始顺序。
+  ⑳ **响应式**：Dashboard 操作按钮移动端换行、文字隐藏留图标；表格横向可滚；设置页左右分栏窄屏堆叠(导航横向滚)；
+    弹窗 `fixed inset-0` + `max-h` 内部滚动(小窗不裁)；汇率/货币双列窄屏转单列。
+  ㉑ **底部常驻横向滚动条**(`bottomScroll`，`fixed bottom-0`)：表格横向溢出且底边不在视口内时浮现，可拖，与表格滚动双向同步；
+    外层 `bottomScrollWrap` 不拦鼠标、内层才是可滚可点本体(修过点不中的 bug)。
+  ㉒ **手机端原生滚动**：`bindTableDragScroll` 已删(桌面鼠标按住空白横拖也一并去掉)；触屏完全交给浏览器原生滚动
+    (`touch-action:pan-x pan-y` + `-webkit-overflow-scrolling:touch`)，横竖同滑 + 惯性。
+  ㉓ **地址列可点跳转**：PC 直接开链接；移动端(`hover:none+pointer:coarse` 或 <640px)点击拦截，右下角弹确认条
+    (是→新标签跳转 / 否→隐藏 / 5s 无操作淡出)，不遮挡屏幕。
+  ㉔ **批量浮动栏改 `fixed`**：跟随视口底部(原 `absolute` 会随内容跑掉)。⚠ **遗留**:批量栏(`fixed bottom-6`)与底部滚动条
+    (`fixed bottom-0`)滚到最底时仍会重叠——曾试「批量模式隐藏滚动条」方案但被用户取消还原，重叠问题**当前未解决**，待定方案。
+  - 初始演示站点已扩到 ~43 个(脚本生成，覆盖多币种 USD/CNY/EUR/GBP、各签到态、有无 Token、余额已知/未知)。
 - pencil 仍可用（`@pencil.dev/cli`，登录 buzhidao10068@qq.com；网关 `127.0.0.1:15721` = cc-switch，
   `C:\yingyong\CC Switch\cc-switch.exe`，若 500 则重启它）。但当前流程以 preview.html 为准，pencil 不再用。
 
