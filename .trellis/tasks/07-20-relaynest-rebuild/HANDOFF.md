@@ -1,7 +1,7 @@
 # 续接说明 / HANDOFF
 
 > 新终端接手本任务时，先读这个文件，再读 `prd.md` / `design.md` / `implement.md`。
-> 最近更新：2026-07-22 会话。任务处于 **Phase 2 执行中**（`task.py start` 已执行，status=in_progress）。
+> 最近更新：2026-07-23 会话。任务处于 **Phase 2 执行中**（`task.py start` 已执行，status=in_progress）。
 
 ## 🔑 恢复本任务的一句话（新终端直接照做）
 
@@ -137,6 +137,20 @@ UI 活文件在仓库 docs/ui-preview.html，改前先 Read
   ㉔ **批量浮动栏改 `fixed`**：跟随视口底部(原 `absolute` 会随内容跑掉)。⚠ **遗留**:批量栏(`fixed bottom-6`)与底部滚动条
     (`fixed bottom-0`)滚到最底时仍会重叠——曾试「批量模式隐藏滚动条」方案但被用户取消还原，重叠问题**当前未解决**，待定方案。
   - 初始演示站点已扩到 ~43 个(脚本生成，覆盖多币种 USD/CNY/EUR/GBP、各签到态、有无 Token、余额已知/未知)。
+- **2026-07-23 追加的交互(本轮会话，均已落地 + node 语法校验过)**:
+  ㉕ **汇率两字段模型**:每站存「充值人民币 `rechargeRmb` + 到账站点货币 `rechargeAmount`」，派生 `ratio`(=rmb/amt)，
+    折算 RMB = 余额 × ratio(`ratioOf`/`recalcBalance`/`deriveRecharge` 回填旧单值汇率)。每站单独配置。
+  ㉖ **充值动作 + 三类历史流水**:行内充值按钮 `rechargeSite`(弹窗填充值人民币/到账额/**可编辑日期**)；
+    充值/签到/爬取三类日志(`rechargeLog`/`checkinLog`/`scrapeLog` + `logPush` 尊重显式 ts)，设置页「记录」分区三 tab 查看。
+  ㉗ **分页**:默认 10 条/页(可选 5/10/20/50/100)，左侧每页条数选择器 + 右侧 `<< 1 2 3 >>`(无方向箭头，`…` 可点跳页)；
+    设置页「通用偏好」可开关「隐藏分页」(全部平铺)。中心化 `pageSize`/`currentPage`/`paginationHidden`。
+  ㉘ **站点分组**:工具条「分组」按钮切换分组模式(表格内按组分区，可折叠标题行，分组时不分页)；
+    批量模式下标题行/站点行整行可点选中；分组模式下站点可**跨组拖拽**改分组(拖到别组行或组标题)。
+    新增/编辑弹窗加「分组」字段——**自定义下拉**(点输入框/箭头列出已有组，可选/可输入新组名新建/留空不分组)。
+  ㉙ **汉堡栏新增两页**:「站点」下加「爬虫」「测活」两个顶级视图(`data-view`)。
+    爬虫=爬取设置(定时开关/间隔+单位/并发/超时/重试/保存/立即全爬，对接 `/api/settings` scrape 段);
+    测活=站点连通性检测(mock,逐站串行探测状态徽章 待检/检测中/正常+ms/较慢/不可达,无 token 更易判不可达;
+    块7 需新增 `/api/sites/:id/ping` 类端点)。原「仪表盘」导航项文案统一改为「站点」。
 - pencil 仍可用（`@pencil.dev/cli`，登录 buzhidao10068@qq.com；网关 `127.0.0.1:15721` = cc-switch，
   `C:\yingyong\CC Switch\cc-switch.exe`，若 500 则重启它）。但当前流程以 preview.html 为准，pencil 不再用。
 

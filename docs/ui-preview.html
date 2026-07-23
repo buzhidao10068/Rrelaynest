@@ -93,7 +93,7 @@
 <body class="antialiased">
 
 <!-- ============ 登录页 ============ -->
-<div data-view="login">
+<div data-block="view-login" data-view="login">
   <div class="flex min-h-screen items-center justify-center p-6" style="background:hsl(var(--background));">
     <div class="w-[400px] space-y-6 rounded-lg border border-border bg-card p-8 shadow-sm">
       <div class="flex flex-col items-center gap-2">
@@ -115,10 +115,10 @@
 </div>
 
 <!-- ============ Dashboard(抽屉 + 弹窗都是覆盖层) ============ -->
-<div data-view="dashboard">
+<div data-block="view-dashboard" data-view="dashboard">
   <div class="relative min-h-screen overflow-hidden" style="background:hsl(var(--background));">
     <!-- 顶栏:只留汉堡 + 标题 -->
-    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
+    <header data-block="topbar-dashboard" class="flex items-center gap-3 border-b border-border px-4 py-3">
       <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
       </button>
@@ -129,7 +129,7 @@
     </header>
 
     <div class="space-y-6 p-4 sm:p-6">
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div data-block="stats-cards" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="rounded-lg border border-border bg-card p-5">
           <p class="text-sm text-[hsl(var(--muted-foreground))]">站点总数</p>
           <p id="statTotal" class="mt-1 text-3xl font-semibold">8</p>
@@ -144,11 +144,17 @@
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <button id="batchBtn" onclick="toggleBatch()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))] sm:px-4">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          批量
-        </button>
+      <div data-block="toolbar" class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap gap-2">
+          <button id="batchBtn" onclick="toggleBatch()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))] sm:px-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            批量
+          </button>
+          <button id="groupBtn" onclick="toggleGroupMode()" title="按分组分区展示(分组时不分页)" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))] sm:px-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+            分组
+          </button>
+        </div>
         <div class="flex flex-wrap gap-2">
           <button id="customizeBtn" onclick="openCustomize()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))] sm:px-4">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg>
@@ -170,18 +176,36 @@
       </div>
 
       <div>
-        <div id="tableScroll" class="overflow-x-auto rounded-lg border border-border bg-card">
+        <div data-block="site-table" id="tableScroll" class="overflow-x-auto rounded-lg border border-border bg-card">
           <table id="siteTable" class="w-full min-w-[860px] text-sm" style="table-layout:fixed;">
             <thead id="siteHead"></thead>
             <tbody id="siteRows"></tbody>
           </table>
+        </div>
+
+        <!-- 分页条:左侧每页条数选择器(可在设置页隐藏)+ 右侧翻页 << < 1 2 3 > >> -->
+        <div data-block="pagination" id="paginationBar" class="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <!-- 每页条数:点击展开自定义选项(5/10/20/50/100) -->
+          <div id="pageSizeWrap" class="relative">
+            <button id="pageSizeBtn" onclick="togglePageSizeMenu()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-[hsl(var(--accent))]">
+              <span>每页 <span id="pageSizeLabel">10</span> 条</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <!-- 下拉:向上弹出,避免被底部滚动条遮挡 -->
+            <div id="pageSizeMenu" class="absolute bottom-full left-0 z-40 mb-1 hidden min-w-[7rem] overflow-hidden rounded-md border border-border bg-card py-1 shadow-lg"></div>
+          </div>
+          <!-- 翻页:<< 上一页 页码 下一页 >> + 总数提示 -->
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="pageInfo" class="mr-1 text-xs text-[hsl(var(--muted-foreground))]"></span>
+            <div id="pager" class="flex items-center gap-1"></div>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- 常驻底部横向滚动条:表格溢出时浮在视口底部,随时可拖,与表格滚动同步 -->
     <!-- 外层只做定位(不拦鼠标);内层才是可滚动 + 可点的滚动条本体 -->
-    <div id="bottomScrollWrap" class="pointer-events-none fixed inset-x-0 bottom-0 z-30 hidden px-6 pb-1">
+    <div data-block="bottom-scroll" id="bottomScrollWrap" class="pointer-events-none fixed inset-x-0 bottom-0 z-30 hidden px-6 pb-1">
       <div id="bottomScroll" class="pointer-events-auto overflow-x-auto rounded-md bg-card/80 backdrop-blur"
            style="height:16px;scrollbar-width:auto;">
         <div id="bottomScrollSpacer" style="height:1px;"></div>
@@ -189,7 +213,7 @@
     </div>
 
     <!-- 批量拓展栏:Apple 毛玻璃浮动条,批量模式且有选中时从底部浮现 -->
-    <div id="batchBar" class="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex translate-y-24 justify-center opacity-0 transition-all duration-300">
+    <div data-block="batch-bar" id="batchBar" class="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex translate-y-24 justify-center opacity-0 transition-all duration-300">
       <div class="pointer-events-auto flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
            style="-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);">
         <span class="pl-2 text-sm font-medium"><span id="batchCount">0</span> 项已选</span>
@@ -205,7 +229,7 @@
     </div>
 
     <!-- 自定义面板:右侧滑出,无全屏遮罩,左侧表格实时可见 -->
-    <aside id="customizePanel" class="fixed inset-y-0 right-0 z-40 flex w-[320px] max-w-[85vw] translate-x-full flex-col border-l border-border bg-card shadow-xl transition-transform duration-300">
+    <aside data-block="customize-panel" id="customizePanel" class="fixed inset-y-0 right-0 z-40 flex w-[320px] max-w-[85vw] translate-x-full flex-col border-l border-border bg-card shadow-xl transition-transform duration-300">
       <div class="flex items-center gap-2 border-b border-border px-4 py-4">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg>
         <span class="text-base font-semibold">自定义视图</span>
@@ -242,7 +266,7 @@
     
 
     <!-- 编辑弹窗(覆盖层) -->
-    <div id="modalWrap" class="fixed inset-0 z-[60] hidden items-center justify-center overflow-y-auto p-4">
+    <div data-block="site-editor-modal" id="modalWrap" class="fixed inset-0 z-[60] hidden items-center justify-center overflow-y-auto p-4">
       <div onclick="closeModal()" class="fixed inset-0 bg-black/50"></div>
       <div class="relative my-auto max-h-[calc(100vh-2rem)] w-full max-w-[540px] space-y-5 overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-xl sm:p-6">
         <div class="flex items-start justify-between">
@@ -272,15 +296,36 @@
           <input id="m_balance" type="number" step="0.01" placeholder="留空表示未知" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
           <p class="text-xs text-[hsl(var(--muted-foreground))]">可手动填写；爬取或签到后自动更新。</p>
         </div>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div class="space-y-1.5">
-            <label class="text-sm font-medium">汇率 (1 RMB = ? 站点货币)</label>
-            <input id="m_rate" value="7.2" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <!-- 汇率:填一次真实充值的两个数(充值人民币 = 到账站点货币),折算按「余额 ÷ 到账 × 充值」 -->
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">汇率(按一次充值折算)</label>
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            <span class="text-[hsl(var(--muted-foreground))]">充值</span>
+            <input id="m_rechargeRmb" type="number" min="0" step="0.01" value="10" oninput="syncRatioHint()"
+                   class="h-10 w-24 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+            <span class="text-[hsl(var(--muted-foreground))]">元 =</span>
+            <input id="m_rechargeAmount" type="number" min="0" step="0.0001" value="1.4" oninput="syncRatioHint()"
+                   class="h-10 w-24 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+            <span id="m_ratioHint" class="text-[hsl(var(--muted-foreground))]">到账 USD</span>
           </div>
-          <div class="space-y-1.5">
-            <label class="text-sm font-medium">货币</label>
-            <input id="m_currency" value="USD" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+          <p class="text-xs text-[hsl(var(--muted-foreground))]">填写你实际充值时看到的两个数字,如「充 10 元到账 1.4 美元」。人民币站点填 1 = 1 即可。</p>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">货币</label>
+          <input id="m_currency" value="USD" oninput="syncRatioHint()" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">分组</label>
+          <div class="relative">
+            <input id="m_group" autocomplete="off" oninput="renderGroupMenu()" onfocus="openGroupMenu()" placeholder="不填=不分组;可选已有组或输入新组名新建"
+                   class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 pr-9 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+            <button type="button" onclick="toggleGroupMenu()" tabindex="-1"
+                    class="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div id="m_groupMenu" class="absolute left-0 right-0 top-full z-50 mt-1 hidden max-h-52 overflow-y-auto rounded-md border border-border bg-card py-1 shadow-lg"></div>
           </div>
+          <p class="text-xs text-[hsl(var(--muted-foreground))]">选择已有分组,或输入新名称创建;留空表示不分组。</p>
         </div>
         <div class="space-y-1.5">
           <label class="text-sm font-medium">注册邮箱</label>
@@ -347,7 +392,7 @@
 </div>
 
 <!-- ============ 手动签到:填本次到账金额(fixed,脱离父容器) ============ -->
-<div id="ckModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+<div data-block="checkin-modal" id="ckModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
   <div onclick="closeCkModal()" class="fixed inset-0 bg-black/50"></div>
   <div class="relative my-auto w-full max-w-[400px] space-y-5 rounded-lg border border-border bg-card p-5 shadow-xl sm:p-6">
     <div class="flex items-start justify-between">
@@ -376,11 +421,130 @@
   </div>
 </div>
 
+<!-- ============ 充值:充值人民币 → 到账站点货币 + 日期(fixed,脱离父容器) ============ -->
+<div data-block="recharge-modal" id="rcModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+  <div onclick="closeRcModal()" class="fixed inset-0 bg-black/50"></div>
+  <div class="relative my-auto w-full max-w-[420px] space-y-5 rounded-lg border border-border bg-card p-5 shadow-xl sm:p-6">
+    <div class="flex items-start justify-between">
+      <div>
+        <h2 class="text-lg font-semibold">充值</h2>
+        <p id="rcModalDesc" class="text-sm text-[hsl(var(--muted-foreground))]">记录一次充值:充多少人民币、到账多少站点货币</p>
+      </div>
+      <button onclick="closeRcModal()" class="flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="space-y-1.5">
+      <label class="text-sm font-medium">充值金额(人民币)</label>
+      <div class="flex items-center gap-2">
+        <span class="shrink-0 text-sm text-[hsl(var(--muted-foreground))]">¥</span>
+        <input id="rc_rmb" type="number" min="0" step="0.01" placeholder="0.00" oninput="syncRcHint()"
+               class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+      </div>
+    </div>
+    <div class="space-y-1.5">
+      <label class="text-sm font-medium">到账额度(站点货币)</label>
+      <div class="flex items-center gap-2">
+        <input id="rc_amount" type="number" min="0" step="0.0001" placeholder="0.00" oninput="syncRcHint()"
+               class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <span id="rc_curLabel" class="shrink-0 text-sm text-[hsl(var(--muted-foreground))]">USD</span>
+      </div>
+      <p id="rc_ratioHint" class="text-xs text-[hsl(var(--muted-foreground))]">本次充值将更新该站汇率,并把到账额度累加到余额。</p>
+    </div>
+    <div class="space-y-1.5">
+      <label class="text-sm font-medium">充值日期</label>
+      <input id="rc_date" type="date"
+             class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+    </div>
+    <p id="rcModalError" class="hidden rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-500"></p>
+    <div class="flex justify-end gap-2">
+      <button onclick="closeRcModal()" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">取消</button>
+      <button onclick="confirmRcModal()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">确认充值</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ 设置(独立整屏:左分区导航 + 右内容) ============ -->
-<div data-view="settings">
+<!-- 爬虫:全局爬取行为设置(间隔/并发/超时/重试);块7 对接 /api/settings 的 scrape 段 -->
+<div data-block="view-scraper" data-view="scraper">
+  <div class="min-h-screen" style="background:hsl(var(--background));">
+    <header data-block="topbar-scraper" class="flex items-center gap-3 border-b border-border px-4 py-3">
+      <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+        <span class="text-base font-semibold">爬虫</span>
+      </div>
+    </header>
+    <div class="mx-auto max-w-[900px] space-y-6 p-4 sm:p-6">
+      <div><h3 class="text-base font-semibold">爬取设置</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">余额爬取的全局行为;单站可在编辑中覆盖。</p></div>
+      <!-- 定时爬取开关 -->
+      <div class="flex items-center gap-4 rounded-lg border border-border p-4">
+        <button id="scrapeAutoSwitch" data-on="true" onclick="toggleScrapeAuto()" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--foreground))] transition"><span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-5 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span></button>
+        <div><p class="text-sm font-medium">启用定时爬取</p><p class="text-xs text-[hsl(var(--muted-foreground))]">由后端 cron 按下方间隔周期性爬取所有站点余额。</p></div>
+      </div>
+      <!-- 爬取间隔:可编辑数值 + 单位 -->
+      <div class="space-y-1.5"><label class="text-sm font-medium">爬取间隔</label>
+        <div class="flex items-center gap-2">
+          <input id="scrapeInterval" type="number" min="1" value="30" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+          <select id="scrapeIntervalUnit" class="h-10 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]"><option value="min">分钟</option><option value="hour">小时</option></select>
+        </div>
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">两次自动爬取之间的最小间隔,避免过于频繁触发站点风控。</p>
+      </div>
+      <!-- 并发数 -->
+      <div class="space-y-1.5"><label class="text-sm font-medium">并发数</label>
+        <input id="scrapeConcurrency" type="number" min="1" max="20" value="3" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">同时爬取的站点数量;过高可能触发限流。</p>
+      </div>
+      <!-- 单站超时 -->
+      <div class="space-y-1.5"><label class="text-sm font-medium">单站超时(秒)</label>
+        <input id="scrapeTimeout" type="number" min="1" value="15" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">单个站点请求超过该时长视为失败。</p>
+      </div>
+      <!-- 失败重试 -->
+      <div class="space-y-1.5"><label class="text-sm font-medium">失败重试次数</label>
+        <input id="scrapeRetry" type="number" min="0" max="5" value="1" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+      </div>
+      <div class="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <button onclick="saveScrapeSettings()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存设置</button>
+        <button onclick="scrapeAll()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">立即全部爬取</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 测活:站点连通性检测(mock;后端暂无对应接口,块7 需新增 /api/sites/:id/ping 类端点) -->
+<div data-block="view-activity" data-view="activity">
+  <div class="min-h-screen" style="background:hsl(var(--background));">
+    <header data-block="topbar-activity" class="flex items-center gap-3 border-b border-border px-4 py-3">
+      <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <span class="text-base font-semibold">测活</span>
+      </div>
+    </header>
+    <div class="mx-auto max-w-[900px] space-y-6 p-4 sm:p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div><h3 class="text-base font-semibold">站点连通性检测</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">逐站探测可访问性与响应耗时(演示为 mock 结果)。</p></div>
+        <button id="activityRunBtn" onclick="runActivityCheck()" class="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+          开始检测
+        </button>
+      </div>
+      <div class="rounded-lg border border-border bg-card">
+        <div id="activityList" class="divide-y divide-border"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div data-block="view-settings" data-view="settings">
   <div class="min-h-screen" style="background:hsl(var(--background));">
     <!-- 顶栏:汉堡 + 标题(与 Dashboard 一致,入口对称) -->
-    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
+    <header data-block="topbar-settings" class="flex items-center gap-3 border-b border-border px-4 py-3">
       <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
       </button>
@@ -393,7 +557,7 @@
     <!-- 整屏布局:左分区导航 + 右内容(窄屏堆叠:导航在上、内容在下) -->
     <div class="mx-auto flex max-w-[1100px] flex-col gap-6 p-4 sm:p-6 md:flex-row">
       <!-- 左分区导航:窄屏横向滚动,宽屏固定左列 -->
-      <nav id="settingsNav" class="flex shrink-0 gap-1 overflow-x-auto md:w-52 md:flex-col md:space-y-1 md:overflow-visible">
+      <nav data-block="settings-nav" id="settingsNav" class="flex shrink-0 gap-1 overflow-x-auto md:w-52 md:flex-col md:space-y-1 md:overflow-visible">
         <button onclick="showSettingsSection('general')" data-snav="general" class="snav-item flex shrink-0 items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm md:w-full">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
           通用偏好
@@ -406,6 +570,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg>
           签到
         </button>
+        <button onclick="showSettingsSection('records')" data-snav="records" class="snav-item flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+          记录
+        </button>
         <button onclick="showSettingsSection('data')" data-snav="data" class="snav-item flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
           数据与关于
@@ -413,18 +581,18 @@
       </nav>
 
       <!-- 右内容:各分区(共用 renderSettingsBody 注入) -->
-      <div id="settingsBody" class="min-w-0 flex-1"></div>
+      <div data-block="settings-body" id="settingsBody" class="min-w-0 flex-1"></div>
     </div>
   </div>
 </div>
 
 
 
-<div id="overlay" class="fixed inset-0 z-40 hidden bg-black/50"></div>
+<div data-block="overlay" id="overlay" class="fixed inset-0 z-40 hidden bg-black/50"></div>
 
 <!-- toast 容器:右下角,主题自适应 -->
-<div id="toastWrap" class="pointer-events-none fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2"></div>
-    <aside id="drawer" class="fixed inset-y-0 left-0 z-50 flex w-[280px] -translate-x-full flex-col border-r border-border bg-card shadow-xl transition-transform duration-300">
+<div data-block="toast-host" id="toastWrap" class="pointer-events-none fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2"></div>
+    <aside data-block="sidebar" id="drawer" class="fixed inset-y-0 left-0 z-50 flex w-[280px] -translate-x-full flex-col border-r border-border bg-card shadow-xl transition-transform duration-300">
       <div class="flex items-center gap-2 border-b border-border px-4 py-4">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
         <span class="text-base font-semibold">Rrelaynest</span>
@@ -436,7 +604,15 @@
       <nav class="space-y-1 p-3">
         <a onclick="goDashboard()" data-nav="dashboard" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-          仪表盘
+          站点
+        </a>
+        <a onclick="showScraper()" data-nav="scraper" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          爬虫
+        </a>
+        <a onclick="showActivity()" data-nav="activity" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          测活
         </a>
         <a onclick="showSettings()" data-nav="settings" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -504,7 +680,7 @@
     document.querySelectorAll('[data-view]').forEach(function (el) {
       el.classList.toggle('active', el.dataset.view === v);
     });
-    // 侧边栏导航高亮:随当前视图(仪表盘/设置)
+    // 侧边栏导航高亮:随当前视图(站点/设置)
     document.querySelectorAll('.nav-item').forEach(function (a) {
       var on = a.getAttribute('data-nav') === v;
       a.classList.toggle('bg-[hsl(var(--accent))]', on);
@@ -519,6 +695,103 @@
   // 回主页(与 showSettings 对称:都经侧边栏导航项触发)
   function goDashboard() {
     showView('dashboard');
+  }
+  // 爬虫:全局爬取设置页
+  function showScraper() {
+    showView('scraper');
+  }
+  // 测活:站点连通性检测页;进入即渲染待检列表(全部待检)
+  function showActivity() {
+    showView('activity');
+    renderActivityList();
+  }
+
+  // ---- 爬虫设置(演示端仅本次会话生效;块7 对接 /api/settings 的 scrape 段)----
+  // 定时爬取开关:切换视觉 + data-on;后端据此决定 cron 是否触发
+  function toggleScrapeAuto() {
+    var b = document.getElementById('scrapeAutoSwitch');
+    if (!b) return;
+    var on = b.getAttribute('data-on') !== 'true';
+    b.setAttribute('data-on', on ? 'true' : 'false');
+    b.classList.toggle('bg-[hsl(var(--foreground))]', on);
+    b.classList.toggle('bg-[hsl(var(--muted))]', !on);
+    var knob = b.querySelector('span');
+    if (knob) { knob.classList.toggle('translate-x-5', on); knob.classList.toggle('translate-x-0', !on); }
+  }
+  // 保存爬取设置:演示端只做基本校验 + toast;块7 PUT /api/settings
+  function saveScrapeSettings() {
+    var interval = parseInt(document.getElementById('scrapeInterval').value, 10);
+    var conc = parseInt(document.getElementById('scrapeConcurrency').value, 10);
+    if (!(interval >= 1)) { toast('爬取间隔需 ≥ 1', 'error'); return; }
+    if (!(conc >= 1)) { toast('并发数需 ≥ 1', 'error'); return; }
+    toast('爬取设置已保存', 'success');
+  }
+
+  // ---- 测活:站点连通性检测(mock;块7 需新增 /api/sites/:id/ping 类端点)----
+  var activityResults = {};   // { 站名: { status:'ok'|'slow'|'down', ms:number } }
+  var activityRunning = false;
+  // 单站状态徽章:ok=绿(正常)/ slow=琥珀(慢)/ down=红(不可达)/ pending=灰(待检)/ checking=蓝(检测中)
+  function activityBadge(st, ms) {
+    if (st === 'ok')   return '<span class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">● 正常 ' + ms + 'ms</span>';
+    if (st === 'slow') return '<span class="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">● 较慢 ' + ms + 'ms</span>';
+    if (st === 'down') return '<span class="inline-flex items-center gap-1 rounded-md bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-500">● 不可达</span>';
+    if (st === 'checking') return '<span class="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">● 检测中…</span>';
+    return '<span class="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">● 待检测</span>';
+  }
+  // 渲染测活列表:每站一行(站名 + 地址 + 状态徽章)
+  function renderActivityList() {
+    var host = document.getElementById('activityList');
+    if (!host) return;
+    if (!sites.length) {
+      host.innerHTML = '<div class="p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">暂无站点</div>';
+      return;
+    }
+    host.innerHTML = sites.map(function (s) {
+      var r = activityResults[s.name];
+      var badge = r ? activityBadge(r.status, r.ms) : activityBadge('pending');
+      return '<div class="flex items-center justify-between gap-3 px-4 py-3">'
+        + '<div class="min-w-0"><p class="truncate text-sm font-medium">' + s.name + '</p>'
+        + '<p class="truncate text-xs text-[hsl(var(--muted-foreground))]">' + s.url + '</p></div>'
+        + '<div class="shrink-0">' + badge + '</div></div>';
+    }).join('');
+  }
+  // 开始检测:逐站串行(演示用 setTimeout 模拟往返延迟),每站随机 mock 一个结果
+  function runActivityCheck() {
+    if (activityRunning || !sites.length) return;
+    activityRunning = true;
+    var btn = document.getElementById('activityRunBtn');
+    if (btn) { btn.disabled = true; btn.classList.add('opacity-60', 'cursor-not-allowed'); }
+    activityResults = {};
+    var host = document.getElementById('activityList');
+    var i = 0;
+    var step = function () {
+      if (i >= sites.length) {
+        activityRunning = false;
+        if (btn) { btn.disabled = false; btn.classList.remove('opacity-60', 'cursor-not-allowed'); }
+        var down = sites.filter(function (s) { return activityResults[s.name] && activityResults[s.name].status === 'down'; }).length;
+        toast(down ? ('检测完成,' + down + ' 个站点不可达') : '检测完成,全部站点正常', down ? 'error' : 'success');
+        return;
+      }
+      var s = sites[i];
+      // 先标记「检测中」
+      activityResults[s.name] = { status: 'checking', ms: 0 };
+      renderActivityList();
+      var delay = 220 + Math.floor(Math.random() * 480);
+      setTimeout(function () {
+        // mock 结果:无 token 的站点更可能不可达;其余多为正常/偶尔较慢
+        var roll = Math.random();
+        var st, ms = Math.floor(delay);
+        if (!s.hasToken && roll < 0.35) st = 'down';
+        else if (roll < 0.12) st = 'down';
+        else if (ms > 550) st = 'slow';
+        else st = 'ok';
+        activityResults[s.name] = { status: st, ms: ms };
+        renderActivityList();
+        i++;
+        step();
+      }, delay);
+    };
+    step();
   }
 
   // ---- 抽屉 ----
@@ -548,6 +821,20 @@
     document.getElementById('ckDefAmtRow').classList.toggle('hidden', !opt.defAmtOn);
     document.getElementById('m_defAmt').value = (opt.defAmt != null ? opt.defAmt : '');
   }
+  // 弹窗内实时更新汇率提示:「到账 {货币}」+ 折算比率(1 单位货币 ≈ ? RMB)
+  function syncRatioHint() {
+    var hint = document.getElementById('m_ratioHint');
+    if (!hint) return;
+    var cur = (document.getElementById('m_currency').value || 'USD').trim() || 'USD';
+    var rmb = parseFloat(document.getElementById('m_rechargeRmb').value);
+    var amt = parseFloat(document.getElementById('m_rechargeAmount').value);
+    var txt = '到账 ' + cur;
+    if (rmb > 0 && amt > 0) {
+      txt += '（1 ' + cur + ' ≈ ¥' + (rmb / amt).toFixed(2) + '）';
+    }
+    hint.textContent = txt;
+  }
+
   // mode: 'create' 新建(空表单) | 'edit' 编辑(填入 site 数据)
   // editingName 记录编辑对象的原始 name(作为主键),null=新建
   var editingName = null;
@@ -562,11 +849,15 @@
       document.getElementById('modalTitle').textContent = '编辑站点';
       document.getElementById('modalDesc').textContent = '修改中转站的连接信息与签到设置';
       val('m_name', site.name); val('m_url', 'https://' + site.url);
-      val('m_token', ''); val('m_rate', site.rate); val('m_currency', site.cur || 'USD');
+      val('m_token', ''); val('m_currency', site.cur || 'USD');
+      deriveRecharge(site);
+      val('m_rechargeRmb', site.rechargeRmb); val('m_rechargeAmount', site.rechargeAmount);
       val('m_email', site.email || ''); val('m_note', site.note || '');
       val('m_balance', site.balNum != null ? site.balNum : '');
+      val('m_group', site.group || '');
       document.getElementById('m_token').placeholder = '留空则保留原 token';
       document.getElementById('m_tokenHint').textContent = '留空则保留原 token（加密存储，不回显）';
+      syncRatioHint();
       // 签到区回填:ck!=='off' 视为已启用签到;auto/默认金额取站点已存字段
       fillCheckinSection({
         master: site.ck !== 'off',
@@ -580,17 +871,79 @@
       document.getElementById('modalTitle').textContent = '新增站点';
       document.getElementById('modalDesc').textContent = '添加一个新的 new-api 中转站';
       val('m_name', ''); val('m_url', ''); val('m_token', '');
-      val('m_rate', '7.2'); val('m_currency', 'USD'); val('m_email', ''); val('m_note', '');
-      val('m_balance', '');
+      val('m_rechargeRmb', '10'); val('m_rechargeAmount', '1.4');
+      val('m_currency', 'USD'); val('m_email', ''); val('m_note', '');
+      val('m_balance', ''); val('m_group', '');
       document.getElementById('m_token').placeholder = '选填,不填则该站无法爬取/签到,主页会有提示';
       document.getElementById('m_tokenHint').textContent = '选填。留空可先建档,主页会用红色三角提示该站尚未启用爬取。';
+      syncRatioHint();
       // 新建默认:签到关(展开区收起)
       fillCheckinSection({ master: false, auto: false, defAmtOn: false, defAmt: '' });
       document.getElementById('modalSubmit').textContent = '创建';
     }
+    closeGroupMenu();
     var m = document.getElementById('modalWrap');
     m.classList.remove('hidden'); m.classList.add('flex');
   }
+  // 「分组」自定义下拉:点输入框/箭头即列出已有组,可点选填入,也可手输新组名新建
+  function groupMenuOpen() {
+    var m = document.getElementById('m_groupMenu');
+    return m && !m.classList.contains('hidden');
+  }
+  function openGroupMenu() {
+    var m = document.getElementById('m_groupMenu');
+    if (!m) return;
+    renderGroupMenu();
+    m.classList.remove('hidden');
+    setTimeout(function () { document.addEventListener('mousedown', onDocClickGroupMenu); }, 0);
+  }
+  function closeGroupMenu() {
+    var m = document.getElementById('m_groupMenu');
+    if (m) m.classList.add('hidden');
+    document.removeEventListener('mousedown', onDocClickGroupMenu);
+  }
+  function toggleGroupMenu() {
+    if (groupMenuOpen()) { closeGroupMenu(); }
+    else { document.getElementById('m_group').focus(); openGroupMenu(); }
+  }
+  // 点面板/输入框外则收起
+  function onDocClickGroupMenu(e) {
+    var wrap = document.getElementById('m_group');
+    wrap = wrap && wrap.closest('.relative');
+    if (wrap && wrap.contains(e.target)) return;
+    closeGroupMenu();
+  }
+  // 选中某组:填入输入框并收起
+  function pickGroup(g) {
+    document.getElementById('m_group').value = g;
+    closeGroupMenu();
+  }
+  // 渲染候选:排除保留词「未分组」;按当前输入实时过滤;含「不分组(留空)」清除项
+  function renderGroupMenu() {
+    var m = document.getElementById('m_groupMenu');
+    if (!m) return;
+    var kw = (document.getElementById('m_group').value || '').trim().toLowerCase();
+    var groups = allGroups().filter(function (g) { return g !== '未分组'; });
+    var matched = kw ? groups.filter(function (g) { return g.toLowerCase().indexOf(kw) >= 0; }) : groups;
+    var html = '';
+    // 顶部「不分组」选项:清空输入
+    html += '<button type="button" onmousedown="event.preventDefault()" onclick="pickGroup(\'\')" '
+      + 'class="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]">'
+      + '<span>不分组</span></button>';
+    if (matched.length) {
+      html += matched.map(function (g) {
+        var ge = g.replace(/'/g, "'").replace(/"/g, '&quot;');
+        return '<button type="button" onmousedown="event.preventDefault()" onclick="pickGroup(\'' + ge + '\')" '
+          + 'class="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-[hsl(var(--accent))]">'
+          + '<span>' + g + '</span></button>';
+      }).join('');
+    } else if (kw) {
+      html += '<div class="px-3 py-1.5 text-sm text-[hsl(var(--muted-foreground))]">回车新建分组「' + kw + '」</div>';
+    }
+    m.innerHTML = html;
+  }
+
+  function fillGroupOptions() { renderGroupMenu(); }
   // 行内编辑:按站名从 sites 找到该行数据,以编辑模式打开弹窗
   function editSite(name) {
     var s = sites.filter(function (x) { return x.name === name; })[0];
@@ -617,10 +970,14 @@
     var name = document.getElementById('m_name').value.trim();
     var url  = document.getElementById('m_url').value.trim();
     var token= document.getElementById('m_token').value;
-    var rate = document.getElementById('m_rate').value.trim();
+    var rRmb = document.getElementById('m_rechargeRmb').value.trim();
+    var rAmt = document.getElementById('m_rechargeAmount').value.trim();
     var cur  = document.getElementById('m_currency').value.trim() || 'USD';
     var email= document.getElementById('m_email').value.trim();
     var note = document.getElementById('m_note').value;
+    // 分组:trim;空或'未分组'保留词都归一成空串(=不分组)
+    var group = document.getElementById('m_group').value.trim();
+    if (group === '未分组') group = '';
     // 签到设置:主开关 → 启用签到;auto → 自动签到;defAmtOn+defAmt → 默认签到到账金额
     var ckMaster   = document.getElementById('toggleSwitch').dataset.on === 'true';
     var autoOn     = document.getElementById('ckAutoSwitch').dataset.on === 'true';
@@ -628,12 +985,13 @@
     var defAmtRaw  = document.getElementById('m_defAmt').value.trim();
     var balRaw     = document.getElementById('m_balance').value.trim();
 
-    // 基本校验:名称 / URL 必填;新建时 token 必填;汇率必须是正数
+    // 基本校验:名称 / URL 必填;充值/到账两个数都必须为正
     if (!name) return showModalError('请填写站点名称');
     if (!url)  return showModalError('请填写站点地址');
     if (!/^https?:\/\//i.test(url)) return showModalError('站点地址需以 http:// 或 https:// 开头');
-    var rateNum = parseFloat(rate);
-    if (!(rateNum > 0)) return showModalError('汇率必须为正数');
+    var rechargeRmb = parseFloat(rRmb), rechargeAmount = parseFloat(rAmt);
+    if (!(rechargeRmb > 0))    return showModalError('充值金额(人民币)必须为正数');
+    if (!(rechargeAmount > 0)) return showModalError('到账额度(站点货币)必须为正数');
     // 余额选填:留空=未知(null);填了必须是数字
     var balNum = null;
     if (balRaw !== '') {
@@ -660,13 +1018,15 @@
       var ns = {
         name: name, url: normHost(url),
         balNum: balNum, bal: '—', rmb: '—', rmbNum: 0,
-        rate: rateNum.toFixed(2), cur: cur, email: email, note: note,
+        rechargeRmb: rechargeRmb, rechargeAmount: rechargeAmount,
+        rate: (rechargeRmb / rechargeAmount).toFixed(2), cur: cur, email: email, note: note,
         ck: ckState, scraped: '未爬取', scrapedMin: Infinity,
         hasToken: !!token,
         autoCheckin: ckMaster && autoOn,
         defAmtEnabled: ckMaster && defAmtOn,
         defAmt: (ckMaster && defAmtOn) ? defAmtNum : null,
         ckAmount: null,   // 本次签到实际到账(签到后填)
+        group: group,   // 分组:留空=不分组
       };
       recalcBalance(ns);
       sites.push(ns);
@@ -675,7 +1035,9 @@
       var target = sites.filter(function (x) { return x.name === editingName; })[0];
       if (target) {
         target.name = name; target.url = normHost(url);
-        target.rate = rateNum.toFixed(2); target.cur = cur;
+        target.rechargeRmb = rechargeRmb; target.rechargeAmount = rechargeAmount;
+        target.group = group;
+        target.rate = (rechargeRmb / rechargeAmount).toFixed(2); target.cur = cur;
         target.email = email; target.note = note;
         target.balNum = balNum;          // 手填余额(留空=未知);随后按新汇率重算
         recalcBalance(target);
@@ -786,17 +1148,30 @@
   // preview 端不联网,用本地模拟数据演示交互流(块7 Vue 里替换为真实 API 调用)
   function findSite(name) { return sites.filter(function (x) { return x.name === name; })[0]; }
 
+  // 汇率语义:每站记「充值多少人民币 rechargeRmb = 到账多少站点货币 rechargeAmount」两个真实数,
+  // 折算比率 ratio = rechargeRmb / rechargeAmount(即 1 单位站点货币值多少 RMB)。
+  // 折算公式:RMB = 余额 ÷ 到账 × 充值 = balNum × ratio。
+  function ratioOf(s) {
+    var rmb = parseFloat(s.rechargeRmb), amt = parseFloat(s.rechargeAmount);
+    if (!(rmb > 0) || !(amt > 0)) return 1;
+    return rmb / amt;
+  }
+  // 兼容旧演示数据:只有 rate(= ratio)时,按「充 10 元」反推到账额度,派生成两字段。
+  function deriveRecharge(s) {
+    if (s.rechargeRmb != null && s.rechargeAmount != null) return;
+    var ratio = parseFloat(s.rate) || 1;
+    s.rechargeRmb = 10;
+    s.rechargeAmount = Math.round((10 / ratio) * 100) / 100;  // 如 10/7.2=1.39
+  }
   // 依 balNum 重算显示字段:bal(站点货币)/rmbNum/rmb(折 RMB)。balNum=null 视为未知,显示 —
-  // 约定:rmbNum = balNum × rate(与演示数据一致)
   function recalcBalance(s) {
     if (s.balNum == null || isNaN(s.balNum)) {
       s.bal = '—'; s.rmbNum = 0; s.rmb = '—';
       return;
     }
-    var rateNum = parseFloat(s.rate) || 1;
     s.balNum = Math.round(s.balNum * 100) / 100;
     s.bal = curSign(s.cur) + s.balNum.toFixed(2);
-    s.rmbNum = Math.round(s.balNum * rateNum * 100) / 100;
+    s.rmbNum = Math.round(s.balNum * ratioOf(s) * 100) / 100;
     s.rmb = '¥' + s.rmbNum.toFixed(2);
   }
 
@@ -807,6 +1182,7 @@
     s.balNum = Math.round((10 + (name.length * 7 % 90)) * 100) / 100;  // 确定性伪随机(不用 Math.random)
     recalcBalance(s);
     s.scraped = '刚刚'; s.scrapedMin = 0;
+    logPush(scrapeLog, { site: s.name, balance: s.balNum, cur: s.cur || 'USD', ok: true });
     renderRows(); renderStats();
     toast('已爬取「' + name + '」余额', 'success');
   }
@@ -817,7 +1193,10 @@
   var ckTargetName = null;   // 当前正在签到的站名
   function checkinSite(name) {
     var s = findSite(name);
-    if (!s || !s.hasToken) return;
+    if (!s) return;
+    // 与行内按钮 disabled 条件一致:仅「无 Token 且未启用签到」为真正禁用态,直接忽略。
+    // 「已配置签到但缺 Token」仍放行——按手动记账处理(tooltip 已如此承诺)。
+    if (!s.hasToken && s.ck === 'off') return;
     if (s.ck === 'signed') { toast('「' + name + '」今日已签到', 'info'); return; }
     // 有默认金额:直接签到,不弹窗;金额累加到余额
     if (s.defAmtEnabled && s.defAmt != null && s.defAmt !== '' && Number(s.defAmt) >= 0) {
@@ -861,12 +1240,76 @@
     toast('「' + nm + '」签到成功,到账 ' + curSign(s.cur) + amt.toFixed(2)
           + ',余额 ' + curSign(s.cur) + s.balNum.toFixed(2), 'success');
   }
-  // 签到落账:标记已签 + 记录本次到账额 + 累加到余额(余额未知则以到账额为起点)
+  // 签到落账:标记已签 + 记录本次到账额 + 累加到余额(余额未知则以到账额为起点)+ 记一条签到日志
   function applyCheckin(s, amt) {
     s.ck = 'signed';
     s.ckAmount = amt;
     s.balNum = (s.balNum == null || isNaN(s.balNum)) ? amt : (s.balNum + amt);
     recalcBalance(s);
+    logPush(checkinLog, { site: s.name, amount: amt, cur: s.cur || 'USD' });
+  }
+
+  // ---- 充值:记一次充值(充值人民币 = 到账站点货币 + 日期) ----
+  // 确认后:①记 rechargeLog ②按本次充值更新该站汇率(rechargeRmb/rechargeAmount/rate)
+  //         ③到账额度累加到余额 ④重算/刷新/toast
+  var rcTargetName = null;   // 当前正在充值的站名
+  function rechargeSite(name) {
+    var s = findSite(name);
+    if (!s) return;
+    rcTargetName = name;
+    deriveRecharge(s);
+    document.getElementById('rc_rmb').value = '';
+    document.getElementById('rc_amount').value = '';
+    document.getElementById('rc_curLabel').textContent = s.cur || 'USD';
+    document.getElementById('rc_date').value = todayStr();
+    document.getElementById('rcModalDesc').textContent = '为「' + name + '」记录一次充值';
+    var err = document.getElementById('rcModalError');
+    err.classList.add('hidden'); err.textContent = '';
+    syncRcHint();
+    var m = document.getElementById('rcModalWrap');
+    m.classList.remove('hidden'); m.classList.add('flex');
+    setTimeout(function () { document.getElementById('rc_rmb').focus(); }, 0);
+  }
+  function closeRcModal() {
+    var m = document.getElementById('rcModalWrap');
+    if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+    rcTargetName = null;
+  }
+  // 充值弹窗实时提示:两数都有效时显示折算比率(1 单位站点货币 ≈ ? RMB)
+  function syncRcHint() {
+    var rmb = parseFloat(document.getElementById('rc_rmb').value);
+    var amt = parseFloat(document.getElementById('rc_amount').value);
+    var cur = document.getElementById('rc_curLabel').textContent || 'USD';
+    var el = document.getElementById('rc_ratioHint');
+    if (rmb > 0 && amt > 0) {
+      el.textContent = '本次汇率:1 ' + cur + ' ≈ ¥' + (rmb / amt).toFixed(2)
+        + ';确认后到账额度累加到余额,并更新该站汇率。';
+    } else {
+      el.textContent = '本次充值将更新该站汇率,并把到账额度累加到余额。';
+    }
+  }
+  function confirmRcModal() {
+    var s = findSite(rcTargetName);
+    if (!s) { closeRcModal(); return; }
+    var rmb = parseFloat(document.getElementById('rc_rmb').value.trim());
+    var amt = parseFloat(document.getElementById('rc_amount').value.trim());
+    var dateStr = document.getElementById('rc_date').value;
+    var err = document.getElementById('rcModalError');
+    if (!(rmb > 0)) { err.textContent = '请填写充值金额(大于 0 的人民币数)'; err.classList.remove('hidden'); return; }
+    if (!(amt > 0)) { err.textContent = '请填写到账额度(大于 0 的站点货币数)'; err.classList.remove('hidden'); return; }
+    // 更新该站汇率为本次充值比率
+    s.rechargeRmb = rmb;
+    s.rechargeAmount = amt;
+    s.rate = (rmb / amt).toFixed(2);
+    // 到账额度累加到余额(余额未知则以本次到账为起点)
+    s.balNum = (s.balNum == null || isNaN(s.balNum)) ? amt : (s.balNum + amt);
+    recalcBalance(s);
+    var nm = s.name;
+    logPush(rechargeLog, { site: nm, rmb: rmb, amount: amt, cur: s.cur || 'USD', ts: dateToTs(dateStr) });
+    closeRcModal();
+    renderRows(); renderStats();
+    toast('「' + nm + '」已充值 ¥' + rmb.toFixed(2) + ',到账 ' + curSign(s.cur) + amt.toFixed(2)
+          + ',余额 ' + curSign(s.cur) + s.balNum.toFixed(2), 'success');
   }
 
   // 删除单站(带确认)
@@ -886,6 +1329,7 @@
       s.balNum = Math.round((10 + (s.name.length * 7 % 90)) * 100) / 100;
       recalcBalance(s);
       s.scraped = '刚刚'; s.scrapedMin = 0;
+      logPush(scrapeLog, { site: s.name, balance: s.balNum, cur: s.cur || 'USD', ok: true });
     });
     renderRows(); renderStats();
     toast('已爬取 ' + targets.length + ' 个站点', 'success');
@@ -997,51 +1441,80 @@
   //             scrapedMin(距今分钟数,未爬取=Infinity)
   // balNum = 站点货币下的余额数值(null=未知);bal/rmb/rmbNum 由 recalcBalance 依 balNum 派生
   var sites = [
-    { name:'OpenAI-Relay', url:'api.openai-relay.com',   balNum:48.20,  bal:'$48.20',  rmb:'¥346.94', rate:'7.20', ck:'signed',  scraped:'2 分钟前',  rmbNum:346.94, scrapedMin:2,   hasToken:true,  autoCheckin:false, defAmtEnabled:true,  defAmt:0.10, ckAmount:0.10 },
-    { name:'GPT中转-A',     url:'gpt-zhongzhuan.net',     balNum:520.00, bal:'¥520.00', rmb:'¥520.00', rate:'1.00', ck:'manual',  scraped:'15 分钟前', rmbNum:520.00, scrapedMin:15,  hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Claude-Pool',  url:'pool.claude-cn.io',      balNum:120.50, bal:'$120.50', rmb:'¥867.60', rate:'7.20', ck:'signed',  scraped:'1 小时前',  rmbNum:867.60, scrapedMin:60,  hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.20, ckAmount:0.20 },
-    { name:'API聚合站',     url:'api-juhe.cn',            balNum:88.00,  bal:'¥88.00',  rmb:'¥88.00',  rate:'1.00', ck:'off',     scraped:'未爬取',    rmbNum:88.00,  scrapedMin:Infinity, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'DeepSeek-Hub', url:'hub.deepseek-relay.com', balNum:12.30,  bal:'$12.30',  rmb:'¥88.56',  rate:'7.20', ck:'manual',  scraped:'3 小时前',  rmbNum:88.56,  scrapedMin:180, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Gemini-中转',  url:'gemini-relay.example.com', balNum:null, bal:'—',    rmb:'—',       rate:'7.20', ck:'manual',  scraped:'未爬取',    rmbNum:0,      scrapedMin:Infinity, hasToken:false, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Azure-OpenAI', url:'azure-oai-proxy.cn',     balNum:256.80, bal:'$256.80', rmb:'¥1849.00', rate:'7.20', ck:'signed',  scraped:'5 分钟前',  rmbNum:1849.00, scrapedMin:5,   hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.50, ckAmount:0.50 },
-    { name:'月之暗面-Kimi', url:'kimi-relay.moonshot.cn', balNum:66.66,  bal:'¥66.66',  rmb:'¥66.66',  rate:'1.00', ck:'manual',  scraped:'42 分钟前', rmbNum:66.66,  scrapedMin:42,  hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'智谱-GLM',      url:'open.bigmodel.cn',       balNum:18.00,  bal:'¥18.00',  rmb:'¥18.00',  rate:'1.00', ck:'off',     scraped:'6 小时前',  rmbNum:18.00,  scrapedMin:360, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Grok-Relay',   url:'grok.x-relay.io',        balNum:5.00,   bal:'$5.00',   rmb:'¥36.00',  rate:'7.20', ck:'signed',  scraped:'刚刚',      rmbNum:36.00,  scrapedMin:0,   hasToken:true,  autoCheckin:true,  defAmtEnabled:false, defAmt:null, ckAmount:1.00 },
-    { name:'硅基流动',      url:'api.siliconflow.cn',     balNum:314.15, bal:'¥314.15', rmb:'¥314.15', rate:'1.00', ck:'manual',  scraped:'2 小时前',  rmbNum:314.15, scrapedMin:120, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Together-AI',  url:'api.together.xyz',       balNum:0.00,   bal:'$0.00',   rmb:'¥0.00',   rate:'7.20', ck:'off',     scraped:'1 天前',    rmbNum:0.00,   scrapedMin:1440, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Anthropic-CN', url:'anthropic-cn-0.example.com', balNum:159.00, bal:'$159.00', rmb:'¥1144.80', rate:'7.20', ck:'signed', scraped:'刚刚', rmbNum:1144.8, scrapedMin:0, hasToken:true, autoCheckin:true, defAmtEnabled:true, defAmt:0.10, ckAmount:0.10 },
-    { name:'Mistral-Hub', url:'mistral-hub-1.example.com', balNum:163.00, bal:'¥163.00', rmb:'¥163.00', rate:'1.00', ck:'manual', scraped:'3 分钟前', rmbNum:163, scrapedMin:3, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Cohere-Relay', url:'cohere-relay-2.example.com', balNum:193.00, bal:'€193.00', rmb:'¥1515.05', rate:'7.85', ck:'off', scraped:'12 分钟前', rmbNum:1515.05, scrapedMin:12, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Perplexity-中转', url:'perplexity-3.example.com', balNum:223.00, bal:'£223.00', rmb:'¥2029.30', rate:'9.10', ck:'signed', scraped:'28 分钟前', rmbNum:2029.3, scrapedMin:28, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50 },
-    { name:'Groq-Fast', url:'groq-fast-4.example.com', balNum:188.00, bal:'$188.00', rmb:'¥1353.60', rate:'7.20', ck:'manual', scraped:'1 小时前', rmbNum:1353.6, scrapedMin:60, hasToken:true, autoCheckin:false, defAmtEnabled:true, defAmt:0.50, ckAmount:null },
-    { name:'Fireworks-AI', url:'fireworks-ai-5.example.com', balNum:244.00, bal:'¥244.00', rmb:'¥244.00', rate:'1.00', ck:'off', scraped:'2 小时前', rmbNum:244, scrapedMin:120, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'OpenRouter-CN', url:'openrouter-cn-6.example.com', balNum:null, bal:'—', rmb:'—', rate:'7.85', ck:'signed', scraped:'4 小时前', rmbNum:0, scrapedMin:240, hasToken:false, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50 },
-    { name:'百度-文心', url:'relay-7.example.com', balNum:187.00, bal:'£187.00', rmb:'¥1701.70', rate:'9.10', ck:'manual', scraped:'8 小时前', rmbNum:1701.7, scrapedMin:480, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'阿里-通义', url:'relay-8.example.com', balNum:204.00, bal:'$204.00', rmb:'¥1468.80', rate:'7.20', ck:'off', scraped:'1 天前', rmbNum:1468.8, scrapedMin:1440, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'讯飞-星火', url:'relay-9.example.com', balNum:null, bal:'—', rmb:'—', rate:'1.00', ck:'signed', scraped:'未爬取', rmbNum:0, scrapedMin:Infinity, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50 },
-    { name:'腾讯-混元', url:'relay-10.example.com', balNum:238.00, bal:'€238.00', rmb:'¥1868.30', rate:'7.85', ck:'manual', scraped:'刚刚', rmbNum:1868.3, scrapedMin:0, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'字节-豆包', url:'relay-11.example.com', balNum:255.00, bal:'£255.00', rmb:'¥2320.50', rate:'9.10', ck:'off', scraped:'3 分钟前', rmbNum:2320.5, scrapedMin:3, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'零一万物', url:'relay-12.example.com', balNum:259.00, bal:'$259.00', rmb:'¥1864.80', rate:'7.20', ck:'signed', scraped:'12 分钟前', rmbNum:1864.8, scrapedMin:12, hasToken:true, autoCheckin:true, defAmtEnabled:true, defAmt:0.30, ckAmount:0.30 },
-    { name:'MiniMax-API', url:'minimax-api-13.example.com', balNum:null, bal:'—', rmb:'—', rate:'1.00', ck:'manual', scraped:'28 分钟前', rmbNum:0, scrapedMin:28, hasToken:false, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'阶跃星辰', url:'relay-14.example.com', balNum:293.00, bal:'€293.00', rmb:'¥2300.05', rate:'7.85', ck:'off', scraped:'1 小时前', rmbNum:2300.05, scrapedMin:60, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'商汤-日日新', url:'relay-15.example.com', balNum:336.00, bal:'£336.00', rmb:'¥3057.60', rate:'9.10', ck:'signed', scraped:'2 小时前', rmbNum:3057.6, scrapedMin:120, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50 },
-    { name:'Replicate-Hub', url:'replicate-hub-16.example.com', balNum:44.00, bal:'$44.00', rmb:'¥316.80', rate:'7.20', ck:'manual', scraped:'4 小时前', rmbNum:316.8, scrapedMin:240, hasToken:true, autoCheckin:false, defAmtEnabled:true, defAmt:0.20, ckAmount:null },
-    { name:'DeepInfra', url:'deepinfra-17.example.com', balNum:9.00, bal:'¥9.00', rmb:'¥9.00', rate:'1.00', ck:'off', scraped:'8 小时前', rmbNum:9, scrapedMin:480, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Novita-AI', url:'novita-ai-18.example.com', balNum:26.00, bal:'€26.00', rmb:'¥204.10', rate:'7.85', ck:'signed', scraped:'1 天前', rmbNum:204.1, scrapedMin:1440, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50 },
-    { name:'Lepton-AI', url:'lepton-ai-19.example.com', balNum:null, bal:'—', rmb:'—', rate:'9.10', ck:'manual', scraped:'未爬取', rmbNum:0, scrapedMin:Infinity, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'AnyScale-中转', url:'anyscale-20.example.com', balNum:null, bal:'—', rmb:'—', rate:'7.20', ck:'off', scraped:'刚刚', rmbNum:0, scrapedMin:0, hasToken:false, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Vertex-Gemini', url:'vertex-gemini-21.example.com', balNum:129.00, bal:'¥129.00', rmb:'¥129.00', rate:'1.00', ck:'signed', scraped:'3 分钟前', rmbNum:129, scrapedMin:3, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50 },
-    { name:'Bedrock-Relay', url:'bedrock-relay-22.example.com', balNum:146.00, bal:'€146.00', rmb:'¥1146.10', rate:'7.85', ck:'manual', scraped:'12 分钟前', rmbNum:1146.1, scrapedMin:12, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Ollama-Cloud', url:'ollama-cloud-23.example.com', balNum:150.00, bal:'£150.00', rmb:'¥1365.00', rate:'9.10', ck:'off', scraped:'28 分钟前', rmbNum:1365, scrapedMin:28, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'LM-Studio-Net', url:'lm-studio-net-24.example.com', balNum:180.00, bal:'$180.00', rmb:'¥1296.00', rate:'7.20', ck:'signed', scraped:'1 小时前', rmbNum:1296, scrapedMin:60, hasToken:true, autoCheckin:true, defAmtEnabled:true, defAmt:0.50, ckAmount:0.50 },
-    { name:'Poe-API', url:'poe-api-25.example.com', balNum:119.00, bal:'¥119.00', rmb:'¥119.00', rate:'1.00', ck:'manual', scraped:'2 小时前', rmbNum:119, scrapedMin:120, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'You-com-中转', url:'you-com-26.example.com', balNum:175.00, bal:'€175.00', rmb:'¥1373.75', rate:'7.85', ck:'off', scraped:'4 小时前', rmbNum:1373.75, scrapedMin:240, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
-    { name:'Phind-Relay', url:'phind-relay-27.example.com', balNum:null, bal:'—', rmb:'—', rate:'9.10', ck:'signed', scraped:'8 小时前', rmbNum:0, scrapedMin:480, hasToken:false, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50 },
-    { name:'Cursor-Pool', url:'cursor-pool-28.example.com', balNum:222.00, bal:'$222.00', rmb:'¥1598.40', rate:'7.20', ck:'manual', scraped:'1 天前', rmbNum:1598.4, scrapedMin:1440, hasToken:true, autoCheckin:false, defAmtEnabled:true, defAmt:0.40, ckAmount:null },
-    { name:'Windsurf-API', url:'windsurf-api-29.example.com', balNum:null, bal:'—', rmb:'—', rate:'1.00', ck:'off', scraped:'未爬取', rmbNum:0, scrapedMin:Infinity, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null },
+    { name:'OpenAI-Relay', url:'api.openai-relay.com',   balNum:48.20,  bal:'$48.20',  rmb:'¥346.94', rate:'7.20', ck:'signed',  scraped:'2 分钟前',  rmbNum:346.94, scrapedMin:2,   hasToken:true,  autoCheckin:false, defAmtEnabled:true,  defAmt:0.10, ckAmount:0.10, group:'主力' },
+    { name:'GPT中转-A',     url:'gpt-zhongzhuan.net',     balNum:520.00, bal:'¥520.00', rmb:'¥520.00', rate:'1.00', ck:'manual',  scraped:'15 分钟前', rmbNum:520.00, scrapedMin:15,  hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'主力' },
+    { name:'Claude-Pool',  url:'pool.claude-cn.io',      balNum:120.50, bal:'$120.50', rmb:'¥867.60', rate:'7.20', ck:'signed',  scraped:'1 小时前',  rmbNum:867.60, scrapedMin:60,  hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.20, ckAmount:0.20, group:'主力' },
+    { name:'API聚合站',     url:'api-juhe.cn',            balNum:88.00,  bal:'¥88.00',  rmb:'¥88.00',  rate:'1.00', ck:'off',     scraped:'未爬取',    rmbNum:88.00,  scrapedMin:Infinity, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'DeepSeek-Hub', url:'hub.deepseek-relay.com', balNum:12.30,  bal:'$12.30',  rmb:'¥88.56',  rate:'7.20', ck:'manual',  scraped:'3 小时前',  rmbNum:88.56,  scrapedMin:180, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'Gemini-中转',  url:'gemini-relay.example.com', balNum:null, bal:'—',    rmb:'—',       rate:'7.20', ck:'manual',  scraped:'未爬取',    rmbNum:0,      scrapedMin:Infinity, hasToken:false, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
+    { name:'Azure-OpenAI', url:'azure-oai-proxy.cn',     balNum:256.80, bal:'$256.80', rmb:'¥1849.00', rate:'7.20', ck:'signed',  scraped:'5 分钟前',  rmbNum:1849.00, scrapedMin:5,   hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.50, ckAmount:0.50, group:'主力' },
+    { name:'月之暗面-Kimi', url:'kimi-relay.moonshot.cn', balNum:66.66,  bal:'¥66.66',  rmb:'¥66.66',  rate:'1.00', ck:'manual',  scraped:'42 分钟前', rmbNum:66.66,  scrapedMin:42,  hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'智谱-GLM',      url:'open.bigmodel.cn',       balNum:18.00,  bal:'¥18.00',  rmb:'¥18.00',  rate:'1.00', ck:'off',     scraped:'6 小时前',  rmbNum:18.00,  scrapedMin:360, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'Grok-Relay',   url:'grok.x-relay.io',        balNum:5.00,   bal:'$5.00',   rmb:'¥36.00',  rate:'7.20', ck:'signed',  scraped:'刚刚',      rmbNum:36.00,  scrapedMin:0,   hasToken:true,  autoCheckin:true,  defAmtEnabled:false, defAmt:null, ckAmount:1.00, group:'机动' },
+    { name:'硅基流动',      url:'api.siliconflow.cn',     balNum:314.15, bal:'¥314.15', rmb:'¥314.15', rate:'1.00', ck:'manual',  scraped:'2 小时前',  rmbNum:314.15, scrapedMin:120, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'Together-AI',  url:'api.together.xyz',       balNum:0.00,   bal:'$0.00',   rmb:'¥0.00',   rate:'7.20', ck:'off',     scraped:'1 天前',    rmbNum:0.00,   scrapedMin:1440, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
+    { name:'Anthropic-CN', url:'anthropic-cn-0.example.com', balNum:159.00, bal:'$159.00', rmb:'¥1144.80', rate:'7.20', ck:'signed', scraped:'刚刚', rmbNum:1144.8, scrapedMin:0, hasToken:true, autoCheckin:true, defAmtEnabled:true, defAmt:0.10, ckAmount:0.10, group:'主力' },
+    { name:'Mistral-Hub', url:'mistral-hub-1.example.com', balNum:163.00, bal:'¥163.00', rmb:'¥163.00', rate:'1.00', ck:'manual', scraped:'3 分钟前', rmbNum:163, scrapedMin:3, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'Cohere-Relay', url:'cohere-relay-2.example.com', balNum:193.00, bal:'€193.00', rmb:'¥1515.05', rate:'7.85', ck:'off', scraped:'12 分钟前', rmbNum:1515.05, scrapedMin:12, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
+    { name:'Perplexity-中转', url:'perplexity-3.example.com', balNum:223.00, bal:'£223.00', rmb:'¥2029.30', rate:'9.10', ck:'signed', scraped:'28 分钟前', rmbNum:2029.3, scrapedMin:28, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50, group:'机动' },
+    { name:'Groq-Fast', url:'groq-fast-4.example.com', balNum:188.00, bal:'$188.00', rmb:'¥1353.60', rate:'7.20', ck:'manual', scraped:'1 小时前', rmbNum:1353.6, scrapedMin:60, hasToken:true, autoCheckin:false, defAmtEnabled:true, defAmt:0.50, ckAmount:null, group:'备用' },
+    { name:'Fireworks-AI', url:'fireworks-ai-5.example.com', balNum:244.00, bal:'¥244.00', rmb:'¥244.00', rate:'1.00', ck:'off', scraped:'2 小时前', rmbNum:244, scrapedMin:120, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
+    { name:'OpenRouter-CN', url:'openrouter-cn-6.example.com', balNum:null, bal:'—', rmb:'—', rate:'7.85', ck:'signed', scraped:'4 小时前', rmbNum:0, scrapedMin:240, hasToken:false, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50, group:'机动' },
+    { name:'百度-文心', url:'relay-7.example.com', balNum:187.00, bal:'£187.00', rmb:'¥1701.70', rate:'9.10', ck:'manual', scraped:'8 小时前', rmbNum:1701.7, scrapedMin:480, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'阿里-通义', url:'relay-8.example.com', balNum:204.00, bal:'$204.00', rmb:'¥1468.80', rate:'7.20', ck:'off', scraped:'1 天前', rmbNum:1468.8, scrapedMin:1440, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'讯飞-星火', url:'relay-9.example.com', balNum:null, bal:'—', rmb:'—', rate:'1.00', ck:'signed', scraped:'未爬取', rmbNum:0, scrapedMin:Infinity, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50, group:'机动' },
+    { name:'腾讯-混元', url:'relay-10.example.com', balNum:238.00, bal:'€238.00', rmb:'¥1868.30', rate:'7.85', ck:'manual', scraped:'刚刚', rmbNum:1868.3, scrapedMin:0, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'字节-豆包', url:'relay-11.example.com', balNum:255.00, bal:'£255.00', rmb:'¥2320.50', rate:'9.10', ck:'off', scraped:'3 分钟前', rmbNum:2320.5, scrapedMin:3, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'零一万物', url:'relay-12.example.com', balNum:259.00, bal:'$259.00', rmb:'¥1864.80', rate:'7.20', ck:'signed', scraped:'12 分钟前', rmbNum:1864.8, scrapedMin:12, hasToken:true, autoCheckin:true, defAmtEnabled:true, defAmt:0.30, ckAmount:0.30, group:'主力' },
+    { name:'MiniMax-API', url:'minimax-api-13.example.com', balNum:null, bal:'—', rmb:'—', rate:'1.00', ck:'manual', scraped:'28 分钟前', rmbNum:0, scrapedMin:28, hasToken:false, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
+    { name:'阶跃星辰', url:'relay-14.example.com', balNum:293.00, bal:'€293.00', rmb:'¥2300.05', rate:'7.85', ck:'off', scraped:'1 小时前', rmbNum:2300.05, scrapedMin:60, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'机动' },
+    { name:'商汤-日日新', url:'relay-15.example.com', balNum:336.00, bal:'£336.00', rmb:'¥3057.60', rate:'9.10', ck:'signed', scraped:'2 小时前', rmbNum:3057.6, scrapedMin:120, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50, group:'主力' },
+    { name:'Replicate-Hub', url:'replicate-hub-16.example.com', balNum:44.00, bal:'$44.00', rmb:'¥316.80', rate:'7.20', ck:'manual', scraped:'4 小时前', rmbNum:316.8, scrapedMin:240, hasToken:true, autoCheckin:false, defAmtEnabled:true, defAmt:0.20, ckAmount:null, group:'机动' },
+    { name:'DeepInfra', url:'deepinfra-17.example.com', balNum:9.00, bal:'¥9.00', rmb:'¥9.00', rate:'1.00', ck:'off', scraped:'8 小时前', rmbNum:9, scrapedMin:480, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
+    { name:'Novita-AI', url:'novita-ai-18.example.com', balNum:26.00, bal:'€26.00', rmb:'¥204.10', rate:'7.85', ck:'signed', scraped:'1 天前', rmbNum:204.1, scrapedMin:1440, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50, group:'测试' },
+    { name:'Lepton-AI', url:'lepton-ai-19.example.com', balNum:null, bal:'—', rmb:'—', rate:'9.10', ck:'manual', scraped:'未爬取', rmbNum:0, scrapedMin:Infinity, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
+    { name:'AnyScale-中转', url:'anyscale-20.example.com', balNum:null, bal:'—', rmb:'—', rate:'7.20', ck:'off', scraped:'刚刚', rmbNum:0, scrapedMin:0, hasToken:false, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
+    { name:'Vertex-Gemini', url:'vertex-gemini-21.example.com', balNum:129.00, bal:'¥129.00', rmb:'¥129.00', rate:'1.00', ck:'signed', scraped:'3 分钟前', rmbNum:129, scrapedMin:3, hasToken:true, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50, group:'机动' },
+    { name:'Bedrock-Relay', url:'bedrock-relay-22.example.com', balNum:146.00, bal:'€146.00', rmb:'¥1146.10', rate:'7.85', ck:'manual', scraped:'12 分钟前', rmbNum:1146.1, scrapedMin:12, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'机动' },
+    { name:'Ollama-Cloud', url:'ollama-cloud-23.example.com', balNum:150.00, bal:'£150.00', rmb:'¥1365.00', rate:'9.10', ck:'off', scraped:'28 分钟前', rmbNum:1365, scrapedMin:28, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'机动' },
+    { name:'LM-Studio-Net', url:'lm-studio-net-24.example.com', balNum:180.00, bal:'$180.00', rmb:'¥1296.00', rate:'7.20', ck:'signed', scraped:'1 小时前', rmbNum:1296, scrapedMin:60, hasToken:true, autoCheckin:true, defAmtEnabled:true, defAmt:0.50, ckAmount:0.50, group:'主力' },
+    { name:'Poe-API', url:'poe-api-25.example.com', balNum:119.00, bal:'¥119.00', rmb:'¥119.00', rate:'1.00', ck:'manual', scraped:'2 小时前', rmbNum:119, scrapedMin:120, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'You-com-中转', url:'you-com-26.example.com', balNum:175.00, bal:'€175.00', rmb:'¥1373.75', rate:'7.85', ck:'off', scraped:'4 小时前', rmbNum:1373.75, scrapedMin:240, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'机动' },
+    { name:'Phind-Relay', url:'phind-relay-27.example.com', balNum:null, bal:'—', rmb:'—', rate:'9.10', ck:'signed', scraped:'8 小时前', rmbNum:0, scrapedMin:480, hasToken:false, autoCheckin:true, defAmtEnabled:false, defAmt:null, ckAmount:0.50, group:'机动' },
+    { name:'Cursor-Pool', url:'cursor-pool-28.example.com', balNum:222.00, bal:'$222.00', rmb:'¥1598.40', rate:'7.20', ck:'manual', scraped:'1 天前', rmbNum:1598.4, scrapedMin:1440, hasToken:true, autoCheckin:false, defAmtEnabled:true, defAmt:0.40, ckAmount:null, group:'机动' },
+    { name:'Windsurf-API', url:'windsurf-api-29.example.com', balNum:null, bal:'—', rmb:'—', rate:'1.00', ck:'off', scraped:'未爬取', rmbNum:0, scrapedMin:Infinity, hasToken:true, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
   ];
   // 签到状态排序优先级:已签 < 需手动 < 未启用
   var ckOrder = { signed: 0, manual: 1, off: 2 };
+
+  // ---- 三类历史记录:充值 / 签到 / 爬取。每条 { ts, site, ... },设置页「记录」分区展示 ----
+  // preview 端只存内存(刷新即清);块7 Vue 里换成后端表 + 分页接口。
+  var rechargeLog = [];   // { ts, site, rmb, amount, cur }  充值人民币 → 到账站点货币
+  var checkinLog  = [];   // { ts, site, amount, cur }        本次签到到账
+  var scrapeLog   = [];   // { ts, site, balance, cur, ok }   爬取到的余额
+  // 记一条日志(最新在前)。entry 已带 ts(如充值可指定日期)则沿用,否则取当前时刻
+  function logPush(arr, entry) {
+    if (entry.ts == null) entry.ts = Date.now();
+    arr.unshift(entry);
+  }
+  // 时间戳 → 「MM-DD HH:mm」(演示用本地时区;块7 用后端返回的格式化时间或站点设定时区)
+  function fmtTs(ts) {
+    var d = new Date(ts);
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  // 「YYYY-MM-DD」→ 当天 12:00 的时间戳(充值弹窗日期用);空/非法回落当前时刻
+  function dateToTs(str) {
+    if (!str) return Date.now();
+    var t = new Date(str + 'T12:00:00');
+    return isNaN(t.getTime()) ? Date.now() : t.getTime();
+  }
+  // 当前日期 → 「YYYY-MM-DD」(充值弹窗默认值)
+  function todayStr() {
+    var d = new Date();
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
 
   // ---- 列配置:驱动表头 + 行渲染 + 自定义面板 ----
   // visible 控制列显隐;sortable 决定该列能否点表头/进排序下拉;name 列固定显示(always)
@@ -1058,8 +1531,10 @@
   var ACTION_COL_W = 150;   // 操作列固定宽
   var MIN_COL_W = 60;       // 列最小宽,拖拽不得更窄
   function colVisible(key) { return columns.some(function (c) { return c.key === key && c.visible; }); }
-  // 货币符号(仅 USD 用 $,其余留空跟数值)
-  function curSign(cur) { return cur === 'USD' ? '$' : ''; }
+  // 货币符号映射:常见币种给出符号,未知币种留空(数值前不加符号)。
+  // 影响新建/编辑/充值/签到时经 recalcBalance 生成的 bal 与提示文案。
+  var CUR_SIGNS = { USD:'$', EUR:'€', GBP:'£', JPY:'¥', CNY:'¥', RMB:'¥', HKD:'HK$', AUD:'A$', CAD:'C$' };
+  function curSign(cur) { return CUR_SIGNS[(cur || '').toUpperCase()] || ''; }
   // 签到徽章:已签时按站点实际到账额动态显示(有 ckAmount 显示 +金额,无则只「已签」)
   function badgeFor(s) {
     if (s.ck === 'signed') {
@@ -1076,6 +1551,7 @@
     checkin:'<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>',
     edit:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/>',
     del:'<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    recharge:'<path d="M19 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/><path d="M21 8h-5a2 2 0 0 0 0 4h5V8z"/><path d="M16 10h.01"/>',
   };
   // opts: { disabled?, title?, onclick? }
   // 禁用态:opacity-50 + cursor-not-allowed + 屏蔽 hover 变色,颜色仍走 --muted-foreground,自动适应主题
@@ -1094,16 +1570,15 @@
   }
   function rowHtml(s) {
     var sel = selected.has(s.name);
-    // 批量模式:站名前圆点。未选=白底描边(⚪),已选=黑底带勾(⚫)
+    // 批量模式:站名前圆点(纯视觉,选中由整行 onRowClick 处理)。未选=白底描边(⚪),已选=黑底带勾(⚫)
     var dot = batchMode
-      ? '<button onclick="toggleSelect(\'' + s.name.replace(/'/g, "\\'") + '\')" '
-        + 'class="mr-3 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border align-middle transition '
+      ? '<span class="mr-3 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border align-middle transition '
         + (sel
             ? 'border-[hsl(var(--foreground))] bg-[hsl(var(--foreground))] text-[hsl(var(--background))]'
             : 'border-[hsl(var(--muted-foreground))] bg-[hsl(var(--background))]')
         + '">'
         + (sel ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' : '')
-        + '</button>'
+        + '</span>'
       : '';
     // 无 token 警告:站名后跟红色实心三角(SVG),叠白色 "!" 字符,悬停 tooltip;颜色用 text-red-500,自动适应主题
     var warn = s.hasToken ? '' :
@@ -1119,8 +1594,8 @@
       + '</span>';
     var pad = compactMode ? 'px-4 py-1.5' : 'px-4 py-3';   // 紧凑模式减小行高
     var nameEsc = s.name.replace(/'/g, "\\'");
-    // 行拖拽重排:只在未排序 + 非批量时可拖(否则显示顺序与 sites 数组不一致)
-    var rowDraggable = !batchMode && !sortKey;
+    // 行拖拽:非批量时可拖。平铺模式=重排(需未排序);分组模式=可跨组拖拽改分组(排序下也允许)
+    var rowDraggable = !batchMode && (groupMode || !sortKey);
     // 拖拽手柄:仅在可拖时出现,悬停行时显现,给出可拖视觉提示
     var grip = rowDraggable
       ? '<span data-drag-handle class="row-grip mr-2 inline-flex h-5 w-4 shrink-0 cursor-grab items-center justify-center align-middle text-[hsl(var(--muted-foreground))] opacity-0 transition group-hover/row:opacity-100 active:cursor-grabbing" title="按住拖动重排">'
@@ -1139,8 +1614,9 @@
     };
     var cells = columns.filter(function (c) { return c.visible; })
       .map(function (c) { return cell[c.key]; }).join('');
-    return '<tr data-row-name="' + s.name.replace(/"/g, '&quot;') + '"' + (rowDraggable ? ' data-row-draggable="1"' : '')
-      + ' class="group/row border-b border-border last:border-0 hover:bg-[hsl(var(--accent))]/40' + (sel ? ' bg-[hsl(var(--accent))]/40' : '') + '">'
+    return '<tr data-row-name="' + s.name.replace(/"/g, '&quot;') + '" data-row-group="' + (s.group || '未分组').replace(/"/g, '&quot;') + '"' + (rowDraggable ? ' data-row-draggable="1"' : '')
+      + (batchMode ? ' onclick="onRowClick(event, \'' + nameEsc + '\')"' : '')
+      + ' class="group/row border-b border-border last:border-0 hover:bg-[hsl(var(--accent))]/40' + (batchMode ? ' cursor-pointer' : '') + (sel ? ' bg-[hsl(var(--accent))]/40' : '') + '">'
       + cells
       + '<td class="' + pad + '"><div class="flex justify-end gap-1">'
       + iconBtn('scrape', false, "scrapeSite('" + nameEsc + "')", { disabled: !s.hasToken, title: s.hasToken ? '爬取' : '未设置 Access Token,无法爬取' })
@@ -1151,6 +1627,7 @@
                 : s.ck === 'off' ? '该站未启用签到,请在编辑中开启'
                 : '手动签到'
         })
+      + iconBtn('recharge', false, "rechargeSite('" + nameEsc + "')", { title: '充值(记录充值人民币→到账额度)' })
       + iconBtn('edit', false, "editSite('" + nameEsc + "')", { title: '编辑' })
       + iconBtn('del', true, "deleteSite('" + nameEsc + "')", { title: '删除' })
       + '</div></td></tr>';
@@ -1195,16 +1672,274 @@
     bindColResize();
     syncTableMinWidth();
   }
-  function renderRows() {
-    renderHead();
+  // ---- 分页:默认每页 10 条,可选 5/10/20/50/100;可在设置页隐藏整条分页 ----
+  var PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100];
+  var pageSize = 10;      // 每页条数
+  var currentPage = 1;    // 当前页(1 起)
+  var paginationHidden = false;  // 设置页可切换:隐藏则不分页、全部平铺
+
+  // 依当前排序算出的完整列表(供分页切片与翻页共用)
+  function sortedSites() {
     var list = sites.slice();
     if (sortKey && sortDir) {
       var cmp = comparators[sortKey];
       list.sort(function (a, b) { var r = cmp(a, b); return sortDir === 'asc' ? r : -r; });
     }
+    return list;
+  }
+  // 总页数(至少 1);隐藏分页时视为 1 页(全部)
+  function totalPages() {
+    if (paginationHidden) return 1;
+    return Math.max(1, Math.ceil(sites.length / pageSize));
+  }
+  // 跳到指定页(夹到合法范围)并重渲
+  function goToPage(p) {
+    var tp = totalPages();
+    currentPage = Math.min(Math.max(1, p), tp);
+    renderRows();
+  }
+
+  // ---- 分组模式(工具条「分组」按钮切换)----
+  // 开启:按组分区展示(每组一个可折叠标题行),分页让路;关闭:恢复平铺 + 分页
+  var groupMode = false;
+  var collapsedGroups = {};   // 记录被折叠的组名
+  // 按声明顺序去重收集所有分组名
+  function allGroups() {
+    var seen = {}, out = [];
+    sites.forEach(function (s) { var g = s.group || '未分组'; if (!seen[g]) { seen[g] = 1; out.push(g); } });
+    return out;
+  }
+  function toggleGroup(g) {
+    collapsedGroups[g] = !collapsedGroups[g];
+    renderRows();
+  }
+  // 可见列数 + 1(操作列),用于分区标题行 colspan
+  function totalColCount() {
+    return columns.filter(function (c) { return c.visible; }).length + 1;
+  }
+  // 分区标题行:折叠箭头 + 组名 + 该组站点数 + 组内折算RMB合计
+  // 整行可点:批量模式下点行=选中/取消该组全部站点(行首出现圆形选择点);否则点行=折叠/展开
+  function groupHeaderHtml(g, rows) {
+    var collapsed = !!collapsedGroups[g];
+    var sum = rows.reduce(function (a, s) { return a + (s.rmbNum || 0); }, 0);
+    var gEsc = g.replace(/'/g, "\\'");
+    var caret = collapsed
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'
+      : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+    // 批量模式:组选择点(全选=实心带勾 / 部分选=实心减号 / 未选=描边空心)
+    var lead;
+    if (batchMode) {
+      var total = rows.length;
+      var selCount = rows.reduce(function (a, s) { return a + (selected.has(s.name) ? 1 : 0); }, 0);
+      var allSel = total > 0 && selCount === total;
+      var someSel = selCount > 0 && !allSel;
+      var mark = allSel
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
+        : someSel
+          ? '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>'
+          : '';
+      lead = '<span class="mr-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border align-middle transition '
+        + ((allSel || someSel)
+            ? 'border-[hsl(var(--foreground))] bg-[hsl(var(--foreground))] text-[hsl(var(--background))]'
+            : 'border-[hsl(var(--muted-foreground))] bg-[hsl(var(--background))]')
+        + '">' + mark + '</span>';
+    } else {
+      lead = caret;
+    }
+    var onclick = batchMode ? 'toggleGroupSelect(\'' + gEsc + '\')' : 'toggleGroup(\'' + gEsc + '\')';
+    return '<tr data-group-header="' + gEsc.replace(/"/g, '&quot;') + '" class="cursor-pointer border-b border-border bg-[hsl(var(--muted))]/40 hover:bg-[hsl(var(--muted))]/70" onclick="' + onclick + '">'
+      + '<td colspan="' + totalColCount() + '" class="px-4 py-2">'
+      + '<span class="inline-flex items-center gap-2 text-sm font-semibold">'
+      + lead + '<span>' + g + '</span>'
+      + '<span class="rounded-full bg-[hsl(var(--background))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">' + rows.length + ' 站</span>'
+      + '<span class="text-xs font-normal text-[hsl(var(--muted-foreground))]">合计 ¥' + sum.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '</span>'
+      + '</span></td></tr>';
+  }
+  // 批量模式:点分组标题 = 该组全选中则取消全组,否则补选全组
+  function toggleGroupSelect(g) {
+    var rows = sites.filter(function (s) { return (s.group || '未分组') === g; });
+    var allSel = rows.length > 0 && rows.every(function (s) { return selected.has(s.name); });
+    if (allSel) rows.forEach(function (s) { selected.delete(s.name); });
+    else rows.forEach(function (s) { selected.add(s.name); });
+    renderRows();
+    syncBatchBar();
+  }
+  // 工具条「分组」按钮:切换分组模式 + 按钮反色 + 重渲
+  function toggleGroupMode() {
+    groupMode = !groupMode;
+    var btn = document.getElementById('groupBtn');
+    if (btn) {
+      btn.classList.toggle('bg-primary', groupMode);
+      btn.classList.toggle('text-primary-foreground', groupMode);
+      btn.classList.toggle('hover:bg-primary', groupMode);
+      btn.classList.toggle('bg-card', !groupMode);
+      btn.classList.toggle('hover:bg-[hsl(var(--accent))]', !groupMode);
+    }
+    renderRows();
+  }
+
+  function renderRows() {
+    renderHead();
+    // 分组模式:按组聚合(组序按声明顺序),各组内套用当前排序;分页让路(平铺全部)
+    if (groupMode) {
+      var sorted = sortedSites();
+      var groups = allGroups();
+      var byGroup = {};
+      groups.forEach(function (g) { byGroup[g] = []; });
+      sorted.forEach(function (s) { var g = s.group || '未分组'; (byGroup[g] = byGroup[g] || []).push(s); });
+      var gh = '';
+      groups.forEach(function (g) {
+        var rows = byGroup[g] || [];
+        gh += groupHeaderHtml(g, rows);
+        if (!collapsedGroups[g]) gh += rows.map(rowHtml).join('');
+      });
+      document.getElementById('siteRows').innerHTML = gh;
+      bindRowDrag();
+      var pbar = document.getElementById('paginationBar');
+      if (pbar) pbar.classList.add('hidden');   // 分组模式下分页条恒隐
+      syncBottomScroll();
+      return;
+    }
+    var list = sortedSites();
+    // 分页切片(隐藏分页时不切,全部展示)
+    if (!paginationHidden) {
+      var tp = totalPages();
+      if (currentPage > tp) currentPage = tp;   // 删站后当前页可能越界,回拉
+      var start = (currentPage - 1) * pageSize;
+      list = list.slice(start, start + pageSize);
+    }
     document.getElementById('siteRows').innerHTML = list.map(rowHtml).join('');
     bindRowDrag();
+    renderPagination();
     syncBottomScroll();
+  }
+
+  // ---- 分页条渲染:左侧每页条数 + 右侧翻页 << < 1 2 3 > >> ----
+  // 页码带省略:首页/末页/当前页±1 恒显,其余用「…」折叠
+  function pageList(cur, tp) {
+    if (tp <= 7) {
+      var all = [];
+      for (var i = 1; i <= tp; i++) all.push(i);
+      return all;
+    }
+    var out = [1];
+    var lo = Math.max(2, cur - 1), hi = Math.min(tp - 1, cur + 1);
+    if (lo > 2) out.push('...');
+    for (var j = lo; j <= hi; j++) out.push(j);
+    if (hi < tp - 1) out.push('...');
+    out.push(tp);
+    return out;
+  }
+  function renderPagination() {
+    var bar = document.getElementById('paginationBar');
+    if (bar) bar.classList.toggle('hidden', paginationHidden);
+    // 隐藏分页时,底部横向滚动条可能因布局变化需重算,交给 syncBottomScroll
+    if (paginationHidden) return;
+
+    var label = document.getElementById('pageSizeLabel');
+    if (label) label.textContent = pageSize;
+
+    var tp = totalPages();
+    var total = sites.length;
+    var start = total ? (currentPage - 1) * pageSize + 1 : 0;
+    var end = Math.min(currentPage * pageSize, total);
+    var info = document.getElementById('pageInfo');
+    if (info) info.textContent = total ? ('共 ' + total + ' 站 · ' + start + '-' + end) : '暂无站点';
+
+    var pager = document.getElementById('pager');
+    if (!pager) return;
+    // 只渲染页码;「…」可点,点击变输入框直接跳页(方向键 « ‹ › » 已按需求移除)
+    var html = '';
+    pageList(currentPage, tp).forEach(function (p) {
+      if (p === '...') {
+        html += '<button onclick="openPageJump(this)" title="点击输入页码跳转" '
+          + 'class="inline-flex h-8 min-w-8 items-center justify-center rounded-md px-1 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]">…</button>';
+      } else {
+        var on = p === currentPage;
+        html += '<button onclick="goToPage(' + p + ')" class="inline-flex h-8 min-w-8 items-center justify-center rounded-md border px-2 text-sm '
+          + (on ? 'border-[hsl(var(--foreground))] bg-primary text-primary-foreground'
+                : 'border-border hover:bg-[hsl(var(--accent))]')
+          + '">' + p + '</button>';
+      }
+    });
+    pager.innerHTML = html;
+  }
+  // 点「…」→ 原地换成页码输入框:输入后回车/失焦跳转,Esc 取消
+  function openPageJump(btn) {
+    var tp = totalPages();
+    var inp = document.createElement('input');
+    inp.type = 'number'; inp.min = '1'; inp.max = String(tp);
+    inp.placeholder = '页'; inp.value = '';
+    inp.className = 'h-8 w-16 rounded-md border border-[hsl(var(--foreground))] px-2 text-center text-sm outline-none '
+      + 'bg-[hsl(var(--background))] focus:ring-2 focus:ring-[hsl(var(--foreground))]';
+    var done = false;
+    var jump = function () {
+      if (done) return; done = true;
+      var v = parseInt(inp.value, 10);
+      if (v >= 1) goToPage(v); else renderPagination();   // 无效输入:还原「…」
+    };
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); jump(); }
+      else if (e.key === 'Escape') { e.preventDefault(); done = true; renderPagination(); }
+    });
+    inp.addEventListener('blur', function () { setTimeout(jump, 80); });
+    btn.replaceWith(inp);
+    inp.focus();
+  }
+
+  // 每页条数下拉:展开/收起
+  function togglePageSizeMenu() {
+    var menu = document.getElementById('pageSizeMenu');
+    if (!menu) return;
+    if (menu.classList.contains('hidden')) openPageSizeMenu(); else closePageSizeMenu();
+  }
+  function openPageSizeMenu() {
+    var menu = document.getElementById('pageSizeMenu');
+    menu.innerHTML = PAGE_SIZE_OPTIONS.map(function (n) {
+      var on = n === pageSize;
+      return '<button onclick="setPageSize(' + n + ')" class="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm '
+        + (on ? 'bg-[hsl(var(--accent))] font-medium' : 'hover:bg-[hsl(var(--accent))]') + '">'
+        + '<span>' + n + ' 条/页</span>'
+        + (on ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' : '')
+        + '</button>';
+    }).join('');
+    menu.classList.remove('hidden');
+    setTimeout(function () { document.addEventListener('mousedown', onDocClickPageSize); }, 0);
+  }
+  function closePageSizeMenu() {
+    var menu = document.getElementById('pageSizeMenu');
+    if (menu) menu.classList.add('hidden');
+    document.removeEventListener('mousedown', onDocClickPageSize);
+  }
+  function onDocClickPageSize(e) {
+    var wrap = document.getElementById('pageSizeWrap');
+    if (wrap && wrap.contains(e.target)) return;
+    closePageSizeMenu();
+  }
+  // 选每页条数:换算当前顶部条目所在的新页,尽量保持视图稳定
+  function setPageSize(n) {
+    var firstIdx = (currentPage - 1) * pageSize;   // 当前页首条在完整列表中的下标
+    pageSize = n;
+    currentPage = Math.floor(firstIdx / pageSize) + 1;
+    closePageSizeMenu();
+    renderRows();
+  }
+  // 设置页「隐藏分页」开关:切换 paginationHidden + 同步开关视觉 + 重渲(平铺/分页)
+  function togglePaginationHidden() {
+    paginationHidden = !paginationHidden;
+    if (!paginationHidden) currentPage = 1;   // 从平铺切回分页时回到第一页
+    syncPaginationSwitch();
+    renderRows();
+  }
+  // 同步设置页里「隐藏分页」开关的视觉(每次渲染设置页时调用)
+  function syncPaginationSwitch() {
+    var s = document.getElementById('paginationHideSwitch');
+    if (!s) return;
+    s.dataset.on = paginationHidden ? 'true' : 'false';
+    s.classList.toggle('bg-primary', paginationHidden);
+    s.classList.toggle('bg-[hsl(var(--muted))]', !paginationHidden);
+    s.firstElementChild.classList.toggle('translate-x-5', paginationHidden);
+    s.firstElementChild.classList.toggle('translate-x-0', !paginationHidden);
   }
 
   // ---- 列宽:表格最小宽 = 各可见列宽 + 操作列 ----
@@ -1384,9 +2119,49 @@
         var fromIdx = sites.findIndex(function (s) { return s.name === rowDragFrom; });
         var overIdx = sites.findIndex(function (s) { return s.name === overName; });
         if (fromIdx < 0 || overIdx < 0) return;
+        // 分组模式:拖到别组的行 → 先改被拖站点的 group 为目标行所在组
+        if (groupMode) {
+          var moved0 = sites[fromIdx];
+          var overGroup = sites[overIdx].group || '未分组';
+          if ((moved0.group || '未分组') !== overGroup) {
+            moved0.group = overGroup;
+            toast('已将「' + moved0.name + '」移到分组「' + overGroup + '」', 'success');
+          }
+        }
+        // 无论是否换组,都把被拖行插到目标行位置(组内/跨组都保持落点顺序)
         var moved = sites.splice(fromIdx, 1)[0];
-        sites.splice(overIdx, 0, moved);
+        var newOverIdx = sites.findIndex(function (s) { return s.name === overName; });
+        sites.splice(newOverIdx, 0, moved);
         renderRows();
+        if (typeof renderStats === 'function') renderStats();
+      });
+    });
+
+    // 分组模式:分组标题行也是 drop 目标 —— 拖站点到标题 = 归入该组(放到组内末尾)
+    document.querySelectorAll('#siteRows tr[data-group-header]').forEach(function (hr) {
+      hr.addEventListener('dragover', function (e) {
+        if (rowDragFrom === null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        hr.classList.add('ring-2', 'ring-inset', 'ring-[hsl(var(--foreground))]');
+      });
+      hr.addEventListener('dragleave', function () {
+        hr.classList.remove('ring-2', 'ring-inset', 'ring-[hsl(var(--foreground))]');
+      });
+      hr.addEventListener('drop', function (e) {
+        e.preventDefault();
+        hr.classList.remove('ring-2', 'ring-inset', 'ring-[hsl(var(--foreground))]');
+        if (rowDragFrom === null) return;
+        var g = hr.getAttribute('data-group-header');
+        var fromIdx = sites.findIndex(function (s) { return s.name === rowDragFrom; });
+        if (fromIdx < 0) return;
+        var moved = sites[fromIdx];
+        if ((moved.group || '未分组') !== g) {
+          moved.group = g;
+          toast('已将「' + moved.name + '」移到分组「' + g + '」', 'success');
+        }
+        renderRows();
+        if (typeof renderStats === 'function') renderStats();
       });
     });
   }
@@ -1426,6 +2201,11 @@
     renderRows();
     syncBatchBar();
   }
+  // 批量模式下点整行选中:若点的是行内按钮/链接(爬取/签到/编辑/删除/地址)则放行不选中,否则切换选中
+  function onRowClick(e, name) {
+    if (e.target.closest('button, a')) return;
+    toggleSelect(name);
+  }
   function selectAll() {
     if (selected.size === sites.length) selected.clear();
     else sites.forEach(function (s) { selected.add(s.name); });
@@ -1454,6 +2234,10 @@
       (selected.size === sites.length && sites.length) ? '取消全选' : '全选';
   }
 
+  // 归一化演示数据:旧数据只有 rate,派生出 rechargeRmb/rechargeAmount,并按新折算公式重算 rmb
+  // (新公式 RMB = 余额 ÷ 到账 × 充值 = balNum × ratio,覆盖演示里手写的死值,保证口径一致)
+  sites.forEach(function (s) { deriveRecharge(s); recalcBalance(s); });
+
   renderRows();
   syncBatchBar();
   renderStats();
@@ -1467,6 +2251,10 @@
         + '<div><h3 class="text-base font-semibold">通用偏好</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">界面与展示相关的偏好设置。</p></div>'
         + '<div class="space-y-1.5"><label class="text-sm font-medium">默认货币显示</label>'
         + '<input value="RMB(折算)" class="h-10 w-64 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" /></div>'
+        // 分页显隐:开=隐藏分页条(全部平铺);data-on 反映当前 paginationHidden
+        + '<div class="flex items-center gap-4 rounded-lg border border-border p-4">'
+        + '<button id="paginationHideSwitch" data-on="false" onclick="togglePaginationHidden()" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--muted))] transition"><span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-0 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span></button>'
+        + '<div><p class="text-sm font-medium">隐藏分页</p><p class="text-xs text-[hsl(var(--muted-foreground))]">开启后主页站点表格不分页,一次平铺全部站点。</p></div></div>'
         + '</div>',
     },
     security: {
@@ -1543,6 +2331,20 @@
         + '<button onclick="clearAllData()" class="mt-3 rounded-md bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600">清空全部数据</button></div>'
         + '</div>',
     },
+    records: {
+      title: '记录',
+      // body 里放标题 + tab 栏 + 空容器;明细由 renderRecords() 按当前 tab 注入
+      body:
+        '<div class="space-y-6">'
+        + '<div><h3 class="text-base font-semibold">记录</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">充值、签到、爬取的历史流水(演示端仅存本次会话)。</p></div>'
+        + '<div class="inline-flex overflow-hidden rounded-md border border-border text-sm">'
+        + '<button data-rtab="recharge" onclick="showRecordsTab(\'recharge\')" class="rtab px-3 py-1.5">充值</button>'
+        + '<button data-rtab="checkin"  onclick="showRecordsTab(\'checkin\')"  class="rtab border-l border-border px-3 py-1.5">签到</button>'
+        + '<button data-rtab="scrape"   onclick="showRecordsTab(\'scrape\')"   class="rtab border-l border-border px-3 py-1.5">爬取</button>'
+        + '</div>'
+        + '<div id="recordsBody"></div>'
+        + '</div>',
+    },
   };
   var settingsSection = 'general';
   function renderSettings() {
@@ -1562,10 +2364,66 @@
     document.querySelectorAll('#settingsBody .theme-seg').forEach(function (b) {
       b.addEventListener('click', function () { setTheme(b.dataset.theme); });
     });
+    // 记录分区:注入当前 tab 的流水明细
+    if (settingsSection === 'records') renderRecords();
+    // 通用偏好分区:同步「隐藏分页」开关视觉
+    if (settingsSection === 'general') syncPaginationSwitch();
   }
   function showSettingsSection(key) {
     settingsSection = key;
     renderSettings();
+  }
+
+  // ---- 设置「记录」分区:充值 / 签到 / 爬取三 tab,各列全站流水(按时间倒序) ----
+  var recordsTab = 'recharge';
+  function showRecordsTab(tab) {
+    recordsTab = tab;
+    renderRecords();
+  }
+  // 空态提示
+  function recordsEmpty(msg) {
+    return '<div class="rounded-lg border border-dashed border-border p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">' + msg + '</div>';
+  }
+  // 一条流水行:左站名 + 中金额描述 + 右时间
+  function recordRow(site, mid, ts) {
+    return '<div class="flex items-center justify-between gap-3 border-b border-border px-3 py-2.5 text-sm last:border-0">'
+      + '<span class="min-w-0 flex-1 truncate font-medium">' + site + '</span>'
+      + '<span class="shrink-0 text-[hsl(var(--muted-foreground))]">' + mid + '</span>'
+      + '<span class="w-24 shrink-0 text-right text-xs text-[hsl(var(--muted-foreground))]">' + fmtTs(ts) + '</span>'
+      + '</div>';
+  }
+  function renderRecords() {
+    // tab 高亮
+    document.querySelectorAll('.rtab').forEach(function (b) {
+      var on = b.getAttribute('data-rtab') === recordsTab;
+      b.classList.toggle('bg-[hsl(var(--accent))]', on);
+      b.classList.toggle('text-[hsl(var(--accent-foreground))]', on);
+      b.classList.toggle('font-medium', on);
+      b.classList.toggle('text-[hsl(var(--muted-foreground))]', !on);
+    });
+    var wrap = document.getElementById('recordsBody');
+    if (!wrap) return;
+    var html;
+    if (recordsTab === 'recharge') {
+      html = rechargeLog.length
+        ? rechargeLog.map(function (r) {
+            return recordRow(r.site, '充 ¥' + Number(r.rmb).toFixed(2) + ' → 到账 ' + curSign(r.cur) + Number(r.amount).toFixed(2), r.ts);
+          }).join('')
+        : recordsEmpty('暂无充值记录。在站点行点「充值」即可记录一次。');
+    } else if (recordsTab === 'checkin') {
+      html = checkinLog.length
+        ? checkinLog.map(function (r) {
+            return recordRow(r.site, '签到到账 ' + curSign(r.cur) + Number(r.amount).toFixed(2), r.ts);
+          }).join('')
+        : recordsEmpty('暂无签到记录。在站点行点「签到」即可记录。');
+    } else {
+      html = scrapeLog.length
+        ? scrapeLog.map(function (r) {
+            return recordRow(r.site, r.ok ? '爬取余额 ' + curSign(r.cur) + Number(r.balance).toFixed(2) : '爬取失败', r.ts);
+          }).join('')
+        : recordsEmpty('暂无爬取记录。点「爬取」或「全部爬取」即可记录。');
+    }
+    wrap.innerHTML = '<div class="rounded-lg border border-border">' + html + '</div>';
   }
   // 通用开关:点击在 开/关 间切换(操作 DOM,视觉即时更新)
   function toggleSetting(btn) {
@@ -1733,8 +2591,14 @@
   // Esc:优先关弹窗,其次关自定义面板,再次关抽屉
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
+    var psMenu = document.getElementById('pageSizeMenu');
+    if (psMenu && !psMenu.classList.contains('hidden')) { closePageSizeMenu(); return; }
+    var rcModal = document.getElementById('rcModalWrap');
+    if (rcModal && !rcModal.classList.contains('hidden')) { closeRcModal(); return; }
     var ckModal = document.getElementById('ckModalWrap');
     if (ckModal && !ckModal.classList.contains('hidden')) { closeCkModal(); return; }
+    var gMenu = document.getElementById('m_groupMenu');
+    if (gMenu && !gMenu.classList.contains('hidden')) { closeGroupMenu(); return; }
     var modal = document.getElementById('modalWrap');
     if (modal && !modal.classList.contains('hidden')) { closeModal(); return; }
     if (customizeOpen()) { closeCustomize(); return; }
