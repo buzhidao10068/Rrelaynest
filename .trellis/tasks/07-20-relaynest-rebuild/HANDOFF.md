@@ -1,7 +1,7 @@
 # 续接说明 / HANDOFF
 
 > 新终端接手本任务时，先读这个文件，再读 `prd.md` / `design.md` / `implement.md`。
-> 最近更新：2026-07-23 会话。任务处于 **Phase 2 执行中**（`task.py start` 已执行，status=in_progress）。
+> 最近更新：2026-07-24 会话（新增出站代理功能：后端 + 前端预览）。任务处于 **Phase 2 执行中**（`task.py start` 已执行，status=in_progress）。
 
 ## 🔑 恢复本任务的一句话（新终端直接照做）
 
@@ -153,6 +153,50 @@ UI 活文件在仓库 docs/ui-preview.html，改前先 Read
     块7 需新增 `/api/sites/:id/ping` 类端点)。原「仪表盘」导航项文案统一改为「站点」。
 - pencil 仍可用（`@pencil.dev/cli`，登录 buzhidao10068@qq.com；网关 `127.0.0.1:15721` = cc-switch，
   `C:\yingyong\CC Switch\cc-switch.exe`，若 500 则重启它）。但当前流程以 preview.html 为准，pencil 不再用。
+
+## 2026-07-24 追加：出站代理功能（后端 + 前端预览，本轮会话）
+
+**用户 4+1 决策**：① 接受代理在 Workers 上不生效（UI 按平台隐藏/禁用）；② 真支持 SOCKS5——三种类型
+（HTTP/HTTPS/SOCKS5）**都只在 Node/Docker 生效**，门控是「按平台」不是「按类型」（用户曾误解为 SOCKS5 才需 docker，
+已纠正两次）；③（询问影响，已答）；④ 代理密码加密（复用 crypto.ts 的 AES-GCM / ENCRYPTION_KEY）；
+⑤ 全局代理模型：选一个代理作全局、可关闭、无全局则直连；签到与爬取走同一个代理。
+
+**后端（块 1~6 之上增量，两套 typecheck 全绿）：**
+- `schema.sql`：新增 `proxies` 表（id/name/type/host/port/username/password_encrypted/enabled/created_at/updated_at）；
+  `sites` 增 `proxy_id INTEGER REFERENCES proxies(id) ON DELETE SET NULL`；`settings` 增 `('global_proxy_id','')`；
+  索引 `idx_sites_proxy`。**注意**：代码不依赖 FK cascade，删代理时手动回退绑定站点 + 清全局（见 routes DELETE）。
+- `src/shared/types.ts`：`SiteRow.proxy_id`、`ProxyRow`、`ProxyConfig`、`FetchLike`（`(url,init?)=>Promise<Response>`）、
+  `MakeFetch`（`(cfg:ProxyConfig)=>FetchLike`）。
+- `src/shared/routes.ts`：`ProxyInput`；`AppDeps.makeFetch?`；站点 INSERT/UPDATE 处理 proxy_id
+  （`body.proxy_id===undefined ? existing.proxy_id : body.proxy_id`）；代理 CRUD（密码「undefined=不变/''=清空/非空=更新」，
+  只回 `has_password`）；三处 scrape/checkin 调用点传 makeFetch；DELETE 代理手动 `UPDATE sites SET proxy_id=NULL` + 清全局。
+- `src/server/proxy.ts`（**Node-only，新建**）：`createProxyFetch: MakeFetch`。**关键**：用 undici **自己的** fetch+dispatcher
+  （不是全局 fetch），HTTP/HTTPS 走 `ProxyAgent`，SOCKS5 走 `socks` 包 + 自建 `Agent`（`connect` 里 `SocksClient.createConnection`，
+  https 再套 `buildConnector` 做 TLS）。见 memory [[proxy-fetch-dispatcher-binding]]。
+- `src/shared/scraper.ts`：`ScrapeOptions.fetchImpl?`；`fetchJson` 用 `opts?.fetchImpl ?? fetch`。**不 import undici**（保持平台无关）。
+- `src/shared/scrape-runner.ts`：`resolveFetch(db,secrets,site,makeFetch?)`——优先级 **站点绑定 > 全局 > 直连**；
+  无 makeFetch（Workers）或无可用代理或解密失败 → 返回 undefined（降级直连）。签到与爬取用同一代理。
+- `src/shared/scheduler.ts`：`runScheduledTick(...,makeFetch?)`，爬取与签到两个循环都传。
+- `src/server/index.ts`：`createApp({db,secrets,makeFetch:createProxyFetch})` + 定时 tick 传 createProxyFetch；
+  `src/worker/index.ts` **不传**（代理惰性、强制直连）。
+- **两个 undici 坑（已存 memory）**：(1) wrangler 传递依赖 undici 5.29.0 在 Windows 触发 ENOBUFS，解法=直接依赖 undici@8.x；
+  (2) 全局 fetch 不认外部 undici 包的 dispatcher，解法=注入 MakeFetch 工厂让 Node 用 undici 自己的 fetch。
+  端到端已验证（本地 HTTP 代理转发 E2E PASS）。相关 memory：[[proxy-fetch-dispatcher-binding]]、[[proxy-node-only-architecture]]。
+
+**前端预览（`docs/ui-preview.html`，已落地 + node 语法校验 + 桌面备份同步 + Workers 态截图验证）：**
+㉚ **代理页**（汉堡栏「代理」顶级视图 `data-view="proxy"`）：代理池卡片列表（测试/编辑/配置站点/删除、启用开关、
+  类型徽章 http蓝/https绿/socks5紫）；**全局代理下拉**（`globalProxySelect`，「直连(不使用代理)」+ 各代理，
+  `globalProxy` 为代理名字符串、''=直连，是唯一数据源）；`setGlobalProxy`/`syncGlobalProxySelect`；
+  代理增删改级联（改名/删除/停用同步 `sites[].proxy` 绑定与 `globalProxy`）。站点弹窗可绑定代理（`site.proxy`，''=跟随全局/直连）。
+㉛ **数据选择性导出**：设置页「数据」分区（原「数据与关于」，关于内容已挪到汉堡栏 `about` 视图）「选择导出」按钮
+  开导出弹窗（`exportModalWrap`，默认/分组两视图、复选框、全选/全不选、分组折叠、`exportCount` 计数、doExport('csv'/'json')）。
+㉜ **代理平台提示条**（本轮末尾「加」）：`deployPlatform` 变量（默认 'node'）驱动，`showProxy()` 调 `syncProxyPlatformNotice()`；
+  仅 `deployPlatform==='workers'` 时代理页顶部显示琥珀色警告条（「Workers 无法连接自建代理，强制直连，配置仅 Node/Docker 生效」），
+  不锁交互（仍可查看/编辑）。**块 7 换成启动探测/配置注入**真实平台标识。
+
+**遗留/待办（代理相关）**：块 7 接真实 API 时——(a) 前端 `deployPlatform` 换成后端注入的真实平台标识；
+(b) 代理页对接 `/api/proxies` CRUD 与 `/api/settings` 的 `global_proxy_id`；(c) 「测试」按钮对接真实探活端点；
+(d) 密码字段遵循 has_password 语义（不回明文）。
 
 ## 恢复 active task 指针（如新终端识别不到）
 

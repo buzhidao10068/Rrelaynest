@@ -1,9 +1,57 @@
 // 爬取/签到并落库的共享逻辑：手动（routes）与定时（cron）都调用这里。
 // 平台无关：只依赖 shared/db 的 Database 抽象与 shared/scraper 的纯 fetch 逻辑。
+// 代理注入走「依赖注入」：Node 入口传 makeFetch（按代理配置返回绑好 dispatcher 的 undici.fetch），
+// Workers 不传（makeFetch=undefined → 用全局 fetch 恒直连），故本文件不 import 任何 Node 专属模块。
 import type { Database } from './db';
-import type { SiteRow, AppSecrets } from './types';
+import type { SiteRow, AppSecrets, ProxyRow, MakeFetch, FetchLike } from './types';
 import { decryptToken } from './crypto';
 import { scrapeSite, checkinSite } from './scraper';
+
+// 解析某站点实际该走的代理，返回绑好代理的 fetch（未注入工厂/直连时为 undefined，scraper 回落全局 fetch）。
+// 选取优先级（与前端一致）：站点自绑代理(enabled) > 全局代理(enabled) > 直连。
+// 代理密码解密失败时降级为直连（不中断爬取，容错优先）。
+async function resolveFetch(
+  db: Database,
+  secrets: AppSecrets,
+  site: SiteRow,
+  makeFetch?: MakeFetch,
+): Promise<FetchLike | undefined> {
+  if (!makeFetch) return undefined; // Workers：无工厂，用全局 fetch 恒直连
+
+  // 站点绑定优先；未绑定则回落全局代理
+  let proxyId: number | null = site.proxy_id;
+  if (proxyId == null) {
+    const row = await db
+      .prepare("SELECT value FROM settings WHERE key = 'global_proxy_id'")
+      .first<{ value: string }>();
+    const gid = row?.value ? Number(row.value) : NaN;
+    proxyId = Number.isFinite(gid) ? gid : null;
+  }
+  if (proxyId == null) return undefined; // 无绑定且无全局 → 直连
+
+  const proxy = await db
+    .prepare('SELECT * FROM proxies WHERE id = ?')
+    .bind(proxyId)
+    .first<ProxyRow>();
+  if (!proxy || !proxy.enabled) return undefined; // 代理不存在或被禁用 → 直连
+
+  let password: string | null = null;
+  if (proxy.password_encrypted) {
+    try {
+      password = await decryptToken(secrets.ENCRYPTION_KEY, proxy.password_encrypted);
+    } catch {
+      return undefined; // 密码解密失败 → 降级直连，不中断爬取
+    }
+  }
+
+  return makeFetch({
+    type: proxy.type,
+    host: proxy.host,
+    port: proxy.port,
+    username: proxy.username,
+    password,
+  });
+}
 
 export interface ScrapeOutcome {
   site_id: number;
@@ -55,6 +103,7 @@ export async function scrapeAndStore(
   db: Database,
   secrets: AppSecrets,
   site: SiteRow,
+  makeFetch?: MakeFetch,
 ): Promise<ScrapeOutcome> {
   const now = Date.now();
   const token = await resolveToken(db, secrets, site, now, 'last_error');
@@ -63,7 +112,8 @@ export async function scrapeAndStore(
   }
 
   try {
-    const result = await scrapeSite(site.base_url, token);
+    const fetchImpl = await resolveFetch(db, secrets, site, makeFetch);
+    const result = await scrapeSite(site.base_url, token, { fetchImpl });
 
     // 事务批量替换该站点的分组与模型
     const stmts = [
@@ -139,6 +189,7 @@ export async function checkinAndStore(
   db: Database,
   secrets: AppSecrets,
   site: SiteRow,
+  makeFetch?: MakeFetch,
 ): Promise<CheckinOutcome> {
   const now = Date.now();
   const token = await resolveToken(db, secrets, site, now, 'checkin_result');
@@ -146,7 +197,9 @@ export async function checkinAndStore(
     return { site_id: site.id, name: site.name, ok: false, result: '未配置 access token 或解密失败' };
   }
 
-  const outcome = await checkinSite(site.base_url, token);
+  // 签到走与爬取相同的代理
+  const fetchImpl = await resolveFetch(db, secrets, site, makeFetch);
+  const outcome = await checkinSite(site.base_url, token, { fetchImpl });
 
   if (outcome.ok) {
     await db

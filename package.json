@@ -18,7 +18,9 @@
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "hono": "^4.6.14",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "socks": "^2.8.9",
+    "undici": "^8.9.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",

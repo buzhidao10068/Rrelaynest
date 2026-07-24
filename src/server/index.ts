@@ -9,6 +9,7 @@ import type { AppSecrets } from '../shared/types';
 import { createApp } from '../shared/routes';
 import { createSqliteDb } from './db-sqlite';
 import { runScheduledTick } from '../shared/scheduler';
+import { createProxyFetch } from './proxy';
 
 const PORT = Number(process.env.PORT ?? '3100');
 const DB_PATH = process.env.DB_PATH ?? resolve('data', 'rrelaynest.sqlite');
@@ -28,7 +29,7 @@ function loadSecrets(): AppSecrets {
 
 const secrets = loadSecrets();
 const db = createSqliteDb(DB_PATH); // 构造时若库为空会自动执行 schema.sql
-const app = createApp({ db, secrets });
+const app = createApp({ db, secrets, makeFetch: createProxyFetch });
 
 // 前端静态资源：非 /api/* 的请求交给 serveStatic，未命中回落 index.html（SPA）
 const indexHtml = readFileSync(resolve(DIST_DIR, 'index.html'), 'utf-8');
@@ -40,7 +41,7 @@ app.notFound((c) => {
 
 // 进程内定时：每 5 分钟触发，与 Workers cron 语义一致
 cron.schedule('*/5 * * * *', () => {
-  void runScheduledTick(db, secrets, Date.now());
+  void runScheduledTick(db, secrets, Date.now(), createProxyFetch);
 });
 
 serve({ fetch: app.fetch, port: PORT }, (info) => {

@@ -93,7 +93,7 @@
 <body class="antialiased">
 
 <!-- ============ 登录页 ============ -->
-<div data-block="view-login" data-view="login">
+<div data-view="login">
   <div class="flex min-h-screen items-center justify-center p-6" style="background:hsl(var(--background));">
     <div class="w-[400px] space-y-6 rounded-lg border border-border bg-card p-8 shadow-sm">
       <div class="flex flex-col items-center gap-2">
@@ -115,10 +115,10 @@
 </div>
 
 <!-- ============ Dashboard(抽屉 + 弹窗都是覆盖层) ============ -->
-<div data-block="view-dashboard" data-view="dashboard">
+<div data-view="dashboard">
   <div class="relative min-h-screen overflow-hidden" style="background:hsl(var(--background));">
     <!-- 顶栏:只留汉堡 + 标题 -->
-    <header data-block="topbar-dashboard" class="flex items-center gap-3 border-b border-border px-4 py-3">
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
       <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
       </button>
@@ -129,7 +129,7 @@
     </header>
 
     <div class="space-y-6 p-4 sm:p-6">
-      <div data-block="stats-cards" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="rounded-lg border border-border bg-card p-5">
           <p class="text-sm text-[hsl(var(--muted-foreground))]">站点总数</p>
           <p id="statTotal" class="mt-1 text-3xl font-semibold">8</p>
@@ -144,7 +144,7 @@
         </div>
       </div>
 
-      <div data-block="toolbar" class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap gap-2">
           <button id="batchBtn" onclick="toggleBatch()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))] sm:px-4">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
@@ -176,7 +176,7 @@
       </div>
 
       <div>
-        <div data-block="site-table" id="tableScroll" class="overflow-x-auto rounded-lg border border-border bg-card">
+        <div id="tableScroll" class="overflow-x-auto rounded-lg border border-border bg-card">
           <table id="siteTable" class="w-full min-w-[860px] text-sm" style="table-layout:fixed;">
             <thead id="siteHead"></thead>
             <tbody id="siteRows"></tbody>
@@ -184,7 +184,7 @@
         </div>
 
         <!-- 分页条:左侧每页条数选择器(可在设置页隐藏)+ 右侧翻页 << < 1 2 3 > >> -->
-        <div data-block="pagination" id="paginationBar" class="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div id="paginationBar" class="mt-3 flex flex-wrap items-center justify-between gap-3">
           <!-- 每页条数:点击展开自定义选项(5/10/20/50/100) -->
           <div id="pageSizeWrap" class="relative">
             <button id="pageSizeBtn" onclick="togglePageSizeMenu()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-[hsl(var(--accent))]">
@@ -205,7 +205,7 @@
 
     <!-- 常驻底部横向滚动条:表格溢出时浮在视口底部,随时可拖,与表格滚动同步 -->
     <!-- 外层只做定位(不拦鼠标);内层才是可滚动 + 可点的滚动条本体 -->
-    <div data-block="bottom-scroll" id="bottomScrollWrap" class="pointer-events-none fixed inset-x-0 bottom-0 z-30 hidden px-6 pb-1">
+    <div id="bottomScrollWrap" class="pointer-events-none fixed inset-x-0 bottom-0 z-30 hidden px-6 pb-1">
       <div id="bottomScroll" class="pointer-events-auto overflow-x-auto rounded-md bg-card/80 backdrop-blur"
            style="height:16px;scrollbar-width:auto;">
         <div id="bottomScrollSpacer" style="height:1px;"></div>
@@ -213,7 +213,7 @@
     </div>
 
     <!-- 批量拓展栏:Apple 毛玻璃浮动条,批量模式且有选中时从底部浮现 -->
-    <div data-block="batch-bar" id="batchBar" class="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex translate-y-24 justify-center opacity-0 transition-all duration-300">
+    <div id="batchBar" class="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex translate-y-24 justify-center opacity-0 transition-all duration-300">
       <div class="pointer-events-auto flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-white/5"
            style="-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);">
         <span class="pl-2 text-sm font-medium"><span id="batchCount">0</span> 项已选</span>
@@ -229,7 +229,7 @@
     </div>
 
     <!-- 自定义面板:右侧滑出,无全屏遮罩,左侧表格实时可见 -->
-    <aside data-block="customize-panel" id="customizePanel" class="fixed inset-y-0 right-0 z-40 flex w-[320px] max-w-[85vw] translate-x-full flex-col border-l border-border bg-card shadow-xl transition-transform duration-300">
+    <aside id="customizePanel" class="fixed inset-y-0 right-0 z-40 flex w-[320px] max-w-[85vw] translate-x-full flex-col border-l border-border bg-card shadow-xl transition-transform duration-300">
       <div class="flex items-center gap-2 border-b border-border px-4 py-4">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg>
         <span class="text-base font-semibold">自定义视图</span>
@@ -266,7 +266,7 @@
     
 
     <!-- 编辑弹窗(覆盖层) -->
-    <div data-block="site-editor-modal" id="modalWrap" class="fixed inset-0 z-[60] hidden items-center justify-center overflow-y-auto p-4">
+    <div id="modalWrap" class="fixed inset-0 z-[60] hidden items-center justify-center overflow-y-auto p-4">
       <div onclick="closeModal()" class="fixed inset-0 bg-black/50"></div>
       <div class="relative my-auto max-h-[calc(100vh-2rem)] w-full max-w-[540px] space-y-5 overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-xl sm:p-6">
         <div class="flex items-start justify-between">
@@ -326,6 +326,12 @@
             <div id="m_groupMenu" class="absolute left-0 right-0 top-full z-50 mt-1 hidden max-h-52 overflow-y-auto rounded-md border border-border bg-card py-1 shadow-lg"></div>
           </div>
           <p class="text-xs text-[hsl(var(--muted-foreground))]">选择已有分组,或输入新名称创建;留空表示不分组。</p>
+        </div>
+        <!-- 出站代理:留空=跟随全局;点击下拉即测速,展开期间每 5 秒重测,延迟内联显示在各选项标签 -->
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">出站代理</label>
+          <select id="m_proxy" onfocus="startSiteProxyPing()" onblur="stopSiteProxyPing()" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]"></select>
+          <p class="text-xs text-[hsl(var(--muted-foreground))]">留空=跟随全局设置;指定后此站单独经该代理出网。点击下拉即测速,展开期间每 5 秒刷新,延迟显示在各选项。在「代理」页可管理代理列表。</p>
         </div>
         <div class="space-y-1.5">
           <label class="text-sm font-medium">注册邮箱</label>
@@ -392,7 +398,7 @@
 </div>
 
 <!-- ============ 手动签到:填本次到账金额(fixed,脱离父容器) ============ -->
-<div data-block="checkin-modal" id="ckModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+<div id="ckModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
   <div onclick="closeCkModal()" class="fixed inset-0 bg-black/50"></div>
   <div class="relative my-auto w-full max-w-[400px] space-y-5 rounded-lg border border-border bg-card p-5 shadow-xl sm:p-6">
     <div class="flex items-start justify-between">
@@ -422,7 +428,7 @@
 </div>
 
 <!-- ============ 充值:充值人民币 → 到账站点货币 + 日期(fixed,脱离父容器) ============ -->
-<div data-block="recharge-modal" id="rcModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+<div id="rcModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
   <div onclick="closeRcModal()" class="fixed inset-0 bg-black/50"></div>
   <div class="relative my-auto w-full max-w-[420px] space-y-5 rounded-lg border border-border bg-card p-5 shadow-xl sm:p-6">
     <div class="flex items-start justify-between">
@@ -464,11 +470,129 @@
   </div>
 </div>
 
+<!-- ============ 代理:新增/编辑弹窗(fixed,脱离父容器) ============ -->
+<div id="proxyModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+  <div onclick="closeProxyModal()" class="fixed inset-0 bg-black/50"></div>
+  <div class="relative my-auto w-full max-w-[460px] space-y-5 rounded-lg border border-border bg-card p-5 shadow-xl sm:p-6">
+    <div class="flex items-start justify-between">
+      <div>
+        <h2 id="proxyModalTitle" class="text-lg font-semibold">新增代理</h2>
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">配置一个出站代理;启用后爬取/签到经此转发</p>
+      </div>
+      <button onclick="closeProxyModal()" class="flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="space-y-1.5">
+      <label class="text-sm font-medium">代理名称</label>
+      <input id="pm_name" placeholder="如:本地-Clash" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+    </div>
+    <div class="space-y-1.5">
+      <label class="text-sm font-medium">类型</label>
+      <select id="pm_type" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]"><option value="http">HTTP</option><option value="https">HTTPS</option><option value="socks5">SOCKS5</option></select>
+    </div>
+    <div class="flex flex-wrap gap-3">
+      <div class="min-w-0 flex-1 space-y-1.5">
+        <label class="text-sm font-medium">主机地址</label>
+        <input id="pm_host" placeholder="127.0.0.1" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+      </div>
+      <div class="w-28 space-y-1.5">
+        <label class="text-sm font-medium">端口</label>
+        <input id="pm_port" type="number" min="1" max="65535" placeholder="7890" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+      </div>
+    </div>
+    <div class="space-y-1.5">
+      <label class="text-sm font-medium">用户名(选填)</label>
+      <input id="pm_user" autocomplete="off" placeholder="留空表示无需认证" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+    </div>
+    <div class="space-y-1.5">
+      <label class="text-sm font-medium">密码(选填)</label>
+      <input id="pm_pass" type="password" autocomplete="new-password" placeholder="留空表示无需认证" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+    </div>
+    <p id="proxyModalError" class="hidden rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-500"></p>
+    <div class="flex justify-end gap-2">
+      <button onclick="closeProxyModal()" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">取消</button>
+      <button onclick="submitProxyModal()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 代理:配置「哪些站点使用此代理」弹窗(fixed,脱离父容器) ============ -->
+<div id="assignModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+  <div onclick="closeSiteAssign()" class="fixed inset-0 bg-black/50"></div>
+  <div class="relative my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[460px] flex-col rounded-lg border border-border bg-card shadow-xl">
+    <div class="flex items-start justify-between border-b border-border p-5 sm:p-6">
+      <div>
+        <h2 id="assignTitle" class="text-lg font-semibold">配置站点</h2>
+        <p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">勾选的站点将经此代理出网;取消勾选则回落到「跟随全局」。</p>
+      </div>
+      <button onclick="closeSiteAssign()" class="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <!-- 视图切换:默认(平铺,按主页顺序)/ 分组(按分组归类,组序同主页 allGroups) -->
+    <div class="flex items-center gap-1 border-b border-border px-3 py-2">
+      <button id="assignViewDefault" onclick="setAssignView('default')" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
+        默认
+      </button>
+      <button id="assignViewGroup" onclick="setAssignView('group')" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+        分组
+      </button>
+    </div>
+    <div id="assignList" class="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-3"></div>
+    <div class="flex justify-end gap-2 border-t border-border p-4">
+      <button onclick="closeSiteAssign()" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">取消</button>
+      <button onclick="saveSiteAssign()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 选择性导出:勾选站点后导出 CSV/JSON(复用默认/分组视图) ============ -->
+<div id="exportModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+  <div onclick="closeExport()" class="fixed inset-0 bg-black/50"></div>
+  <div class="relative my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[460px] flex-col rounded-lg border border-border bg-card shadow-xl">
+    <div class="flex items-start justify-between border-b border-border p-5 sm:p-6">
+      <div>
+        <h2 class="text-lg font-semibold">选择导出站点</h2>
+        <p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">勾选要导出的站点,再选择导出格式;不勾选则默认导出全部。</p>
+      </div>
+      <button onclick="closeExport()" class="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <!-- 视图切换:默认(平铺,按主页顺序)/ 分组(按分组归类) -->
+    <div class="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+      <div class="flex items-center gap-1">
+        <button id="exportViewDefault" onclick="setExportView('default')" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
+          默认
+        </button>
+        <button id="exportViewGroup" onclick="setExportView('group')" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+          分组
+        </button>
+      </div>
+      <button onclick="toggleExportAll()" class="rounded-md px-2 py-1 text-xs font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">全选/全不选</button>
+    </div>
+    <div id="exportList" class="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-3"></div>
+    <div class="flex items-center justify-between gap-2 border-t border-border p-4">
+      <span id="exportCount" class="text-xs text-[hsl(var(--muted-foreground))]"></span>
+      <div class="flex gap-2">
+        <button onclick="closeExport()" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">取消</button>
+        <button onclick="doExport('csv')" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">导出 CSV</button>
+        <button onclick="doExport('json')" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">导出 JSON</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ============ 设置(独立整屏:左分区导航 + 右内容) ============ -->
 <!-- 爬虫:全局爬取行为设置(间隔/并发/超时/重试);块7 对接 /api/settings 的 scrape 段 -->
-<div data-block="view-scraper" data-view="scraper">
+<div data-view="scraper">
   <div class="min-h-screen" style="background:hsl(var(--background));">
-    <header data-block="topbar-scraper" class="flex items-center gap-3 border-b border-border px-4 py-3">
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
       <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
       </button>
@@ -515,9 +639,9 @@
 </div>
 
 <!-- 测活:站点连通性检测(mock;后端暂无对应接口,块7 需新增 /api/sites/:id/ping 类端点) -->
-<div data-block="view-activity" data-view="activity">
+<div data-view="activity">
   <div class="min-h-screen" style="background:hsl(var(--background));">
-    <header data-block="topbar-activity" class="flex items-center gap-3 border-b border-border px-4 py-3">
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
       <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
       </button>
@@ -541,10 +665,55 @@
   </div>
 </div>
 
-<div data-block="view-settings" data-view="settings">
+<!-- 代理:全局出站代理设置(mock;块7 对接 /api/settings 的 proxy 段,爬取/签到经此代理出网) -->
+<div data-view="proxy">
+  <div class="min-h-screen" style="background:hsl(var(--background));">
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
+      <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+        <span class="text-base font-semibold">代理</span>
+      </div>
+    </header>
+    <div class="mx-auto max-w-[900px] space-y-6 p-4 sm:p-6">
+      <!-- Workers 平台提示条:仅 deployPlatform==='workers' 时显示;代理功能在 Workers 上不生效,强制直连。块7 换成启动探测 -->
+      <div id="proxyPlatformNotice" class="hidden items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        <div class="min-w-0">
+          <p class="font-medium text-amber-700 dark:text-amber-300">当前部署为 Cloudflare Workers,代理功能不可用</p>
+          <p class="mt-1 text-[hsl(var(--muted-foreground))]">Workers 运行时无法连接自建代理,所有站点将强制直连。代理配置仅在 Node/Docker 部署下生效。你仍可在此查看/编辑配置,但不会实际生效。</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-base font-semibold">代理池</h3>
+          <p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">管理多个出站代理。为站点单独绑定代理,或在上方选一个作全局出网;未绑定的站点走全局,全局设为直连则不经代理。</p>
+        </div>
+        <button onclick="openProxyModal('create')" class="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+          新增代理
+        </button>
+      </div>
+      <!-- 全局代理:选一个代理作默认出网;直连=不走代理。站点可单独绑定覆盖此项。 -->
+      <div class="flex flex-wrap items-center gap-4 rounded-lg border border-border p-4">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium">全局代理</p>
+          <p class="text-xs text-[hsl(var(--muted-foreground))]">未单独绑定代理的站点默认走这里;选「直连」则不经代理。</p>
+        </div>
+        <select id="globalProxySelect" onchange="setGlobalProxy(this.value)" class="h-10 w-full shrink-0 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))] sm:w-64"></select>
+      </div>
+      <!-- 代理卡片列表 -->
+      <div id="proxyList" class="space-y-3"></div>
+    </div>
+  </div>
+</div>
+
+<div data-view="settings">
   <div class="min-h-screen" style="background:hsl(var(--background));">
     <!-- 顶栏:汉堡 + 标题(与 Dashboard 一致,入口对称) -->
-    <header data-block="topbar-settings" class="flex items-center gap-3 border-b border-border px-4 py-3">
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
       <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
       </button>
@@ -557,7 +726,7 @@
     <!-- 整屏布局:左分区导航 + 右内容(窄屏堆叠:导航在上、内容在下) -->
     <div class="mx-auto flex max-w-[1100px] flex-col gap-6 p-4 sm:p-6 md:flex-row">
       <!-- 左分区导航:窄屏横向滚动,宽屏固定左列 -->
-      <nav data-block="settings-nav" id="settingsNav" class="flex shrink-0 gap-1 overflow-x-auto md:w-52 md:flex-col md:space-y-1 md:overflow-visible">
+      <nav id="settingsNav" class="flex shrink-0 gap-1 overflow-x-auto md:w-52 md:flex-col md:space-y-1 md:overflow-visible">
         <button onclick="showSettingsSection('general')" data-snav="general" class="snav-item flex shrink-0 items-center gap-3 whitespace-nowrap rounded-md px-3 py-2 text-left text-sm md:w-full">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
           通用偏好
@@ -581,18 +750,44 @@
       </nav>
 
       <!-- 右内容:各分区(共用 renderSettingsBody 注入) -->
-      <div data-block="settings-body" id="settingsBody" class="min-w-0 flex-1"></div>
+      <div id="settingsBody" class="min-w-0 flex-1"></div>
     </div>
   </div>
 </div>
 
 
 
-<div data-block="overlay" id="overlay" class="fixed inset-0 z-40 hidden bg-black/50"></div>
+<div data-view="about">
+  <div class="min-h-screen" style="background:hsl(var(--background));">
+    <!-- 顶栏:汉堡 + 标题(与其他页一致) -->
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
+      <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span class="text-base font-semibold">关于</span>
+      </div>
+    </header>
+    <div class="mx-auto max-w-[720px] space-y-6 p-4 sm:p-6">
+      <div>
+        <h3 class="text-base font-semibold">关于 Rrelaynest</h3>
+        <p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">中转站余额与签到管理面板。</p>
+      </div>
+      <div class="rounded-lg border border-border p-4 text-sm">
+        <div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">应用</span><span class="font-medium">Rrelaynest</span></div>
+        <div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">版本</span><span class="font-medium">v1.0.0</span></div>
+        <div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">部署</span><span class="font-medium">Cloudflare Workers / Docker</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="overlay" class="fixed inset-0 z-40 hidden bg-black/50"></div>
 
 <!-- toast 容器:右下角,主题自适应 -->
-<div data-block="toast-host" id="toastWrap" class="pointer-events-none fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2"></div>
-    <aside data-block="sidebar" id="drawer" class="fixed inset-y-0 left-0 z-50 flex w-[280px] -translate-x-full flex-col border-r border-border bg-card shadow-xl transition-transform duration-300">
+<div id="toastWrap" class="pointer-events-none fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2"></div>
+    <aside id="drawer" class="fixed inset-y-0 left-0 z-50 flex w-[280px] -translate-x-full flex-col border-r border-border bg-card shadow-xl transition-transform duration-300">
       <div class="flex items-center gap-2 border-b border-border px-4 py-4">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
         <span class="text-base font-semibold">Rrelaynest</span>
@@ -614,11 +809,15 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
           测活
         </a>
+        <a onclick="showProxy()" data-nav="proxy" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+          代理
+        </a>
         <a onclick="showSettings()" data-nav="settings" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
           设置
         </a>
-        <a class="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
+        <a onclick="showAbout()" data-nav="about" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
           关于
         </a>
@@ -704,6 +903,412 @@
   function showActivity() {
     showView('activity');
     renderActivityList();
+  }
+  // 代理:出站代理池管理页;进入即同步全局代理下拉 + 渲染卡片列表
+  function showProxy() {
+    showView('proxy');
+    syncProxyPlatformNotice();   // Workers 部署下显示「不可用」提示条
+    syncGlobalProxySelect();
+    renderProxyList();
+  }
+  // 按部署平台切换代理页提示条:workers=显示警告(功能不生效),node/docker=隐藏。块7 换成启动探测/配置注入
+  function syncProxyPlatformNotice() {
+    var notice = document.getElementById('proxyPlatformNotice');
+    if (!notice) return;
+    var isWorkers = deployPlatform === 'workers';
+    notice.classList.toggle('hidden', !isWorkers);
+    notice.classList.toggle('flex', isWorkers);
+  }
+  // 关于:应用/版本/部署信息页
+  function showAbout() {
+    showView('about');
+  }
+
+  // ---- 代理池(演示端仅本次会话生效;块7 对接 /api/settings 的 global_proxy_id)----
+  // 选一个代理作全局出网(''=直连)。站点可单独绑定覆盖;未绑定的站点走全局。
+  function setGlobalProxy(v) {
+    globalProxy = v || '';
+    renderProxyList();   // 卡片上「全局」标记随之更新
+    var p = proxies.find(function (x) { return x.name === globalProxy; });
+    if (!globalProxy) toast('全局设为直连;未单独绑定代理的站点将直连', 'info');
+    else if (p && !p.enabled) toast('「' + globalProxy + '」已设为全局,但它当前被停用', 'info');
+    else toast('全局代理已设为「' + globalProxy + '」', 'success');
+  }
+  // 把 globalProxy 同步到下拉框选项 + 选中值(进入页/增删代理后调用)
+  function syncGlobalProxySelect() {
+    var sel = document.getElementById('globalProxySelect');
+    if (!sel) return;
+    var opts = '<option value="">直连(不使用代理)</option>';
+    proxies.forEach(function (p) {
+      var label = p.name + ' · ' + p.type.toUpperCase() + ' ' + p.host + ':' + p.port + (p.enabled ? '' : '(已停用)');
+      opts += '<option value="' + String(p.name).replace(/"/g, '&quot;') + '">' + label + '</option>';
+    });
+    sel.innerHTML = opts;
+    var has = proxies.some(function (p) { return p.name === globalProxy; });
+    sel.value = has ? globalProxy : '';
+    if (!has) globalProxy = '';
+  }
+  // 代理类型徽章
+  function proxyTypeBadge(type) {
+    var cls = PROXY_TYPE_STYLE[type] || 'bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]';
+    return '<span class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ' + cls + '">' + type.toUpperCase() + '</span>';
+  }
+  // 单条启用状态徽章:按 enabled;全局代理额外标「全局」
+  function proxyStateBadge(p) {
+    var badge = p.enabled
+      ? '<span class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">● 已启用</span>'
+      : '<span class="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">○ 已停用</span>';
+    if (p.name === globalProxy) badge += '<span class="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">全局</span>';
+    return badge;
+  }
+  // 渲染代理卡片列表:每卡=名称+类型徽章+状态徽章 / 地址 / 启用开关+测试+编辑+删除
+  function renderProxyList() {
+    var host = document.getElementById('proxyList');
+    if (!host) return;
+    if (!proxies.length) {
+      host.innerHTML = '<div class="rounded-lg border border-dashed border-border p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">暂无代理,点击右上角「新增代理」添加。</div>';
+      return;
+    }
+    host.innerHTML = proxies.map(function (p, i) {
+      var auth = (p.user ? '需认证 · ' + p.user : '无认证');
+      var dim = p.enabled ? '' : ' opacity-60';
+      var knobOn = p.enabled;
+      return '<div class="rounded-lg border border-border bg-card p-4">'
+        + '<div class="flex flex-wrap items-start justify-between gap-3">'
+        +   '<div class="min-w-0' + dim + '">'
+        +     '<div class="flex flex-wrap items-center gap-2">'
+        +       '<span class="truncate text-sm font-semibold">' + p.name + '</span>'
+        +       proxyTypeBadge(p.type) + proxyStateBadge(p)
+        +     '</div>'
+        +     '<p class="mt-1 truncate font-mono text-xs text-[hsl(var(--muted-foreground))]">' + p.host + ':' + p.port + '</p>'
+        +     '<p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">' + auth + '</p>'
+        +   '</div>'
+        +   '<div class="flex shrink-0 items-center gap-2">'
+        +     '<button onclick="toggleProxyEnabled(' + i + ')" title="' + (p.enabled ? '停用' : '启用') + '此代理" class="relative h-6 w-11 shrink-0 rounded-full transition ' + (knobOn ? 'bg-[hsl(var(--foreground))]' : 'bg-[hsl(var(--muted))]') + '"><span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-[hsl(var(--card))] shadow transition-transform ' + (knobOn ? 'translate-x-5' : 'translate-x-0') + '"></span></button>'
+        +   '</div>'
+        + '</div>'
+        + '<div class="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">'
+        +   '<button onclick="testProxyItem(' + i + ')" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--accent))]"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>测试</button>'
+        +   '<button onclick="openProxyModal(\'edit\',' + i + ')" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--accent))]"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>编辑</button>'
+        +   '<button onclick="openSiteAssign(' + i + ')" title="配置哪些站点使用此代理" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--accent))]"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>配置站点<span class="ml-0.5 rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[10px] font-semibold">' + proxySiteCount(p.name) + '</span></button>'
+        +   '<button onclick="deleteProxy(' + i + ')" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>删除</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+  // 切换单条代理启用位。停用的若正是全局代理,则清空全局(回落直连)
+  function toggleProxyEnabled(i) {
+    var p = proxies[i];
+    if (!p) return;
+    p.enabled = !p.enabled;
+    if (!p.enabled && globalProxy === p.name) globalProxy = '';
+    syncGlobalProxySelect();
+    renderProxyList();
+    toast('「' + p.name + '」' + (p.enabled ? '已启用' : '已停用'), p.enabled ? 'success' : 'info');
+  }
+  // 删除单条代理(演示端直接删;块7 走 DELETE)
+  function deleteProxy(i) {
+    var p = proxies[i];
+    if (!p) return;
+    if (!confirm('确定删除代理「' + p.name + '」?')) return;
+    if (globalProxy === p.name) globalProxy = '';   // 删的是全局代理→回落直连
+    sites.forEach(function (s) { if (s.proxy === p.name) s.proxy = ''; });
+    proxies.splice(i, 1);
+    syncGlobalProxySelect();
+    renderProxyList();
+    if (typeof renderRows === 'function') renderRows();
+    toast('已删除「' + p.name + '」', 'success');
+  }
+  // 测试单条代理连通性(mock;块7 需新增 /api/settings/proxy/test 类端点)
+  function testProxyItem(i) {
+    var p = proxies[i];
+    if (!p) return;
+    toast('正在测试「' + p.name + '」…', 'info');
+    // mock 一个往返延迟(80–800ms),测试时长与提示里的延迟保持一致
+    var ms = Math.floor(80 + Math.random() * 720);
+    setTimeout(function () { toast('「' + p.name + '」连接正常 · ' + ms + 'ms', 'success'); }, ms);
+  }
+  // 打开代理弹窗:create=空表单;edit=回填第 i 条
+  function openProxyModal(mode, i) {
+    editingProxy = null;
+    var title = document.getElementById('proxyModalTitle');
+    if (mode === 'edit' && proxies[i]) {
+      var p = proxies[i];
+      editingProxy = i;
+      if (title) title.textContent = '编辑代理';
+      document.getElementById('pm_name').value = p.name;
+      document.getElementById('pm_type').value = p.type;
+      document.getElementById('pm_host').value = p.host;
+      document.getElementById('pm_port').value = p.port;
+      document.getElementById('pm_user').value = p.user || '';
+      document.getElementById('pm_pass').value = p.pass || '';
+    } else {
+      if (title) title.textContent = '新增代理';
+      document.getElementById('pm_name').value = '';
+      document.getElementById('pm_type').value = 'http';
+      document.getElementById('pm_host').value = '';
+      document.getElementById('pm_port').value = '';
+      document.getElementById('pm_user').value = '';
+      document.getElementById('pm_pass').value = '';
+    }
+    var err = document.getElementById('proxyModalError');
+    if (err) err.classList.add('hidden');
+    var wrap = document.getElementById('proxyModalWrap');
+    if (wrap) { wrap.classList.remove('hidden'); wrap.classList.add('flex'); }
+  }
+  function closeProxyModal() {
+    var wrap = document.getElementById('proxyModalWrap');
+    if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('flex'); }
+  }
+  // 保存代理:校验名称/主机/端口;create 追加,edit 覆盖(保留 enabled 位)
+  function submitProxyModal() {
+    var name = document.getElementById('pm_name').value.trim();
+    var type = document.getElementById('pm_type').value;
+    var host = document.getElementById('pm_host').value.trim();
+    var port = parseInt(document.getElementById('pm_port').value, 10);
+    var user = document.getElementById('pm_user').value.trim();
+    var pass = document.getElementById('pm_pass').value;
+    var err = document.getElementById('proxyModalError');
+    function fail(msg) { if (err) { err.textContent = msg; err.classList.remove('hidden'); } }
+    if (!name) return fail('请填写代理名称');
+    if (!host) return fail('请填写主机地址');
+    if (!(port >= 1 && port <= 65535)) return fail('端口需为 1–65535');
+    // 重名校验(编辑时排除自身)
+    var dup = proxies.some(function (p, idx) { return p.name === name && idx !== editingProxy; });
+    if (dup) return fail('已存在同名代理');
+    if (editingProxy != null && proxies[editingProxy]) {
+      var ex = proxies[editingProxy];
+      var oldName = ex.name;
+      ex.name = name; ex.type = type; ex.host = host; ex.port = port; ex.user = user; ex.pass = pass;
+      // 改名:同步以名字为键的引用(站点绑定 site.proxy 与全局代理 globalProxy)
+      if (oldName !== name) {
+        sites.forEach(function (s) { if (s.proxy === oldName) s.proxy = name; });
+        if (globalProxy === oldName) globalProxy = name;
+      }
+      toast('已保存「' + name + '」', 'success');
+    } else {
+      proxies.push({ name:name, type:type, host:host, port:port, user:user, pass:pass, enabled:true });
+      toast('已新增「' + name + '」', 'success');
+    }
+    closeProxyModal();
+    syncGlobalProxySelect();
+    renderProxyList();
+    renderRows();
+  }
+
+  // ---- 站点 ↔ 代理绑定 ----
+  // 唯一事实来源:site.proxy = 代理名(空串=跟随全局/直连)。
+  // 「站点弹窗选代理」与「代理页配置站点」读写的是同一份 sites[].proxy。
+  // 测速缓存:{ 代理名: ms }。空串键 '' = 「跟随全局」项的延迟。仅本次打开有效,重开清空。
+  var siteProxyPings = {};
+  var siteProxyPingRun = 0;   // 测速批次号,防跨次结果串号(重开弹窗/失焦时自增作废旧批次)
+  var siteProxyPingTimer = null;   // 下拉展开期间的 5 秒重测定时器
+  // 某选项的基础标签(不含延迟):跟随全局项 / 代理项 = 名 · 类型 host:port
+  function proxyBaseLabel(p) {
+    if (p == null) return '跟随全局(直连或全局代理)';
+    return p.name + ' · ' + p.type.toUpperCase() + ' ' + p.host + ':' + p.port;
+  }
+  // 视觉宽度估算:中文等全角字符算 2,其余算 1(原生 select 无法 flex,用它把延迟顶到右侧对齐成一列)
+  function strWidth(s) {
+    var w = 0;
+    for (var i = 0; i < s.length; i++) w += s.charCodeAt(i) > 255 ? 2 : 1;
+    return w;
+  }
+  // 填充站点弹窗的「出站代理」下拉:首项「跟随全局」(空值),其后列出当前所有代理名。
+  // 若已有测速缓存,把延迟用图形空格右填到统一列,内联显示在各选项最右侧。
+  // sel = 当前站点已绑定的代理名(编辑时回填;新建传空)。保留当前选中项。
+  function fillProxyOptions(sel) {
+    var el = document.getElementById('m_proxy');
+    if (!el) return;
+    if (sel === undefined) sel = el.value;   // 重渲(测速回来)时保留当前选择
+    // 先备齐每项 { value, base, ms },再按最长基础标签把 ms 右对齐成一列
+    var items = [{ value: '', base: proxyBaseLabel(null), ms: siteProxyPings[''] }];
+    proxies.forEach(function (p) {
+      items.push({ value: p.name, base: proxyBaseLabel(p), ms: siteProxyPings[p.name] });
+    });
+    var maxW = items.reduce(function (m, it) { return Math.max(m, strWidth(it.base)); }, 0);
+    // 各延迟数字按最大位数左补齐(图形空格与数字等宽),使 ms 结尾对齐在同一列
+    var maxDigits = items.reduce(function (m, it) { return it.ms != null ? Math.max(m, String(it.ms).length) : m; }, 0);
+    el.innerHTML = items.map(function (it) {
+      var v = String(it.value).replace(/"/g, '&quot;');
+      var label = it.base;
+      if (it.ms != null) {
+        // 图形空格 U+2007 与数字等宽:先把标签右填到最长 + 2 的间隔,再左填数字到统一位数
+        var pad = maxW - strWidth(it.base) + 2;
+        var digits = String(it.ms);
+        var lead = maxDigits - digits.length;
+        label += Array(pad + 1).join(' ') + Array(lead + 1).join(' ') + digits + 'ms';
+      }
+      return '<option value="' + v + '">' + label + '</option>';
+    }).join('');
+    // 绑定的代理若已被删,回落到「跟随全局」
+    var has = proxies.some(function (p) { return p.name === sel; });
+    el.value = has ? sel : '';
+  }
+  // 打开弹窗时重置测速缓存(不同站/不同代理列表,旧延迟无意义)+ 停掉可能残留的定时器
+  function resetSiteProxyPings() {
+    stopSiteProxyPing();
+    siteProxyPings = {};
+    siteProxyPingRun++;   // 作废进行中的旧批次
+  }
+  // 并发测一轮:「跟随全局」+ 所有代理;各自结果回来即写缓存并刷新下拉标签(保留当前选择)。
+  function runSiteProxyPing() {
+    var el = document.getElementById('m_proxy');
+    if (!el) return;
+    var run = ++siteProxyPingRun;
+    // 待测键:'' = 跟随全局;其余 = 各代理名
+    var keys = [''].concat(proxies.map(function (p) { return p.name; }));
+    keys.forEach(function (k) {
+      var ms = Math.floor(80 + Math.random() * 720);
+      setTimeout(function () {
+        if (run !== siteProxyPingRun) return;   // 批次已作废(重开弹窗/失焦)
+        siteProxyPings[k] = ms;
+        fillProxyOptions();                     // 刷新下拉各项标签(保留当前选择)
+      }, ms);
+    });
+  }
+  // 聚焦下拉即测速一轮,并启动 5 秒定时重测(展开期间持续刷新延迟)
+  function startSiteProxyPing() {
+    runSiteProxyPing();
+    if (siteProxyPingTimer) clearInterval(siteProxyPingTimer);
+    siteProxyPingTimer = setInterval(runSiteProxyPing, 5000);
+  }
+  // 失焦即停止定时重测(作废进行中批次,避免收起后仍在刷标签)
+  function stopSiteProxyPing() {
+    if (siteProxyPingTimer) { clearInterval(siteProxyPingTimer); siteProxyPingTimer = null; }
+    siteProxyPingRun++;
+  }
+
+  // ---- 代理页:配置「哪些站点使用此代理」弹窗 ----
+  var assigningProxy = null;    // 正在配置站点的代理名
+  var assignView = 'default';   // 列表视图:default=平铺(主页顺序)/ group=按分组归类(组序同主页)
+  // 统计绑定到某代理的站点数(卡片「配置站点」按钮上的徽章)
+  function proxySiteCount(name) {
+    return sites.filter(function (s) { return s.proxy === name; }).length;
+  }
+  // 打开:列出全部站点,已绑定此代理的勾选;每次打开默认回到「默认」视图
+  function openSiteAssign(i) {
+    var p = proxies[i];
+    if (!p) return;
+    assigningProxy = p.name;
+    assignView = 'default';
+    assignStash = null;   // 清空上次会话的暂存,勾选态回落到 s.proxy 判定
+    var t = document.getElementById('assignTitle');
+    if (t) t.textContent = '配置使用「' + p.name + '」的站点';
+    syncAssignViewButtons();
+    renderAssignList();
+    var wrap = document.getElementById('assignModalWrap');
+    if (wrap) { wrap.classList.remove('hidden'); wrap.classList.add('flex'); }
+  }
+  function closeSiteAssign() {
+    var wrap = document.getElementById('assignModalWrap');
+    if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('flex'); }
+    assigningProxy = null;
+  }
+  // 切换视图:先记住当前勾选态(避免重渲丢失未保存的改动),再换视图重渲
+  function setAssignView(v) {
+    if (v === assignView) return;
+    stashAssignChecks();
+    assignView = v;
+    syncAssignViewButtons();
+    renderAssignList();
+  }
+  // 视图切换按钮反色:选中项 = primary;另一项 = 描边
+  function syncAssignViewButtons() {
+    var d = document.getElementById('assignViewDefault');
+    var g = document.getElementById('assignViewGroup');
+    [['default', d], ['group', g]].forEach(function (pair) {
+      var on = assignView === pair[0];
+      var b = pair[1];
+      if (!b) return;
+      b.classList.toggle('bg-primary', on);
+      b.classList.toggle('text-primary-foreground', on);
+      b.classList.toggle('hover:bg-[hsl(var(--accent))]', !on);
+      b.classList.toggle('text-[hsl(var(--muted-foreground))]', !on);
+    });
+  }
+  // 把当前 DOM 里的勾选态写回一个临时集合(切换视图时保住未保存的改动)
+  var assignStash = null;   // { siteName: true } 表示本次会话内被勾上;null=尚未暂存,用 s.proxy 判定
+  function stashAssignChecks() {
+    var boxes = document.querySelectorAll('#assignList input[data-assign]');
+    assignStash = {};
+    boxes.forEach(function (b) {
+      var idx = parseInt(b.getAttribute('data-assign'), 10);
+      var s = sites[idx];
+      if (s) assignStash[s.name] = b.checked;
+    });
+  }
+  // 判定某站是否应勾选:优先看暂存(切换视图后),否则看是否已绑定此代理
+  function assignChecked(s) {
+    if (assignStash && Object.prototype.hasOwnProperty.call(assignStash, s.name)) return !!assignStash[s.name];
+    return s.proxy === assigningProxy;
+  }
+  // 单站勾选行:复选框 + 站名 + 绑到别的代理时的当前提示
+  function assignRowHtml(s, idx) {
+    var other = (s.proxy && s.proxy !== assigningProxy) ? '<span class="ml-2 shrink-0 text-xs text-[hsl(var(--muted-foreground))]">当前:' + s.proxy + '</span>' : '';
+    return '<label class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-[hsl(var(--accent))]">'
+      + '<input type="checkbox" data-assign="' + idx + '"' + (assignChecked(s) ? ' checked' : '') + ' class="h-4 w-4 shrink-0 accent-[hsl(var(--foreground))]" />'
+      + '<span class="min-w-0 flex-1 truncate text-sm">' + s.name + '</span>' + other
+      + '</label>';
+  }
+  // 渲染站点勾选列表:默认=平铺(主页顺序);分组=按 allGroups 归类,组标题可点整组勾/取消
+  function renderAssignList() {
+    var host = document.getElementById('assignList');
+    if (!host) return;
+    if (!sites.length) {
+      host.innerHTML = '<div class="p-6 text-center text-sm text-[hsl(var(--muted-foreground))]">暂无站点</div>';
+      return;
+    }
+    if (assignView === 'group') {
+      var groups = allGroups();
+      var html = groups.map(function (g) {
+        var rows = sites
+          .map(function (s, idx) { return { s: s, idx: idx }; })
+          .filter(function (o) { return (o.s.group || '未分组') === g; });
+        var gEsc = g.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        var head = '<button type="button" onclick="toggleAssignGroup(\'' + gEsc + '\')" '
+          + 'class="flex w-full items-center gap-2 rounded-md bg-[hsl(var(--muted))]/40 px-3 py-1.5 text-left text-xs font-semibold hover:bg-[hsl(var(--muted))]/70">'
+          + '<span>' + g + '</span>'
+          + '<span class="rounded-full bg-[hsl(var(--background))] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">' + rows.length + ' 站</span>'
+          + '</button>';
+        return '<div class="space-y-0.5">' + head
+          + rows.map(function (o) { return assignRowHtml(o.s, o.idx); }).join('')
+          + '</div>';
+      }).join('');
+      host.innerHTML = html;
+    } else {
+      host.innerHTML = sites.map(function (s, idx) { return assignRowHtml(s, idx); }).join('');
+    }
+  }
+  // 分组视图:点组标题 = 该组全勾则取消全组,否则补勾全组(仅改 DOM,保存时统一落库)
+  function toggleAssignGroup(g) {
+    var host = document.getElementById('assignList');
+    if (!host) return;
+    var boxes = [];
+    host.querySelectorAll('input[data-assign]').forEach(function (b) {
+      var idx = parseInt(b.getAttribute('data-assign'), 10);
+      var s = sites[idx];
+      if (s && (s.group || '未分组') === g) boxes.push(b);
+    });
+    var allOn = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+    boxes.forEach(function (b) { b.checked = !allOn; });
+  }
+  // 保存:勾选→绑定此代理;取消勾选且原本绑的是此代理→清空(回落跟随全局)
+  function saveSiteAssign() {
+    var boxes = document.querySelectorAll('#assignList input[data-assign]');
+    var cnt = 0;
+    boxes.forEach(function (b) {
+      var idx = parseInt(b.getAttribute('data-assign'), 10);
+      var s = sites[idx];
+      if (!s) return;
+      if (b.checked) { s.proxy = assigningProxy; cnt++; }
+      else if (s.proxy === assigningProxy) { s.proxy = ''; }
+    });
+    var pname = assigningProxy;
+    closeSiteAssign();
+    renderProxyList();
+    renderRows();
+    toast('「' + pname + '」已配置 ' + cnt + ' 个站点', 'success');
   }
 
   // ---- 爬虫设置(演示端仅本次会话生效;块7 对接 /api/settings 的 scrape 段)----
@@ -855,6 +1460,8 @@
       val('m_email', site.email || ''); val('m_note', site.note || '');
       val('m_balance', site.balNum != null ? site.balNum : '');
       val('m_group', site.group || '');
+      resetSiteProxyPings();
+      fillProxyOptions(site.proxy || '');
       document.getElementById('m_token').placeholder = '留空则保留原 token';
       document.getElementById('m_tokenHint').textContent = '留空则保留原 token（加密存储，不回显）';
       syncRatioHint();
@@ -874,6 +1481,8 @@
       val('m_rechargeRmb', '10'); val('m_rechargeAmount', '1.4');
       val('m_currency', 'USD'); val('m_email', ''); val('m_note', '');
       val('m_balance', ''); val('m_group', '');
+      resetSiteProxyPings();
+      fillProxyOptions('');
       document.getElementById('m_token').placeholder = '选填,不填则该站无法爬取/签到,主页会有提示';
       document.getElementById('m_tokenHint').textContent = '选填。留空可先建档,主页会用红色三角提示该站尚未启用爬取。';
       syncRatioHint();
@@ -950,6 +1559,7 @@
     openModal('edit', s);
   }
   function closeModal() {
+    stopSiteProxyPing();   // 关窗即停下拉测速定时器(onblur 不一定触发)
     var m = document.getElementById('modalWrap');
     if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
     editingName = null;
@@ -978,6 +1588,8 @@
     // 分组:trim;空或'未分组'保留词都归一成空串(=不分组)
     var group = document.getElementById('m_group').value.trim();
     if (group === '未分组') group = '';
+    // 出站代理:空=跟随全局/直连;否则为某代理名
+    var proxy = document.getElementById('m_proxy').value;
     // 签到设置:主开关 → 启用签到;auto → 自动签到;defAmtOn+defAmt → 默认签到到账金额
     var ckMaster   = document.getElementById('toggleSwitch').dataset.on === 'true';
     var autoOn     = document.getElementById('ckAutoSwitch').dataset.on === 'true';
@@ -1027,6 +1639,7 @@
         defAmt: (ckMaster && defAmtOn) ? defAmtNum : null,
         ckAmount: null,   // 本次签到实际到账(签到后填)
         group: group,   // 分组:留空=不分组
+        proxy: proxy,   // 出站代理名:留空=跟随全局/直连
       };
       recalcBalance(ns);
       sites.push(ns);
@@ -1037,6 +1650,7 @@
         target.name = name; target.url = normHost(url);
         target.rechargeRmb = rechargeRmb; target.rechargeAmount = rechargeAmount;
         target.group = group;
+        target.proxy = proxy;   // 出站代理名:留空=跟随全局/直连
         target.rate = (rechargeRmb / rechargeAmount).toFixed(2); target.cur = cur;
         target.email = email; target.note = note;
         target.balNum = balNum;          // 手填余额(留空=未知);随后按新汇率重算
@@ -1336,11 +1950,12 @@
   }
 
   // ---- 导出 CSV(不含 token)----
-  function exportCSV() {
+  function exportCSV(list) {
+    var arr = (list && list.length) ? list : sites;
     var head = ['站点名称', '地址', '余额', '折算RMB', '汇率', '货币', '签到状态', '上次爬取', '注册邮箱', '备注'];
     var ckText = { signed: '已签', manual: '需手动', off: '未启用' };
     var esc = function (v) { v = (v == null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    var rows = sites.map(function (s) {
+    var rows = arr.map(function (s) {
       return [s.name, s.url, s.bal, s.rmb, s.rate, s.cur || '', ckText[s.ck] || s.ck, s.scraped, s.email || '', s.note || ''].map(esc).join(',');
     });
     var csv = '﻿' + head.join(',') + '\n' + rows.join('\n');  // BOM 让 Excel 正确识别 UTF-8
@@ -1350,12 +1965,13 @@
     a.download = 'rrelaynest-sites.csv';
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(a.href);
-    toast('已导出 ' + sites.length + ' 条为 CSV', 'success');
+    toast('已导出 ' + arr.length + ' 条为 CSV', 'success');
   }
 
   // ---- 导出 JSON(不含 token)----
-  function exportJSON() {
-    var data = sites.map(function (s) {
+  function exportJSON(list) {
+    var arr = (list && list.length) ? list : sites;
+    var data = arr.map(function (s) {
       return { name: s.name, url: s.url, balance: s.bal, rmb: s.rmb, rate: s.rate,
                currency: s.cur || '', checkin: s.ck, lastScraped: s.scraped,
                email: s.email || '', note: s.note || '' };
@@ -1366,7 +1982,130 @@
     a.download = 'rrelaynest-sites.json';
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(a.href);
-    toast('已导出 ' + sites.length + ' 条为 JSON', 'success');
+    toast('已导出 ' + arr.length + ' 条为 JSON', 'success');
+  }
+
+  // ---- 选择性导出:勾选站点后导出 CSV/JSON(演示端;块7 对接后端批量导出) ----
+  var exportView = 'default';        // 列表视图:default=平铺(主页顺序)/ group=按分组归类
+  var exportChecked = {};            // { siteName: true } 勾选态(跨视图切换保持)
+  // 打开:默认全选所有站点
+  function openExportModal() {
+    exportView = 'default';
+    exportChecked = {};
+    sites.forEach(function (s) { exportChecked[s.name] = true; });
+    syncExportViewButtons();
+    renderExportList();
+    var wrap = document.getElementById('exportModalWrap');
+    if (wrap) { wrap.classList.remove('hidden'); wrap.classList.add('flex'); }
+  }
+  function closeExport() {
+    var wrap = document.getElementById('exportModalWrap');
+    if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('flex'); }
+  }
+  // 切换视图:先把当前 DOM 勾选态写回 exportChecked,再换视图重渲染
+  function setExportView(v) {
+    if (v === exportView) return;
+    stashExportChecks();
+    exportView = v;
+    syncExportViewButtons();
+    renderExportList();
+  }
+  function syncExportViewButtons() {
+    var d = document.getElementById('exportViewDefault');
+    var g = document.getElementById('exportViewGroup');
+    [['default', d], ['group', g]].forEach(function (pair) {
+      var on = exportView === pair[0];
+      var b = pair[1];
+      if (!b) return;
+      b.classList.toggle('bg-primary', on);
+      b.classList.toggle('text-primary-foreground', on);
+      b.classList.toggle('hover:bg-[hsl(var(--accent))]', !on);
+      b.classList.toggle('text-[hsl(var(--muted-foreground))]', !on);
+    });
+  }
+  // 把当前 DOM 勾选态写回 exportChecked
+  function stashExportChecks() {
+    document.querySelectorAll('#exportList input[data-export]').forEach(function (b) {
+      var idx = parseInt(b.getAttribute('data-export'), 10);
+      var s = sites[idx];
+      if (s) exportChecked[s.name] = b.checked;
+    });
+  }
+  function exportRowHtml(s, idx) {
+    return '<label class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-[hsl(var(--accent))]">'
+      + '<input type="checkbox" data-export="' + idx + '" onchange="updateExportCount()"' + (exportChecked[s.name] ? ' checked' : '') + ' class="h-4 w-4 shrink-0 accent-[hsl(var(--foreground))]" />'
+      + '<span class="min-w-0 flex-1 truncate text-sm">' + s.name + '</span>'
+      + '<span class="shrink-0 text-xs text-[hsl(var(--muted-foreground))]">' + (s.group || '未分组') + '</span>'
+      + '</label>';
+  }
+  function renderExportList() {
+    var host = document.getElementById('exportList');
+    if (!host) return;
+    if (!sites.length) {
+      host.innerHTML = '<div class="p-6 text-center text-sm text-[hsl(var(--muted-foreground))]">暂无站点</div>';
+      updateExportCount();
+      return;
+    }
+    if (exportView === 'group') {
+      var groups = allGroups();
+      host.innerHTML = groups.map(function (g) {
+        var rows = sites
+          .map(function (s, idx) { return { s: s, idx: idx }; })
+          .filter(function (o) { return (o.s.group || '未分组') === g; });
+        var gEsc = g.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        var head = '<button type="button" onclick="toggleExportGroup(\'' + gEsc + '\')" '
+          + 'class="flex w-full items-center gap-2 rounded-md bg-[hsl(var(--muted))]/40 px-3 py-1.5 text-left text-xs font-semibold hover:bg-[hsl(var(--muted))]/70">'
+          + '<span>' + g + '</span>'
+          + '<span class="rounded-full bg-[hsl(var(--background))] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">' + rows.length + ' 站</span>'
+          + '</button>';
+        return '<div class="space-y-0.5">' + head
+          + rows.map(function (o) { return exportRowHtml(o.s, o.idx); }).join('')
+          + '</div>';
+      }).join('');
+    } else {
+      host.innerHTML = sites.map(function (s, idx) { return exportRowHtml(s, idx); }).join('');
+    }
+    updateExportCount();
+  }
+  // 点组标题:该组全勾则取消全组,否则补勾全组(仅改 DOM)
+  function toggleExportGroup(g) {
+    var host = document.getElementById('exportList');
+    if (!host) return;
+    var boxes = [];
+    host.querySelectorAll('input[data-export]').forEach(function (b) {
+      var idx = parseInt(b.getAttribute('data-export'), 10);
+      var s = sites[idx];
+      if (s && (s.group || '未分组') === g) boxes.push(b);
+    });
+    var allOn = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+    boxes.forEach(function (b) { b.checked = !allOn; });
+    updateExportCount();
+  }
+  // 全选/全不选:当前 DOM 全勾则清空,否则全勾
+  function toggleExportAll() {
+    var boxes = document.querySelectorAll('#exportList input[data-export]');
+    var allOn = boxes.length > 0 && Array.prototype.every.call(boxes, function (b) { return b.checked; });
+    boxes.forEach(function (b) { b.checked = !allOn; });
+    updateExportCount();
+  }
+  function updateExportCount() {
+    var boxes = document.querySelectorAll('#exportList input[data-export]');
+    var n = 0;
+    boxes.forEach(function (b) { if (b.checked) n++; });
+    var el = document.getElementById('exportCount');
+    if (el) el.textContent = '已选 ' + n + ' / ' + sites.length + ' 个站点';
+  }
+  // 收集当前勾选的站点(先写回暂存,再按勾选态过滤)
+  function collectExportSel() {
+    stashExportChecks();
+    return sites.filter(function (s) { return exportChecked[s.name]; });
+  }
+  function doExport(fmt) {
+    var sel = collectExportSel();
+    if (!sel.length) { toast('请至少勾选一个站点', 'info'); return; }
+    if (fmt === 'csv') exportCSV(sel);
+    else exportJSON(sel);
+    closeExport();
   }
 
   // ---- 爬取间隔:读写 localStorage,持久化 ----
@@ -1486,6 +2225,26 @@
   ];
   // 签到状态排序优先级:已签 < 需手动 < 未启用
   var ckOrder = { signed: 0, manual: 1, off: 2 };
+
+  // ---- 代理池(演示端仅本次会话生效;块7 对接 /api/settings 的 proxy 段)----
+  // 每条 { name, type, host, port, user, pass, enabled }。type: http|https|socks5
+  // enabled=单条启用位;globalProxy=选作全局的代理名(''=直连)。
+  var proxies = [
+    { name:'本地-Clash',  type:'http',   host:'127.0.0.1',    port:7890, user:'',     pass:'',      enabled:true  },
+    { name:'机场-香港',    type:'socks5', host:'hk.example.com', port:1080, user:'vpnuser', pass:'secret', enabled:true  },
+    { name:'公司-出口',    type:'https',  host:'gw.corp.example', port:8443, user:'',     pass:'',      enabled:false },
+  ];
+  var globalProxy = '';   // 全局代理:选一个代理作默认出网;''=直连。站点可单独绑定覆盖
+  var editingProxy = null;     // 正在编辑的代理名(create 时为 null)
+  // 部署平台:'node'=Node/Docker(代理生效) | 'workers'=Cloudflare Workers(代理不可用,强制直连)。
+  // 演示端可手动切换看两种状态;块7 换成启动探测(如后端注入 /api/meta 的 platform 字段)。
+  var deployPlatform = 'node';
+  // 代理类型徽章配色:http=蓝 / https=绿 / socks5=紫
+  var PROXY_TYPE_STYLE = {
+    http:   'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+    https:  'bg-green-500/15 text-green-600 dark:text-green-400',
+    socks5: 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
+  };
 
   // ---- 三类历史记录:充值 / 签到 / 爬取。每条 { ts, site, ... },设置页「记录」分区展示 ----
   // preview 端只存内存(刷新即清);块7 Vue 里换成后端表 + 分页接口。
@@ -2315,17 +3074,13 @@
         + '</div>',
     },
     data: {
-      title: '数据与关于',
+      title: '数据',
       body:
         '<div class="space-y-6">'
-        + '<div><h3 class="text-base font-semibold">数据与关于</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">导出数据与版本信息。</p></div>'
+        + '<div><h3 class="text-base font-semibold">数据</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">导出与清空本地数据。</p></div>'
         + '<div class="flex flex-wrap gap-2">'
-        + '<button onclick="exportCSV()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">导出 CSV</button>'
-        + '<button onclick="exportJSON()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">导出 JSON</button></div>'
+        + '<button onclick="openExportModal()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>选择导出</button></div>'
         + '<p class="text-xs text-[hsl(var(--muted-foreground))]">导出内容不含 token 明文。</p>'
-        + '<div class="rounded-lg border border-border p-4 text-sm"><div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">应用</span><span class="font-medium">Rrelaynest</span></div>'
-        + '<div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">版本</span><span class="font-medium">v1.0.0</span></div>'
-        + '<div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">部署</span><span class="font-medium">Cloudflare Workers / Docker</span></div></div>'
         + '<div class="rounded-lg border border-red-500/40 p-4"><p class="text-sm font-medium text-red-500">危险区</p>'
         + '<p class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">清空所有站点及爬取数据,不可恢复。</p>'
         + '<button onclick="clearAllData()" class="mt-3 rounded-md bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600">清空全部数据</button></div>'
@@ -2593,6 +3348,12 @@
     if (e.key !== 'Escape') return;
     var psMenu = document.getElementById('pageSizeMenu');
     if (psMenu && !psMenu.classList.contains('hidden')) { closePageSizeMenu(); return; }
+    var asModal = document.getElementById('assignModalWrap');
+    if (asModal && !asModal.classList.contains('hidden')) { closeSiteAssign(); return; }
+    var exModal = document.getElementById('exportModalWrap');
+    if (exModal && !exModal.classList.contains('hidden')) { closeExport(); return; }
+    var pxModal = document.getElementById('proxyModalWrap');
+    if (pxModal && !pxModal.classList.contains('hidden')) { closeProxyModal(); return; }
     var rcModal = document.getElementById('rcModalWrap');
     if (rcModal && !rcModal.classList.contains('hidden')) { closeRcModal(); return; }
     var ckModal = document.getElementById('ckModalWrap');

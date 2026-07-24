@@ -1,7 +1,7 @@
 // API 路由工厂：登录、站点 CRUD、爬取、签到、设置、导出。全部挂在 /api 下。
 // 跨平台：不直接依赖 Workers 的 Env，改由入口注入 Database + AppSecrets。
 import { Hono } from 'hono';
-import type { AppSecrets, Database, SiteRow, GroupRow, ModelRow } from './types';
+import type { AppSecrets, Database, SiteRow, GroupRow, ModelRow, ProxyRow, MakeFetch } from './types';
 import {
   createSession,
   sessionCookie,
@@ -17,6 +17,8 @@ import { scrapeAndStore, checkinAndStore } from './scrape-runner';
 export interface AppDeps {
   db: Database;
   secrets: AppSecrets;
+  // dispatcher 工厂：Node 入口注入（手动爬取/签到走代理），Workers 不注入（直连）
+  makeFetch?: MakeFetch;
 }
 
 interface SiteInput {
@@ -30,10 +32,21 @@ interface SiteInput {
   email?: string | null;
   note?: string | null;
   sort_order?: number | null;
+  proxy_id?: number | null; // 绑定代理 id；null=跟随全局，undefined=不改
+}
+
+interface ProxyInput {
+  name?: string;
+  type?: string; // http / https / socks5
+  host?: string;
+  port?: number;
+  username?: string | null;
+  password?: string; // 明文，可选；空字符串表示清除，undefined 表示不变
+  enabled?: boolean;
 }
 
 export function createApp(deps: AppDeps) {
-  const { db, secrets } = deps;
+  const { db, secrets, makeFetch } = deps;
   const app = new Hono();
 
   // ---- 鉴权中间件：/api/login 和 /api/session 之外都要登录 ----
@@ -116,8 +129,8 @@ export function createApp(deps: AppDeps) {
     const res = await db
       .prepare(
         `INSERT INTO sites
-          (name, base_url, token_encrypted, rate, currency, checkin_enabled, email, note, sort_order, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (name, base_url, token_encrypted, rate, currency, checkin_enabled, email, note, sort_order, proxy_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         body.name,
@@ -129,6 +142,7 @@ export function createApp(deps: AppDeps) {
         body.email ?? null,
         body.note ?? null,
         body.sort_order ?? 0,
+        body.proxy_id ?? null,
         now,
         now,
       )
@@ -154,11 +168,15 @@ export function createApp(deps: AppDeps) {
         : null;
     }
 
+    // proxy_id: undefined=不变, null=清除(回落全局/直连), 数字=绑定该代理
+    const proxyId =
+      body.proxy_id === undefined ? existing.proxy_id : body.proxy_id;
+
     await db
       .prepare(
         `UPDATE sites SET
           name = ?, base_url = ?, token_encrypted = ?, rate = ?, currency = ?,
-          checkin_enabled = ?, checkin_done = ?, email = ?, note = ?, sort_order = ?, updated_at = ?
+          checkin_enabled = ?, checkin_done = ?, email = ?, note = ?, sort_order = ?, proxy_id = ?, updated_at = ?
          WHERE id = ?`,
       )
       .bind(
@@ -180,6 +198,7 @@ export function createApp(deps: AppDeps) {
         body.email ?? existing.email,
         body.note ?? existing.note,
         body.sort_order ?? existing.sort_order,
+        proxyId,
         Date.now(),
         id,
       )
@@ -202,7 +221,7 @@ export function createApp(deps: AppDeps) {
       .bind(id)
       .first<SiteRow>();
     if (!site) return c.json({ error: '站点不存在' }, 404);
-    const result = await scrapeAndStore(db, secrets, site);
+    const result = await scrapeAndStore(db, secrets, site, makeFetch);
     return c.json(result);
   });
 
@@ -211,7 +230,7 @@ export function createApp(deps: AppDeps) {
     const sites = await db.prepare('SELECT * FROM sites').all<SiteRow>();
     const results = [];
     for (const site of sites.results) {
-      results.push(await scrapeAndStore(db, secrets, site));
+      results.push(await scrapeAndStore(db, secrets, site, makeFetch));
     }
     return c.json({ results });
   });
@@ -224,8 +243,117 @@ export function createApp(deps: AppDeps) {
       .bind(id)
       .first<SiteRow>();
     if (!site) return c.json({ error: '站点不存在' }, 404);
-    const result = await checkinAndStore(db, secrets, site);
+    const result = await checkinAndStore(db, secrets, site, makeFetch);
     return c.json(result);
+  });
+
+  // ---- 代理池 CRUD（仅 Node/Docker 实际生效；Workers 可读写但爬取时忽略）----
+  // 列表：不含密码明文，只报 has_password
+  app.get('/api/proxies', async (c) => {
+    const rows = await db
+      .prepare('SELECT * FROM proxies ORDER BY id ASC')
+      .all<ProxyRow>();
+    const data = rows.results.map((p) => {
+      const { password_encrypted, ...rest } = p;
+      return { ...rest, has_password: !!password_encrypted };
+    });
+    return c.json({ proxies: data });
+  });
+
+  app.post('/api/proxies', async (c) => {
+    const body = await c.req.json<ProxyInput>();
+    if (!body.name || !body.host || !body.port) {
+      return c.json({ error: 'name、host、port 必填' }, 400);
+    }
+    const type = body.type ?? 'http';
+    if (!['http', 'https', 'socks5'].includes(type)) {
+      return c.json({ error: 'type 仅支持 http/https/socks5' }, 400);
+    }
+    const now = Date.now();
+    const passEnc = body.password
+      ? await encryptToken(secrets.ENCRYPTION_KEY, body.password)
+      : null;
+    const res = await db
+      .prepare(
+        `INSERT INTO proxies
+          (name, type, host, port, username, password_encrypted, enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        body.name,
+        type,
+        body.host,
+        body.port,
+        body.username ?? null,
+        passEnc,
+        body.enabled === false ? 0 : 1,
+        now,
+        now,
+      )
+      .run();
+    return c.json({ ok: true, id: res.meta.last_row_id });
+  });
+
+  app.put('/api/proxies/:id', async (c) => {
+    const id = Number(c.req.param('id'));
+    const body = await c.req.json<ProxyInput>();
+    const existing = await db
+      .prepare('SELECT * FROM proxies WHERE id = ?')
+      .bind(id)
+      .first<ProxyRow>();
+    if (!existing) return c.json({ error: '代理不存在' }, 404);
+
+    if (body.type !== undefined && !['http', 'https', 'socks5'].includes(body.type)) {
+      return c.json({ error: 'type 仅支持 http/https/socks5' }, 400);
+    }
+
+    // password: undefined=不变, ''=清除, 非空=更新（与 token 同款）
+    let passEnc = existing.password_encrypted;
+    if (body.password !== undefined) {
+      passEnc = body.password
+        ? await encryptToken(secrets.ENCRYPTION_KEY, body.password)
+        : null;
+    }
+
+    await db
+      .prepare(
+        `UPDATE proxies SET
+          name = ?, type = ?, host = ?, port = ?, username = ?, password_encrypted = ?, enabled = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .bind(
+        body.name ?? existing.name,
+        body.type ?? existing.type,
+        body.host ?? existing.host,
+        body.port ?? existing.port,
+        body.username === undefined ? existing.username : body.username,
+        passEnc,
+        body.enabled === undefined ? existing.enabled : body.enabled ? 1 : 0,
+        Date.now(),
+        id,
+      )
+      .run();
+    return c.json({ ok: true });
+  });
+
+  // 删除代理：手动把绑定它的站点 proxy_id 置 NULL（不依赖外键级联，D1/better-sqlite3 默认不开外键），
+  // 并在它是全局代理时清空 global_proxy_id，使这些站点回落到全局/直连。
+  app.delete('/api/proxies/:id', async (c) => {
+    const id = Number(c.req.param('id'));
+    const stmts = [
+      db.prepare('UPDATE sites SET proxy_id = NULL, updated_at = ? WHERE proxy_id = ?').bind(Date.now(), id),
+      db.prepare('DELETE FROM proxies WHERE id = ?').bind(id),
+    ];
+    await db.batch(stmts);
+    const gp = await db
+      .prepare("SELECT value FROM settings WHERE key = 'global_proxy_id'")
+      .first<{ value: string }>();
+    if (gp?.value === String(id)) {
+      await db
+        .prepare("UPDATE settings SET value = '' WHERE key = 'global_proxy_id'")
+        .run();
+    }
+    return c.json({ ok: true });
   });
 
   // ---- 设置读写 ----

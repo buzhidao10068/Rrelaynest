@@ -3,6 +3,7 @@
 // - GET /api/user/self    → data.quota，按 QuotaPerUnit=500000 换算余额
 // - POST /api/user/checkin→ 签到（对齐 QuantumNous/new-api，见 prd.md Background）
 // 认证：Authorization: Bearer <access_token>
+import type { FetchLike } from './types';
 
 export interface PricingGroup {
   group_name: string;
@@ -34,12 +35,22 @@ export interface CheckinResult {
 // quota 单位是内部额度，500000 quota = $1（new-api 默认 QuotaPerUnit）
 const QUOTA_PER_UNIT = 500000;
 
+// 爬取/签到选项。fetchImpl 是可注入的 fetch 实现（Node 代理注入用）：
+// Node 侧传绑定了代理 dispatcher 的 undici.fetch；Workers/默认回落到全局 fetch。
+// 用可注入 fetch 而非 dispatcher 的原因见记忆 proxy-fetch-dispatcher-binding：
+// 全局 fetch 不认外部 undici 包的 dispatcher，必须用同一包的 fetch+dispatcher。
+// 类型用与全局 fetch 兼容的签名，保持本文件平台无关（不 import undici）。
+export interface ScrapeOptions {
+  fetchImpl?: FetchLike;
+}
+
 function normalizeBase(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
 }
 
-async function fetchJson(url: string, token: string): Promise<unknown> {
-  const resp = await fetch(url, {
+async function fetchJson(url: string, token: string, opts?: ScrapeOptions): Promise<unknown> {
+  const doFetch = opts?.fetchImpl ?? fetch;
+  const resp = await doFetch(url, {
     headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
   });
   if (!resp.ok) {
@@ -90,11 +101,11 @@ function parseBalance(payload: unknown): number | null {
   return quota / QUOTA_PER_UNIT;
 }
 
-export async function scrapeSite(baseUrl: string, token: string): Promise<ScrapeResult> {
+export async function scrapeSite(baseUrl: string, token: string, opts?: ScrapeOptions): Promise<ScrapeResult> {
   const base = normalizeBase(baseUrl);
 
   // pricing 是核心，必须成功
-  const pricingRaw = (await fetchJson(`${base}/api/pricing`, token)) as { success?: boolean; message?: string };
+  const pricingRaw = (await fetchJson(`${base}/api/pricing`, token, opts)) as { success?: boolean; message?: string };
   if (pricingRaw?.success === false) {
     throw new Error(`pricing 接口返回失败：${pricingRaw?.message ?? '未知错误'}`);
   }
@@ -103,7 +114,7 @@ export async function scrapeSite(baseUrl: string, token: string): Promise<Scrape
   // 余额单独抓，失败不致命（有些站点关闭了该接口）
   let balance: number | null = null;
   try {
-    const selfRaw = await fetchJson(`${base}/api/user/self`, token);
+    const selfRaw = await fetchJson(`${base}/api/user/self`, token, opts);
     balance = parseBalance(selfRaw);
   } catch {
     balance = null;
@@ -115,11 +126,12 @@ export async function scrapeSite(baseUrl: string, token: string): Promise<Scrape
 // 执行签到。对齐 QuantumNous/new-api：POST /api/user/checkin
 // 成功 {success:true, message:'签到成功', data:{quota_awarded, checkin_date}}
 // 失败 {success:false, message:'...'}；该端点挂 TurnstileCheck 中间件。
-export async function checkinSite(baseUrl: string, token: string): Promise<CheckinResult> {
+export async function checkinSite(baseUrl: string, token: string, opts?: ScrapeOptions): Promise<CheckinResult> {
   const base = normalizeBase(baseUrl);
+  const doFetch = opts?.fetchImpl ?? fetch;
   let resp: Response;
   try {
-    resp = await fetch(`${base}/api/user/checkin`, {
+    resp = await doFetch(`${base}/api/user/checkin`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });

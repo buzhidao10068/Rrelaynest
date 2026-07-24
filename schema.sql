@@ -4,6 +4,21 @@
 --                wrangler d1 execute rrelaynest-db --remote --file=./schema.sql
 --   Node/Docker：server 启动时对空库执行本文件（见 src/server/sqlite-db.ts）
 
+-- 代理表：出站代理池，一个代理一行。仅 Node/Docker 部署生效（Workers 的 fetch 无法走自建代理）。
+CREATE TABLE IF NOT EXISTS proxies (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  name               TEXT    NOT NULL,              -- 代理显示名
+  type               TEXT    NOT NULL DEFAULT 'http', -- http / https / socks5
+  host               TEXT    NOT NULL,              -- 代理主机
+  port               INTEGER NOT NULL,              -- 代理端口
+  username           TEXT,                          -- 认证用户名（可空）
+  -- 代理密码加密后存储（AES-GCM，与 token 同一套 crypto.ts / ENCRYPTION_KEY），明文不落库
+  password_encrypted TEXT,
+  enabled            INTEGER NOT NULL DEFAULT 1,    -- 是否启用 0/1；禁用的代理不参与出网
+  created_at         INTEGER NOT NULL,
+  updated_at         INTEGER NOT NULL
+);
+
 -- 站点表：一个中转站一行
 CREATE TABLE IF NOT EXISTS sites (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,6 +38,8 @@ CREATE TABLE IF NOT EXISTS sites (
   sort_order      INTEGER NOT NULL DEFAULT 0,       -- 手动排序
   last_scraped_at INTEGER,                          -- 上次成功爬取的时间戳(ms)
   last_error      TEXT,                             -- 上次爬取错误信息，成功则清空
+  -- 绑定的代理 id；NULL=跟随全局代理（全局也未设则直连）。代理删除时置 NULL（回落全局/直连）
+  proxy_id        INTEGER REFERENCES proxies(id) ON DELETE SET NULL,
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
 );
@@ -64,7 +81,9 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT OR IGNORE INTO settings (key, value) VALUES
   ('scrape_interval_min', '30'),     -- 自动爬取间隔（分钟），面板可改
   ('last_cron_run_at', '0'),         -- 上次 cron 实际执行爬取的时间戳(ms)
-  ('checkin_last_reset_at', '0');    -- 上次跨天重置 checkin_done 的时间戳(ms)
+  ('checkin_last_reset_at', '0'),    -- 上次跨天重置 checkin_done 的时间戳(ms)
+  ('global_proxy_id', '');           -- 全局代理 id（空=直连；站点未单独绑定时回落到此）
 
 CREATE INDEX IF NOT EXISTS idx_site_groups_site ON site_groups(site_id);
 CREATE INDEX IF NOT EXISTS idx_site_models_site ON site_models(site_id);
+CREATE INDEX IF NOT EXISTS idx_sites_proxy ON sites(proxy_id);

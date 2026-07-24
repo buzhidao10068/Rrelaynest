@@ -43,6 +43,39 @@ export interface SiteRow {
   sort_order: number;
   last_scraped_at: number | null;
   last_error: string | null;
+  proxy_id: number | null; // 绑定的代理 id；NULL=跟随全局代理（全局也未设则直连）
+  created_at: number;
+  updated_at: number;
+}
+
+// 解密后的代理配置：供 dispatcher 工厂构造出站分派器。password 为明文（调用方解密后传入）。
+export interface ProxyConfig {
+  type: string; // http / https / socks5
+  host: string;
+  port: number;
+  username?: string | null;
+  password?: string | null;
+}
+
+// 平台无关的 fetch 签名（与全局 fetch 兼容；init 用 unknown 以容纳 undici 扩展字段）。
+export type FetchLike = (url: string, init?: unknown) => Promise<Response>;
+
+// fetch 工厂：入参是解析后的代理配置；返回一个已绑定该代理的 fetch。
+// 仅在确有可用代理时被调用（直连场景 resolveFetch 直接返回 undefined，不调本工厂）。
+// Node 入口注入（用 undici 的 fetch + dispatcher，二者必须同一个包，见踩坑记录）；
+// Workers 不注入 → scraper 回落全局 fetch（恒直连）。保持 shared/* 平台无关（不 import undici）。
+export type MakeFetch = (cfg: ProxyConfig) => FetchLike;
+
+// 代理行：出站代理池。仅 Node/Docker 部署生效（Workers 的 fetch 无法走自建代理）。
+export interface ProxyRow {
+  id: number;
+  name: string;
+  type: string; // http / https / socks5
+  host: string;
+  port: number;
+  username: string | null;
+  password_encrypted: string | null; // AES-GCM 加密，与 token 同一套 crypto/ENCRYPTION_KEY
+  enabled: number;
   created_at: number;
   updated_at: number;
 }

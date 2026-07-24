@@ -1,6 +1,6 @@
 // 定时任务的平台无关逻辑：按 scrape_interval_min 节流爬取 + 跨天重置签到 + 自动签到。
 // Workers 的 scheduled() 和 Node 的 node-cron 都调用 runScheduledTick。
-import type { Database, AppSecrets, SiteRow } from './types';
+import type { Database, AppSecrets, SiteRow, MakeFetch } from './types';
 import { scrapeAndStore, checkinAndStore } from './scrape-runner';
 
 // 日界固定用 UTC+8，避免 Workers(UTC) 与 Docker(本地时区) 的跨天判定不一致。
@@ -30,7 +30,12 @@ async function maybeResetCheckin(db: Database, now: number): Promise<void> {
   await setSetting(db, 'checkin_last_reset_at', String(now));
 }
 
-export async function runScheduledTick(db: Database, secrets: AppSecrets, now: number): Promise<void> {
+export async function runScheduledTick(
+  db: Database,
+  secrets: AppSecrets,
+  now: number,
+  makeFetch?: MakeFetch,
+): Promise<void> {
   // 1) 跨天重置签到标记
   await maybeResetCheckin(db, now);
 
@@ -44,7 +49,7 @@ export async function runScheduledTick(db: Database, secrets: AppSecrets, now: n
     await setSetting(db, 'last_cron_run_at', String(now));
     const sites = await db.prepare('SELECT * FROM sites').all<SiteRow>();
     for (const site of sites.results) {
-      await scrapeAndStore(db, secrets, site);
+      await scrapeAndStore(db, secrets, site, makeFetch);
     }
   }
 
@@ -53,6 +58,6 @@ export async function runScheduledTick(db: Database, secrets: AppSecrets, now: n
     .prepare('SELECT * FROM sites WHERE checkin_enabled = 1 AND checkin_done = 0')
     .all<SiteRow>();
   for (const site of pending.results) {
-    await checkinAndStore(db, secrets, site);
+    await checkinAndStore(db, secrets, site, makeFetch);
   }
 }
