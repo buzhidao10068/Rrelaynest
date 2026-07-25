@@ -21,3 +21,6 @@ data/
 .idea/
 .vscode/
 *.log
+
+# Playwright MCP 临时产物
+.playwright-mcp/

@@ -341,6 +341,12 @@
           <label class="text-sm font-medium">备注</label>
           <textarea id="m_note" rows="2" class="w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]">GPT-4 主力站</textarea>
         </div>
+        <!-- 测活词:此站渠道测试专用;从测活词池里选一条,留空=跟随全局默认词 -->
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium">测活词</label>
+          <select id="m_probeText" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]"></select>
+          <p class="text-xs text-[hsl(var(--muted-foreground))]">测活页「渠道测试」发给本站模型的话,模型正常回复即判存活;从测活词池选一条,留空则跟随全局默认词。词条在「测活」页管理。</p>
+        </div>
         <!-- 签到设置区:主开关「签到」,勾选后展开「启用自动签到」+「默认签到增加金额」 -->
         <div class="space-y-4 rounded-lg border border-border p-4">
           <!-- 签到主开关 -->
@@ -517,6 +523,32 @@
   </div>
 </div>
 
+<!-- ============ 测活词:新增/编辑弹窗(fixed,脱离父容器;仿 proxyModal 缩水版) ============ -->
+<div id="probeModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+  <div onclick="closeProbeModal()" class="fixed inset-0 bg-black/50"></div>
+  <div class="relative my-auto w-full max-w-[420px] space-y-5 rounded-lg border border-border bg-card p-5 shadow-xl sm:p-6">
+    <div class="flex items-start justify-between">
+      <div>
+        <h2 id="probeModalTitle" class="text-lg font-semibold">新增测活词</h2>
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">渠道测试时发给模型的话,模型正常回复即判存活</p>
+      </div>
+      <button onclick="closeProbeModal()" class="flex h-8 w-8 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="space-y-1.5">
+      <label class="text-sm font-medium">测活词内容</label>
+      <input id="probe_text" placeholder="如:hi / 你好 / 请回复 ok" onkeydown="if(event.key==='Enter')submitProbeModal()" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+      <p class="text-xs text-[hsl(var(--muted-foreground))]">这句话会原样发给模型;能收到正常回复即判该站可用。</p>
+    </div>
+    <p id="probeModalError" class="hidden rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-500"></p>
+    <div class="flex justify-end gap-2">
+      <button onclick="closeProbeModal()" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">取消</button>
+      <button onclick="submitProbeModal()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ 代理:配置「哪些站点使用此代理」弹窗(fixed,脱离父容器) ============ -->
 <div id="assignModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
   <div onclick="closeSiteAssign()" class="fixed inset-0 bg-black/50"></div>
@@ -545,6 +577,38 @@
     <div class="flex justify-end gap-2 border-t border-border p-4">
       <button onclick="closeSiteAssign()" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">取消</button>
       <button onclick="saveSiteAssign()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 测活词:配置「哪些站点使用此测活词」弹窗(平行于代理版,不复用其函数) ============ -->
+<div id="probeAssignModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+  <div onclick="closeProbeAssign()" class="fixed inset-0 bg-black/50"></div>
+  <div class="relative my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-[460px] flex-col rounded-lg border border-border bg-card shadow-xl">
+    <div class="flex items-start justify-between border-b border-border p-5 sm:p-6">
+      <div>
+        <h2 id="probeAssignTitle" class="text-lg font-semibold">配置站点</h2>
+        <p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">勾选的站点将用此测活词做渠道测试;取消勾选则回落到「全局默认词」。</p>
+      </div>
+      <button onclick="closeProbeAssign()" class="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <!-- 视图切换:默认(平铺,按主页顺序)/ 分组(按分组归类,组序同主页 allGroups) -->
+    <div class="flex items-center gap-1 border-b border-border px-3 py-2">
+      <button id="probeAssignViewDefault" onclick="setProbeAssignView('default')" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
+        默认
+      </button>
+      <button id="probeAssignViewGroup" onclick="setProbeAssignView('group')" class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+        分组
+      </button>
+    </div>
+    <div id="probeAssignList" class="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-3"></div>
+    <div class="flex justify-end gap-2 border-t border-border p-4">
+      <button onclick="closeProbeAssign()" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">取消</button>
+      <button onclick="saveProbeAssign()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存</button>
     </div>
   </div>
 </div>
@@ -588,51 +652,173 @@
   </div>
 </div>
 
+<!-- 用户编辑弹窗:admin 新增/编辑用户(邀请制,管理员手动开号)。块7 对接 /api/admin/users。 -->
+<div id="userModalWrap" class="fixed inset-0 z-[70] hidden items-center justify-center overflow-y-auto p-4">
+  <div onclick="closeUserModal()" class="fixed inset-0 bg-black/50"></div>
+  <div class="relative my-auto flex w-full max-w-[440px] flex-col rounded-lg border border-border bg-card shadow-xl">
+    <div class="flex items-start justify-between border-b border-border p-5 sm:p-6">
+      <div>
+        <h2 id="userModalTitle" class="text-lg font-semibold">新增用户</h2>
+        <p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">邀请制:由管理员手动开号,无自助注册。</p>
+      </div>
+      <button onclick="closeUserModal()" class="ml-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+    </div>
+    <div class="space-y-4 p-5 sm:p-6">
+      <div class="space-y-1.5"><label class="text-sm font-medium">用户名</label>
+        <input id="userModalName" placeholder="登录用户名" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" /></div>
+      <div class="space-y-1.5"><label id="userModalPwLabel" class="text-sm font-medium">初始密码</label>
+        <input id="userModalPw" type="text" placeholder="设置初始密码,用户登录后可自行修改" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <p id="userModalPwHint" class="text-xs text-[hsl(var(--muted-foreground))]">编辑时留空表示不改密码。</p></div>
+      <div class="space-y-1.5"><label class="text-sm font-medium">角色</label>
+        <select id="userModalRole" class="h-10 w-full rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]">
+          <option value="user">普通用户(仅管理自己的数据)</option>
+          <option value="admin">管理员(可管账号 + 只读他人数据)</option>
+        </select></div>
+      <p id="userModalError" class="hidden text-sm text-red-500"></p>
+    </div>
+    <div class="flex justify-end gap-2 border-t border-border p-4">
+      <button onclick="closeUserModal()" class="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">取消</button>
+      <button onclick="saveUser()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ 设置(独立整屏:左分区导航 + 右内容) ============ -->
 <!-- 爬虫:全局爬取行为设置(间隔/并发/超时/重试);块7 对接 /api/settings 的 scrape 段 -->
-<div data-view="scraper">
+<!-- 爬虫 · Cloudflare:对应 Workers 部署。定时=Cron Triggers(wrangler.toml 配置);代理=不支持(强制直连);受 subrequest/CPU 时限。 -->
+<div data-view="scraperCf">
   <div class="min-h-screen" style="background:hsl(var(--background));">
     <header class="flex items-center gap-3 border-b border-border px-4 py-3">
       <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
       </button>
       <div class="flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
-        <span class="text-base font-semibold">爬虫</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 1 0 0-9h-1.8A7 7 0 1 0 4 15.3"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>
+        <span class="text-base font-semibold">爬虫 · Cloudflare</span>
+        <span class="inline-flex items-center rounded-md bg-orange-500/15 px-2 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">Workers</span>
       </div>
     </header>
     <div class="mx-auto max-w-[900px] space-y-6 p-4 sm:p-6">
-      <div><h3 class="text-base font-semibold">爬取设置</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">余额爬取的全局行为;单站可在编辑中覆盖。</p></div>
-      <!-- 定时爬取开关 -->
-      <div class="flex items-center gap-4 rounded-lg border border-border p-4">
-        <button id="scrapeAutoSwitch" data-on="true" onclick="toggleScrapeAuto()" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--foreground))] transition"><span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-5 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span></button>
-        <div><p class="text-sm font-medium">启用定时爬取</p><p class="text-xs text-[hsl(var(--muted-foreground))]">由后端 cron 按下方间隔周期性爬取所有站点余额。</p></div>
-      </div>
-      <!-- 爬取间隔:可编辑数值 + 单位 -->
-      <div class="space-y-1.5"><label class="text-sm font-medium">爬取间隔</label>
-        <div class="flex items-center gap-2">
-          <input id="scrapeInterval" type="number" min="1" value="30" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
-          <select id="scrapeIntervalUnit" class="h-10 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]"><option value="min">分钟</option><option value="hour">小时</option></select>
+      <!-- 平台限制提示 -->
+      <div class="flex items-start gap-3 rounded-lg border border-orange-500/40 bg-orange-500/10 p-4 text-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0 text-orange-600 dark:text-orange-400"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+        <div class="min-w-0">
+          <p class="font-medium text-orange-700 dark:text-orange-300">Cloudflare Workers 部署</p>
+          <p class="mt-1 text-[hsl(var(--muted-foreground))]">定时由 <b>Cron Triggers</b> 触发(在 <code class="rounded bg-[hsl(var(--muted))] px-1">wrangler.toml</code> 配置,不能在此页运行时修改);<b>不支持自建代理</b>,所有请求强制直连;受 Workers 的 <b>subrequest / CPU 时间</b>限制,并发不宜过高。</p>
         </div>
-        <p class="text-xs text-[hsl(var(--muted-foreground))]">两次自动爬取之间的最小间隔,避免过于频繁触发站点风控。</p>
       </div>
-      <!-- 并发数 -->
+      <div><h3 class="text-base font-semibold">爬取设置</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">余额爬取的全局行为;单站可在编辑中覆盖。</p></div>
+      <!-- 定时机制:Cron Triggers -->
+      <div class="space-y-3 rounded-lg border border-border p-4">
+        <div class="flex items-center gap-4">
+          <button id="cf_scrapeAutoSwitch" data-on="true" onclick="toggleScrapeAuto('cf')" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--foreground))] transition"><span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-5 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span></button>
+          <div><p class="text-sm font-medium">启用定时爬取</p><p class="text-xs text-[hsl(var(--muted-foreground))]">由 Cloudflare Cron Triggers 按下方表达式周期性爬取。</p></div>
+        </div>
+        <div class="space-y-1.5"><label class="text-sm font-medium">Cron 表达式</label>
+          <div class="flex items-center gap-2">
+            <input id="cf_cron" type="text" value="*/30 * * * *" oninput="syncCfCronPreview()" class="h-10 w-full max-w-[260px] rounded-md border border-input bg-[hsl(var(--background))] px-3 font-mono text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+          </div>
+          <p class="text-xs text-[hsl(var(--muted-foreground))]">Workers 的 cron 最小粒度 1 分钟。此值不会在运行时热更新,需写入 <code class="rounded bg-[hsl(var(--muted))] px-1">wrangler.toml</code> 后重新部署。</p>
+        </div>
+        <!-- wrangler.toml 片段(只读,可复制) -->
+        <div class="space-y-1.5"><label class="text-sm font-medium">wrangler.toml 片段</label>
+          <div class="relative">
+            <pre id="cf_cronSnippet" class="overflow-x-auto rounded-md border border-border bg-[hsl(var(--muted))] p-3 font-mono text-xs leading-relaxed">[triggers]
+crons = ["*/30 * * * *"]</pre>
+            <button onclick="copyCfCron()" class="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md border border-border bg-[hsl(var(--card))] px-2 py-1 text-xs hover:bg-[hsl(var(--accent))]" title="复制片段">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              复制
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- 代理支持:不支持(灰掉) -->
+      <div class="flex items-start gap-3 rounded-lg border border-border bg-[hsl(var(--muted))]/30 p-4 opacity-70">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0 text-[hsl(var(--muted-foreground))]"><path d="m2 2 20 20"/><path d="M8.35 2.69A10 10 0 0 1 21.3 15.65"/><path d="M19.08 19.08A10 10 0 1 1 4.92 4.92"/></svg>
+        <div class="min-w-0">
+          <p class="text-sm font-medium">出站代理 · 不支持</p>
+          <p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">Workers 运行时无法连接自建代理(http/https/socks5 均不可用),所有站点强制直连。代理功能仅 Docker 部署可用。</p>
+        </div>
+      </div>
+      <!-- 并发/超时:受平台硬限制 -->
       <div class="space-y-1.5"><label class="text-sm font-medium">并发数</label>
-        <input id="scrapeConcurrency" type="number" min="1" max="20" value="3" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
-        <p class="text-xs text-[hsl(var(--muted-foreground))]">同时爬取的站点数量;过高可能触发限流。</p>
+        <input id="cf_scrapeConcurrency" type="number" min="1" max="6" value="3" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">受 subrequest 上限(免费 50、付费 1000 /次调用)约束,建议 ≤ 6,过高易触及单次调用配额。</p>
       </div>
-      <!-- 单站超时 -->
       <div class="space-y-1.5"><label class="text-sm font-medium">单站超时(秒)</label>
-        <input id="scrapeTimeout" type="number" min="1" value="15" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
-        <p class="text-xs text-[hsl(var(--muted-foreground))]">单个站点请求超过该时长视为失败。</p>
-      </div>
-      <!-- 失败重试 -->
-      <div class="space-y-1.5"><label class="text-sm font-medium">失败重试次数</label>
-        <input id="scrapeRetry" type="number" min="0" max="5" value="1" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <input id="cf_scrapeTimeout" type="number" min="1" max="30" value="10" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">受 Workers CPU 时间限制,单站超时不宜过长(建议 ≤ 30 秒)。</p>
       </div>
       <div class="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-        <button onclick="saveScrapeSettings()" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存设置</button>
-        <button onclick="scrapeAll()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">立即全部爬取</button>
+        <button onclick="saveScrapeSettings('cf')" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存设置</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 爬虫 · Docker:对应 Node/Docker 部署。定时=node-cron(间隔可热改);代理=支持 http/https/socks5;并发/超时/重试自由配置,无平台硬限制。 -->
+<div data-view="scraperDocker">
+  <div class="min-h-screen" style="background:hsl(var(--background));">
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
+      <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12.5V9a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h6"/><rect width="4" height="4" x="6" y="11"/><rect width="4" height="4" x="12" y="11"/><path d="M16 17h6"/><path d="M19 14v6"/></svg>
+        <span class="text-base font-semibold">爬虫 · Docker</span>
+        <span class="inline-flex items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-600 dark:text-sky-400">Node / Docker</span>
+      </div>
+    </header>
+    <div class="mx-auto max-w-[900px] space-y-6 p-4 sm:p-6">
+      <!-- 平台提示:无硬限制 -->
+      <div class="flex items-start gap-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+        <div class="min-w-0">
+          <p class="font-medium text-emerald-700 dark:text-emerald-300">Docker / Node 部署</p>
+          <p class="mt-1 text-[hsl(var(--muted-foreground))]">定时由 <b>node-cron</b> 驱动,爬取间隔可随时修改、即时生效;<b>支持</b> http/https/socks5 出站代理(在代理页配置);并发/超时/重试可自由配置,<b>无平台硬限制</b>。</p>
+        </div>
+      </div>
+      <div><h3 class="text-base font-semibold">爬取设置</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">余额爬取的全局行为;单站可在编辑中覆盖。</p></div>
+      <!-- 定时机制:node-cron,间隔可编辑 -->
+      <div class="space-y-3 rounded-lg border border-border p-4">
+        <div class="flex items-center gap-4">
+          <button id="dk_scrapeAutoSwitch" data-on="true" onclick="toggleScrapeAuto('dk')" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--foreground))] transition"><span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-5 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span></button>
+          <div><p class="text-sm font-medium">启用定时爬取</p><p class="text-xs text-[hsl(var(--muted-foreground))]">由 node-cron 按下方间隔周期性爬取所有站点余额。</p></div>
+        </div>
+        <div class="space-y-1.5"><label class="text-sm font-medium">爬取间隔</label>
+          <div class="flex items-center gap-2">
+            <input id="dk_scrapeInterval" type="number" min="1" value="30" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+            <select id="dk_scrapeIntervalUnit" class="h-10 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]"><option value="min">分钟</option><option value="hour">小时</option></select>
+          </div>
+          <p class="text-xs text-[hsl(var(--muted-foreground))]">两次自动爬取之间的最小间隔,修改后即时生效,无需重启。</p>
+        </div>
+      </div>
+      <!-- 代理支持:支持 -->
+      <div class="flex items-start gap-3 rounded-lg border border-border p-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium">出站代理 · 支持</p>
+          <p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">支持 http/https/socks5。爬取/签到经代理出网,在代理页统一管理。</p>
+        </div>
+        <button onclick="showProxy()" class="shrink-0 self-center rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--accent))]">前往代理页</button>
+      </div>
+      <!-- 并发/超时/重试:自由配置 -->
+      <div class="space-y-1.5"><label class="text-sm font-medium">并发数</label>
+        <input id="dk_scrapeConcurrency" type="number" min="1" max="50" value="5" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">同时爬取的站点数量;无平台硬限制,过高仍可能触发站点风控。</p>
+      </div>
+      <div class="space-y-1.5"><label class="text-sm font-medium">单站超时(秒)</label>
+        <input id="dk_scrapeTimeout" type="number" min="1" value="15" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">单个站点请求超过该时长视为失败。</p>
+      </div>
+      <div class="space-y-1.5"><label class="text-sm font-medium">失败重试次数</label>
+        <input id="dk_scrapeRetry" type="number" min="0" max="5" value="1" class="h-10 w-28 rounded-md border border-input bg-[hsl(var(--background))] px-3 text-sm outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">失败站点按此次数退避重试。</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+        <button onclick="saveScrapeSettings('dk')" class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">保存设置</button>
       </div>
     </div>
   </div>
@@ -652,11 +838,44 @@
     </header>
     <div class="mx-auto max-w-[900px] space-y-6 p-4 sm:p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <div><h3 class="text-base font-semibold">站点连通性检测</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">逐站探测可访问性与响应耗时(演示为 mock 结果)。</p></div>
-        <button id="activityRunBtn" onclick="runActivityCheck()" class="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
-          开始检测
-        </button>
+        <div><h3 class="text-base font-semibold">站点连通性检测</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">测试连接=探测响应耗时;渠道测试=发一句测活词看模型能否正常回复(演示为 mock 结果)。</p></div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="activityGroupBtn" onclick="toggleActivityGroupMode()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]" title="按分组归类">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect width="7" height="5" x="7" y="7" rx="1"/><rect width="7" height="5" x="10" y="12" rx="1"/></svg>
+            分组
+          </button>
+          <button id="activityConnBtn" onclick="runConnectivityCheck()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]" title="探测各站响应耗时">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg>
+            测试连接
+          </button>
+          <button id="activityModelBtn" onclick="runModelCheck()" class="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90" title="发一句测活词看模型能否正常回复">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+            渠道测试
+          </button>
+        </div>
+      </div>
+      <!-- 测活词池:管理多条测活词(渠道测试发给模型的话,模型正常回复即判存活)。为站点单独绑定某词,或选一条作全局默认;未绑定的站点走全局。 -->
+      <div class="space-y-3 rounded-lg border border-border bg-card p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-sm font-medium">测活词</p>
+            <p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">渠道测试时发给模型的话,模型正常回复即判为存活。为站点单独绑定某词,或选一条作全局默认;未绑定的站点走全局。</p>
+          </div>
+          <button onclick="openProbeModal('create')" class="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            新增测活词
+          </button>
+        </div>
+        <!-- 全局默认词:未单独绑定的站点走这条 -->
+        <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-[hsl(var(--background))] p-3">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium">全局默认词</p>
+            <p class="text-xs text-[hsl(var(--muted-foreground))]">未单独绑定测活词的站点默认用这条。</p>
+          </div>
+          <select id="globalProbeSelect" onchange="setGlobalProbeText(this.value); renderProbeList();" class="h-10 w-full shrink-0 rounded-md border border-input bg-[hsl(var(--card))] px-3 text-sm text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))] sm:w-56"></select>
+        </div>
+        <!-- 词条卡片列表 -->
+        <div id="probeList" class="space-y-2"></div>
       </div>
       <div class="rounded-lg border border-border bg-card">
         <div id="activityList" class="divide-y divide-border"></div>
@@ -675,6 +894,7 @@
       <div class="flex items-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
         <span class="text-base font-semibold">代理</span>
+        <span class="inline-flex items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-600 dark:text-sky-400">Node / Docker</span>
       </div>
     </header>
     <div class="mx-auto max-w-[900px] space-y-6 p-4 sm:p-6">
@@ -747,6 +967,11 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg>
           数据与关于
         </button>
+        <!-- 协作与隐私:仅 admin 可见(data-role="admin",由 syncRoleUI 隐藏)。放「查看他人站点」条款解锁开关。 -->
+        <button onclick="showSettingsSection('privacy')" data-snav="privacy" data-role="admin" class="snav-item flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+          协作与隐私
+        </button>
       </nav>
 
       <!-- 右内容:各分区(共用 renderSettingsBody 注入) -->
@@ -775,15 +1000,119 @@
         <p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">中转站余额与签到管理面板。</p>
       </div>
       <div class="rounded-lg border border-border p-4 text-sm">
-        <div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">应用</span><span class="font-medium">Rrelaynest</span></div>
-        <div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">版本</span><span class="font-medium">v1.0.0</span></div>
-        <div class="flex justify-between py-1"><span class="text-[hsl(var(--muted-foreground))]">部署</span><span class="font-medium">Cloudflare Workers / Docker</span></div>
+        <div class="flex items-center justify-between py-1">
+          <span class="text-[hsl(var(--muted-foreground))]">应用</span><span class="font-medium">Rrelaynest</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 py-1">
+          <span class="text-[hsl(var(--muted-foreground))]">版本</span>
+          <span class="flex items-center gap-2">
+            <span id="aboutVersion" class="font-medium">v1.0.0</span>
+            <!-- 有新版本时显示的小红点徽章(检查后填充) -->
+            <span id="aboutUpdateDot" class="hidden inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary"></span>
+          </span>
+        </div>
+        <div class="flex items-center justify-between py-1">
+          <span class="text-[hsl(var(--muted-foreground))]">部署</span><span class="font-medium">Cloudflare Workers / Docker</span>
+        </div>
+        <!-- 推荐用户量:受默认存储(node:sqlite/D1 单文件锁 + 串行调度 + 即时吊销每请求查库)约束;超出建议按 SCALING NOTE 升级 libSQL/Turso 或 Postgres。 -->
+        <div class="flex items-center justify-between gap-3 py-1">
+          <span class="text-[hsl(var(--muted-foreground))]">推荐规模</span>
+          <span class="flex items-center gap-2">
+            <span class="font-medium">≤ 20 用户</span>
+            <span class="inline-flex items-center rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-xs text-[hsl(var(--muted-foreground))]">默认存储</span>
+          </span>
+        </div>
+        <p class="mt-2 text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">默认使用 SQLite/D1(单文件锁、调度串行、鉴权每请求查库),适合 <b>约 20 个用户</b>、每人数十~数百站点的小规模自用。更大规模请升级到 libSQL/Turso 或 Postgres(业务层已隔离,仅换存储适配)。</p>
+        <div class="mt-3 flex flex-wrap items-center gap-3 border-t border-border pt-3">
+          <button id="checkUpdateBtn" onclick="checkForUpdate()" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">
+            <svg id="checkUpdateIcon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+            检查更新
+          </button>
+          <a href="https://github.com/buzhidao10068/Rrelaynest/releases" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+            发布记录
+          </a>
+        </div>
+      </div>
+
+      <!-- 更新检查结果:检查后填充。发现新版本 → 展示版本号 + 更新日志 + 按当前部署平台给升级步骤。 -->
+      <!-- 数据源:GitHub Releases API(块7 后端代理 /api/update/check → 取 releases/latest 的 tag_name/body,与本地版本比对)。 -->
+      <div id="updatePanel" class="hidden rounded-lg border border-border p-4"></div>
+
+      <!-- 自动检查开关:开启后每次进入关于页(块7:后端定时/登录时)静默检查,有新版在侧边栏/关于页提示。 -->
+      <div class="flex items-center gap-4 rounded-lg border border-border p-4">
+        <button id="autoUpdateSwitch" data-on="true" onclick="toggleAutoUpdate()" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--foreground))] transition"><span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-5 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span></button>
+        <div>
+          <p class="text-sm font-medium">自动检查更新</p>
+          <p class="text-xs text-[hsl(var(--muted-foreground))]">定期向 GitHub Releases 查询新版本;发现新版在此页提示。不会自动下载或替换,升级仍需你手动执行。</p>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
+<!-- 用户管理(仅 admin 可见):邀请制多用户 —— 列出/新增/编辑/停用/删除用户;「查看站点」需先在设置解锁条款。 -->
+<!-- 数据源(块7):GET /api/admin/users;操作 POST/PUT/DELETE /api/admin/users[/:id];查看站点 GET /api/admin/users/:uid/sites(需 admin_global_view_ack)。 -->
+<div data-view="users">
+  <div class="min-h-screen" style="background:hsl(var(--background));">
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
+      <button onclick="openDrawer()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="菜单">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="text-base font-semibold">用户管理</span>
+      </div>
+      <button onclick="openUserModal()" class="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        新增用户
+      </button>
+    </header>
+    <div class="mx-auto max-w-[960px] space-y-4 p-4 sm:p-6">
+      <!-- 邀请制说明 + 跨用户只读状态提示 -->
+      <div class="rounded-lg border border-border bg-[hsl(var(--muted))]/40 p-4 text-sm">
+        <p class="font-medium">邀请制</p>
+        <p class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">系统不开放自助注册,只有管理员在此手动开号。每个用户的站点、代理、设置完全隔离,互不可见。</p>
+        <p id="usersAckHint" class="mt-2 text-xs"></p>
+      </div>
+      <div id="userListBody" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 跨用户只读站点(仅 admin + 已解锁条款):只读展示某用户的站点,顶部醒目「只读」横幅;无任何写/删/爬取入口。 -->
+<div data-view="userSites">
+  <div class="min-h-screen" style="background:hsl(var(--background));">
+    <header class="flex items-center gap-3 border-b border-border px-4 py-3">
+      <button onclick="showAdminUsers()" class="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[hsl(var(--accent))]" title="返回用户管理">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        <span class="text-base font-semibold">用户站点 · <span id="userSitesName">—</span></span>
+      </div>
+    </header>
+    <div class="mx-auto max-w-[960px] space-y-4 p-4 sm:p-6">
+      <!-- 只读横幅:强调管理员越权查看的边界与责任 -->
+      <div class="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <div>
+          <p class="font-medium text-amber-700 dark:text-amber-300">管理员只读视图</p>
+          <p class="mt-0.5 text-xs text-amber-700/80 dark:text-amber-300/80">仅用于管理排障。此处只能查看,不能编辑、删除、爬取或签到;token 已隐藏。</p>
+        </div>
+      </div>
+      <div id="userSitesBody" class="space-y-2"></div>
+    </div>
+  </div>
+</div>
+
 <div id="overlay" class="fixed inset-0 z-40 hidden bg-black/50"></div>
+
+<!-- 回到顶部:仅测活页/代理页且下滚超一屏时淡入(页面为 window 级滚动);点击平滑滚回顶部 -->
+<button id="backTopBtn" onclick="scrollToTop()" title="回到顶部"
+        class="pointer-events-none fixed bottom-20 right-4 z-[150] flex h-11 w-11 translate-y-3 items-center justify-center rounded-full border border-border bg-card opacity-0 shadow-lg transition-all duration-300 hover:bg-[hsl(var(--accent))]">
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+</button>
 
 <!-- toast 容器:右下角,主题自适应 -->
 <div id="toastWrap" class="pointer-events-none fixed bottom-4 right-4 z-[200] flex flex-col items-end gap-2"></div>
@@ -801,17 +1130,26 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
           站点
         </a>
-        <a onclick="showScraper()" data-nav="scraper" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
-          爬虫
+        <a onclick="showScraperCf()" data-nav="scraperCf" data-platform="workers" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 1 0 0-9h-1.8A7 7 0 1 0 4 15.3"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg>
+          爬虫 · Cloudflare
+        </a>
+        <a onclick="showScraperDocker()" data-nav="scraperDocker" data-platform="node" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12.5V9a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h6"/><rect width="4" height="4" x="6" y="11"/><rect width="4" height="4" x="12" y="11"/><path d="M16 17h6"/><path d="M19 14v6"/></svg>
+          爬虫 · Docker
         </a>
         <a onclick="showActivity()" data-nav="activity" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
           测活
         </a>
-        <a onclick="showProxy()" data-nav="proxy" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
+        <a onclick="showProxy()" data-nav="proxy" data-platform="node" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
-          代理
+          代理 · Docker
+        </a>
+        <!-- 用户管理:仅 admin 可见(data-role="admin",非 admin 由 syncRoleUI 隐藏)。邀请制,admin 手动开号。 -->
+        <a onclick="showAdminUsers()" data-nav="users" data-role="admin" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          用户管理
         </a>
         <a onclick="showSettings()" data-nav="settings" class="nav-item flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -827,26 +1165,6 @@
 
       <div class="space-y-1 p-3">
         <p class="px-3 pb-1 text-xs uppercase tracking-wide text-[hsl(var(--muted-foreground))]">操作</p>
-        <div class="rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
-          <div class="flex items-center gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            爬取间隔
-          </div>
-          <div class="mt-2 flex items-center gap-2">
-            <input id="intervalInput" type="number" min="1" value="30" onchange="saveInterval()"
-                   class="h-8 w-20 rounded-md border border-input bg-[hsl(var(--background))] px-2 text-sm text-[hsl(var(--foreground))] outline-none focus:ring-2 focus:ring-[hsl(var(--foreground))]" />
-            <span class="text-xs">分钟</span>
-            <!-- 圆圈包裹的 ! 信息图标:悬停显示推荐范围 -->
-            <span class="group relative inline-flex">
-              <span class="flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-[hsl(var(--muted-foreground))] text-[11px] font-semibold leading-none text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--foreground))] hover:text-[hsl(var(--foreground))]">!</span>
-              <span role="tooltip"
-                    class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden w-52 -translate-x-1/2 rounded-md bg-[hsl(var(--foreground))] px-3 py-2 text-xs leading-relaxed text-[hsl(var(--background))] shadow-lg group-hover:block">
-                推荐 15–60 分钟。过短会频繁请求各站接口、易触发限流；过长则余额/签到状态更新不及时。
-                <span class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-[hsl(var(--foreground))]"></span>
-              </span>
-            </span>
-          </div>
-        </div>
         <div class="flex items-center gap-3 px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
           主题
@@ -860,13 +1178,24 @@
 
       <div class="mt-auto border-t border-border p-3">
         <div class="flex items-center gap-3 rounded-md px-3 py-2">
-          <div class="flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-sm font-medium">A</div>
-          <div class="leading-tight">
-            <p class="text-sm font-medium">admin</p>
-            <p class="text-xs text-[hsl(var(--muted-foreground))]">admin@example.com</p>
+          <div id="drawerAvatar" class="flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-sm font-medium">A</div>
+          <div class="min-w-0 leading-tight">
+            <p class="flex items-center gap-2 text-sm font-medium"><span id="drawerUsername" class="truncate">admin</span>
+              <!-- 角色徽章:admin=琥珀,user=中性;由 syncRoleUI 填充 -->
+              <span id="drawerRoleBadge" class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"></span>
+            </p>
+            <p id="drawerEmail" class="truncate text-xs text-[hsl(var(--muted-foreground))]">admin@example.com</p>
           </div>
         </div>
-        <button onclick="showView('login')" class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
+        <!-- 演示端角色切换:块7 删除。真实端角色由后端 /api/me 决定,前端不可切。 -->
+        <div class="mt-1 flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]">
+          <span class="shrink-0">演示视角</span>
+          <div class="ml-auto inline-flex overflow-hidden rounded-md border border-border">
+            <button data-roleseg="admin" onclick="setDemoRole('admin')" class="roleseg px-2 py-1">管理员</button>
+            <button data-roleseg="user" onclick="setDemoRole('user')" class="roleseg border-l border-border px-2 py-1">普通用户</button>
+          </div>
+        </div>
+        <button onclick="showView('login')" class="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
           退出
         </button>
@@ -888,20 +1217,43 @@
       a.classList.toggle('text-[hsl(var(--muted-foreground))]', !on);
     });
     closeDrawer(); closeModal();
+    currentView = v;
+    syncBackTop();   // 「回到顶部」按钮仅测活/代理页显示,切页即重判
     // 切到主页时表格才可见,重算顶部横向滚动条显隐/宽度
     if (v === 'dashboard') setTimeout(function () { if (typeof syncBottomScroll === 'function') syncBottomScroll(); }, 0);
   }
+  // ---- 回到顶部:仅测活/代理页 + 下滚超一屏时淡入(window 级滚动)----
+  var currentView = 'login';
+  function syncBackTop() {
+    var btn = document.getElementById('backTopBtn');
+    if (!btn) return;
+    var eligible = (currentView === 'activity' || currentView === 'proxy');
+    var show = eligible && window.scrollY > 400;
+    btn.classList.toggle('pointer-events-none', !show);
+    btn.classList.toggle('opacity-0', !show);
+    btn.classList.toggle('translate-y-3', !show);
+  }
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  window.addEventListener('scroll', syncBackTop, { passive: true });
   // 回主页(与 showSettings 对称:都经侧边栏导航项触发)
   function goDashboard() {
     showView('dashboard');
   }
-  // 爬虫:全局爬取设置页
-  function showScraper() {
-    showView('scraper');
+  // 爬虫:两个平台各一页(Cloudflare / Docker),差异见各自视图内提示
+  function showScraperCf() {
+    showView('scraperCf');
+    syncCfCronPreview();
   }
-  // 测活:站点连通性检测页;进入即渲染待检列表(全部待检)
+  function showScraperDocker() {
+    showView('scraperDocker');
+  }
+  // 测活:站点连通性检测页;进入即同步测活词池(全局词下拉 + 词条卡片)+ 渲染待检列表
   function showActivity() {
     showView('activity');
+    syncGlobalProbeSelect();
+    renderProbeList();
     renderActivityList();
   }
   // 代理:出站代理池管理页;进入即同步全局代理下拉 + 渲染卡片列表
@@ -919,9 +1271,489 @@
     notice.classList.toggle('hidden', !isWorkers);
     notice.classList.toggle('flex', isWorkers);
   }
-  // 关于:应用/版本/部署信息页
+
+  // ================= 多用户 / 角色 / 跨用户只读(演示端 mock)=================
+  // 后端契约(块7):
+  //   currentRole 由 /api/me 决定(前端不可改);演示端用 setDemoRole 切换看两态。
+  //   用户列表 GET /api/admin/users;增删改 POST/PUT/DELETE /api/admin/users[/:id](admin-only)。
+  //   跨用户只读 GET /api/admin/users/:uid/sites —— 除 requireAdmin 外,后端再校验
+  //   admin_global_view_ack(设置里读完条款才置位),未解锁一律 403。此处 mock 前后端双门控。
+  var currentRole = 'admin';         // 'admin' | 'user'(演示端可切;块7 来自 /api/me)
+  var currentUsername = 'admin';
+  // 跨用户只读解锁标记:对应后端 settings 的 admin_global_view_ack。持久化演示端选择。
+  var globalViewAck = false;
+  // mock 用户表(块7 来自 /api/admin/users;不含 password_hash)
+  var mockUsers = [
+    { id: 1, username: 'admin',  role: 'admin', disabled: 0, sites: 6, created_at: '2026-06-01' },
+    { id: 2, username: 'alice',  role: 'user',  disabled: 0, sites: 3, created_at: '2026-07-10' },
+    { id: 3, username: 'bob',    role: 'user',  disabled: 1, sites: 0, created_at: '2026-07-18' },
+  ];
+  // mock:某用户的站点(块7 换成 /api/admin/users/:uid/sites 返回,已剔除 token)
+  var mockUserSites = {
+    2: [
+      { name: 'Alice 中转A', base_url: 'https://a1.example.com', currency: 'USD', balance: 42.5, checkin_enabled: 1, checkin_done: 1 },
+      { name: 'Alice 中转B', base_url: 'https://a2.example.com', currency: 'CNY', balance: 108, checkin_enabled: 0, checkin_done: 0 },
+      { name: 'Alice 备用',  base_url: 'https://a3.example.com', currency: 'USD', balance: 0,  checkin_enabled: 1, checkin_done: 0 },
+    ],
+    3: [],
+  };
+  var viewingUserId = null;
+
+  function loadMultiUser() {
+    currentRole = localStorage.getItem('rrelaynest-demo-role') || 'admin';
+    globalViewAck = localStorage.getItem('rrelaynest-global-view-ack') === 'true';
+    syncRoleUI();
+  }
+
+  // 依据 currentRole 显示/隐藏 admin 专属入口 + 刷新徽章 + 高亮演示角色段
+  function syncRoleUI() {
+    var isAdmin = currentRole === 'admin';
+    // admin 专属入口(侧边栏导航项 + 设置分区导航,都标 data-role="admin")
+    document.querySelectorAll('[data-role="admin"]').forEach(function (a) {
+      a.classList.toggle('hidden', !isAdmin);
+    });
+    // 抽屉账户区:用户名 + 角色徽章
+    var uname = document.getElementById('drawerUsername');
+    if (uname) uname.textContent = currentUsername;
+    var avatar = document.getElementById('drawerAvatar');
+    if (avatar) avatar.textContent = (currentUsername[0] || 'U').toUpperCase();
+    var badge = document.getElementById('drawerRoleBadge');
+    if (badge) {
+      badge.textContent = isAdmin ? '管理员' : '用户';
+      badge.classList.toggle('bg-amber-500/15', isAdmin);
+      badge.classList.toggle('text-amber-600', isAdmin);
+      badge.classList.toggle('dark:text-amber-400', isAdmin);
+      badge.classList.toggle('bg-[hsl(var(--muted))]', !isAdmin);
+      badge.classList.toggle('text-[hsl(var(--muted-foreground))]', !isAdmin);
+    }
+    // 演示角色段高亮
+    document.querySelectorAll('[data-role-seg]').forEach(function (b) {
+      var on = b.getAttribute('data-role-seg') === currentRole;
+      b.classList.toggle('bg-primary', on);
+      b.classList.toggle('text-primary-foreground', on);
+      b.classList.toggle('text-[hsl(var(--muted-foreground))]', !on);
+    });
+  }
+
+  // 演示端切角色:非 admin 时若正停留在 admin 专属页则弹回主页(模拟后端 403 兜底)
+  function setDemoRole(r) {
+    currentRole = r;
+    localStorage.setItem('rrelaynest-demo-role', r);
+    syncRoleUI();
+    if (r !== 'admin' && (currentView === 'users' || currentView === 'userSites')) {
+      showView('dashboard');
+      toast('普通用户无权访问该页', 'error');
+    } else {
+      toast('已切换为' + (r === 'admin' ? '管理员' : '普通用户'), 'success');
+    }
+    // 设置页开着时刷新(协作与隐私分区仅 admin 可见)
+    if (currentView === 'settings') renderSettings();
+  }
+
+  // 入口:用户管理(admin-only;非 admin 直接拦下)
+  function showAdminUsers() {
+    if (currentRole !== 'admin') { toast('普通用户无权访问该页', 'error'); return; }
+    showView('users');
+    renderUserList();
+  }
+
+  function renderUserList() {
+    var hint = document.getElementById('usersAckHint');
+    if (hint) {
+      hint.innerHTML = globalViewAck
+        ? '<span class="text-green-600 dark:text-green-400">✓ 已解锁「查看他人站点」</span>——可点各用户的「查看站点」只读查看。前往 <button onclick="goPrivacySettings()" class="underline hover:opacity-80">设置 → 协作与隐私</button> 可撤销。'
+        : '「查看他人站点」默认关闭。需先到 <button onclick="goPrivacySettings()" class="underline hover:opacity-80">设置 → 协作与隐私</button> 阅读条款并同意后,才能只读查看用户站点。';
+    }
+    var host = document.getElementById('userListBody');
+    if (!host) return;
+    if (!mockUsers.length) {
+      host.innerHTML = '<div class="rounded-lg border border-dashed border-border p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">暂无用户</div>';
+      return;
+    }
+    host.innerHTML = mockUsers.map(function (u) {
+      var isSelf = u.id === 1; // 演示:id=1 视为当前 admin 自己
+      var roleBadge = u.role === 'admin'
+        ? '<span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">管理员</span>'
+        : '<span class="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">用户</span>';
+      var statusBadge = u.disabled
+        ? '<span class="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">已停用</span>'
+        : '<span class="rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">正常</span>';
+      // 「查看站点」按钮:未解锁则禁用并提示;自己不需要看(看自己走主页)
+      var viewBtn = isSelf
+        ? ''
+        : (globalViewAck
+            ? '<button onclick="showUserSites(' + u.id + ')" class="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--accent))]">查看站点</button>'
+            : '<button onclick="toast(\'请先到 设置 → 协作与隐私 解锁\', \'error\')" title="需先在设置解锁条款" class="cursor-not-allowed rounded-md border border-border px-3 py-1.5 text-xs font-medium opacity-50">查看站点</button>');
+      var disableBtn = isSelf
+        ? '<button disabled title="不能停用自己" class="cursor-not-allowed rounded-md border border-border px-3 py-1.5 text-xs font-medium opacity-40">' + (u.disabled ? '启用' : '停用') + '</button>'
+        : '<button onclick="toggleUserDisabled(' + u.id + ')" class="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--accent))]">' + (u.disabled ? '启用' : '停用') + '</button>';
+      var delBtn = isSelf
+        ? '<button disabled title="不能删除自己" class="cursor-not-allowed rounded-md border border-border px-3 py-1.5 text-xs font-medium opacity-40 text-red-500">删除</button>'
+        : '<button onclick="deleteUser(' + u.id + ')" class="rounded-md border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10">删除</button>';
+      return '<div class="flex flex-wrap items-center gap-3 rounded-lg border border-border p-4">'
+        + '<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-sm font-medium">' + u.username[0].toUpperCase() + '</div>'
+        + '<div class="min-w-0 flex-1">'
+        + '<div class="flex flex-wrap items-center gap-2"><span class="font-medium">' + u.username + '</span>' + roleBadge + statusBadge + (isSelf ? '<span class="text-xs text-[hsl(var(--muted-foreground))]">(你)</span>' : '') + '</div>'
+        + '<p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">' + u.sites + ' 个站点 · 创建于 ' + u.created_at + '</p>'
+        + '</div>'
+        + '<div class="flex flex-wrap items-center gap-2">' + viewBtn
+        + '<button onclick="openUserModal(' + u.id + ')" class="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--accent))]">编辑</button>'
+        + disableBtn + delBtn + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function toggleUserDisabled(id) {
+    var u = mockUsers.find(function (x) { return x.id === id; });
+    if (!u) return;
+    u.disabled = u.disabled ? 0 : 1;
+    renderUserList();
+    // 块7:PUT /api/admin/users/:id 改 disabled;停用会 session_version+1 使其已签发 cookie 立即失效
+    toast(u.disabled ? ('已停用 ' + u.username + '(其已登录会话立即失效)') : ('已启用 ' + u.username), 'success');
+  }
+
+  function deleteUser(id) {
+    var u = mockUsers.find(function (x) { return x.id === id; });
+    if (!u) return;
+    if (!confirm('确认删除用户「' + u.username + '」?其所有站点/代理/设置将一并删除,不可恢复。')) return;
+    mockUsers = mockUsers.filter(function (x) { return x.id !== id; });
+    delete mockUserSites[id];
+    renderUserList();
+    // 块7:DELETE /api/admin/users/:id —— 事务级联删其 sites/proxies/settings/groups/models
+    toast('已删除用户 ' + u.username, 'success');
+  }
+
+  // 新增/编辑用户弹窗(id 传入=编辑,否则新增)
+  var editingUserId = null;
+  function openUserModal(id) {
+    if (currentRole !== 'admin') { toast('普通用户无权此操作', 'error'); return; }
+    editingUserId = id || null;
+    var u = id ? mockUsers.find(function (x) { return x.id === id; }) : null;
+    var title = document.getElementById('userModalTitle');
+    var nameInput = document.getElementById('userModalName');
+    var pwInput = document.getElementById('userModalPw');
+    var roleSel = document.getElementById('userModalRole');
+    var pwHint = document.getElementById('userModalPwHint');
+    if (title) title.textContent = u ? ('编辑用户 · ' + u.username) : '新增用户';
+    if (nameInput) { nameInput.value = u ? u.username : ''; nameInput.disabled = !!u; } // 用户名不可改
+    if (pwInput) pwInput.value = '';
+    if (pwHint) pwHint.textContent = u ? '留空表示不改密码;填写则重置(其已登录会话将失效)。' : '将作为该用户的初始登录密码。';
+    if (roleSel) roleSel.value = u ? u.role : 'user';
+    var wrap = document.getElementById('userModalWrap');
+    if (wrap) { wrap.classList.remove('hidden'); wrap.classList.add('flex'); }
+  }
+  function closeUserModal() {
+    var wrap = document.getElementById('userModalWrap');
+    if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('flex'); }
+  }
+  function saveUser() {
+    var name = (document.getElementById('userModalName') || {}).value || '';
+    var pw = (document.getElementById('userModalPw') || {}).value || '';
+    var role = (document.getElementById('userModalRole') || {}).value || 'user';
+    name = name.trim();
+    if (editingUserId) {
+      var u = mockUsers.find(function (x) { return x.id === editingUserId; });
+      if (u) {
+        // 防锁死:不能把唯一/自己的 admin 降级(演示端简单判定 id=1)
+        if (u.id === 1 && role !== 'admin') { toast('不能降级自己(防锁死)', 'error'); return; }
+        u.role = role;
+      }
+      // 块7:PUT /api/admin/users/:id(改角色/重置密码);改密/降级触发 session_version+1
+      toast('已更新用户' + (pw ? '(密码已重置,旧会话失效)' : ''), 'success');
+    } else {
+      if (!name) { toast('用户名必填', 'error'); return; }
+      if (mockUsers.some(function (x) { return x.username === name; })) { toast('用户名已存在', 'error'); return; }
+      if (!pw) { toast('初始密码必填', 'error'); return; }
+      var newId = Math.max.apply(null, mockUsers.map(function (x) { return x.id; })) + 1;
+      mockUsers.push({ id: newId, username: name, role: role, disabled: 0, sites: 0, created_at: '2026-07-25' });
+      mockUserSites[newId] = [];
+      // 块7:POST /api/admin/users —— 服务端 PBKDF2 哈希密码后入库
+      toast('已创建用户 ' + name, 'success');
+    }
+    closeUserModal();
+    renderUserList();
+  }
+
+  // 跨用户只读站点(需已解锁 ack;双门控:未解锁直接拦)
+  function showUserSites(uid) {
+    if (currentRole !== 'admin') { toast('普通用户无权访问', 'error'); return; }
+    if (!globalViewAck) { toast('请先到 设置 → 协作与隐私 解锁条款', 'error'); return; }
+    viewingUserId = uid;
+    var u = mockUsers.find(function (x) { return x.id === uid; });
+    showView('userSites');
+    var nameEl = document.getElementById('userSitesName');
+    if (nameEl) nameEl.textContent = u ? u.username : '—';
+    renderUserSites(uid);
+  }
+  function renderUserSites(uid) {
+    var host = document.getElementById('userSitesBody');
+    if (!host) return;
+    var list = mockUserSites[uid] || [];
+    if (!list.length) {
+      host.innerHTML = '<div class="rounded-lg border border-dashed border-border p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">该用户暂无站点</div>';
+      return;
+    }
+    host.innerHTML = list.map(function (s) {
+      var checkin = s.checkin_enabled
+        ? (s.checkin_done ? '<span class="text-green-600 dark:text-green-400">今日已签</span>' : '<span class="text-[hsl(var(--muted-foreground))]">未签</span>')
+        : '<span class="text-[hsl(var(--muted-foreground))]">未开启</span>';
+      return '<div class="flex flex-wrap items-center gap-3 rounded-lg border border-border p-4">'
+        + '<div class="min-w-0 flex-1">'
+        + '<p class="truncate font-medium">' + s.name + '</p>'
+        + '<p class="mt-0.5 truncate text-xs text-[hsl(var(--muted-foreground))]">' + s.base_url + '</p>'
+        + '</div>'
+        + '<div class="shrink-0 text-right text-sm"><p class="font-medium">' + s.balance + ' ' + s.currency + '</p>'
+        + '<p class="mt-0.5 text-xs">' + checkin + '</p></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  // 从用户管理页/条款提示跳到「协作与隐私」设置分区
+  function goPrivacySettings() {
+    showView('settings');
+    settingsSection = 'privacy';
+    renderSettings();
+  }
+
+  // 条款解锁开关:必须先勾选「我已阅读并同意」才可开启;开启即写 ack,关闭即撤销
+  function toggleGlobalViewAck() {
+    var agree = document.getElementById('ackAgree');
+    if (!globalViewAck) {
+      // 想开启:要求已勾选同意
+      if (!agree || !agree.checked) { toast('请先阅读条款并勾选「我已阅读并同意」', 'error'); return; }
+      globalViewAck = true;
+    } else {
+      globalViewAck = false;
+    }
+    localStorage.setItem('rrelaynest-global-view-ack', globalViewAck ? 'true' : 'false');
+    // 块7:PUT /api/settings 写/删 admin_global_view_ack;后端据此放行/拒绝跨用户只读端点
+    syncAckCard();
+    toast(globalViewAck ? '已解锁:可只读查看用户站点' : '已撤销:恢复隐藏他人站点', 'success');
+  }
+  // 勾选「我已阅读并同意」的即时反馈(仅未解锁时有意义;解锁后勾选框被禁用)
+  function syncAckAgree() {
+    // 占位:勾选本身不改状态,真正开启走 toggleGlobalViewAck();此处仅可用于未来的即时校验提示。
+  }
+  // 同步协作与隐私卡片:开关视觉 + 勾选框可用性 + 状态文案
+  function syncAckCard() {
+    var sw = document.getElementById('ackSwitch');
+    if (sw) {
+      sw.setAttribute('data-on', globalViewAck ? 'true' : 'false');
+      sw.classList.toggle('bg-[hsl(var(--foreground))]', globalViewAck);
+      sw.classList.toggle('bg-[hsl(var(--muted))]', !globalViewAck);
+      var knob = sw.querySelector('span');
+      if (knob) { knob.classList.toggle('translate-x-5', globalViewAck); knob.classList.toggle('translate-x-0', !globalViewAck); }
+    }
+    var status = document.getElementById('ackStatus');
+    if (status) {
+      status.textContent = globalViewAck ? '已解锁' : '未解锁';
+      status.classList.toggle('text-green-600', globalViewAck);
+      status.classList.toggle('dark:text-green-400', globalViewAck);
+      status.classList.toggle('text-[hsl(var(--muted-foreground))]', !globalViewAck);
+    }
+    // 已解锁后勾选框保持勾上且禁用(撤销时先关开关);未解锁时勾选框可操作
+    var agree = document.getElementById('ackAgree');
+    if (agree) { agree.checked = globalViewAck; agree.disabled = globalViewAck; }
+  }
+
+  // ---- 关于 / 版本更新(演示端 mock;块7 后端加 /api/update/check 代理 GitHub Releases API)----
+  // 机制:每个部署实例向 GitHub Releases 查最新 tag_name,与本地 APP_VERSION 比对;
+  // 有新版仅「通知 + 给对应平台升级步骤」,不做应用内自更新(Workers/Docker 都无权改自己的镜像/部署)。
+  var APP_VERSION = 'v1.0.0';
+  var GITHUB_REPO = 'buzhidao10068/Rrelaynest';
+  // mock:模拟 GitHub releases/latest 返回;块7 换成真实 fetch。留空 tag=已是最新。
+  var MOCK_LATEST = {
+    tag_name: 'v1.2.0',
+    published_at: '2026-07-24',
+    body: '- 新增出站代理池(http/https/socks5)\n- 测活拆分为测试连接 + 渠道测试\n- 爬虫设置按平台拆分\n- 依赖安全升级,漏洞清零',
+  };
+  var autoUpdate = true;
+
   function showAbout() {
     showView('about');
+    var v = document.getElementById('aboutVersion');
+    if (v) v.textContent = APP_VERSION;
+    loadAutoUpdate();
+    // 自动检查开启时进入即静默查一次(块7:登录时/后端定时);此处直接渲染 mock 结果
+    if (autoUpdate) renderUpdateResult(MOCK_LATEST, true);
+  }
+
+  // 语义版本比较:a>b 返回 1,a<b 返回 -1,相等 0。容错非数字段。
+  function cmpVersion(a, b) {
+    var pa = String(a).replace(/^v/i, '').split('.').map(function (x) { return parseInt(x, 10) || 0; });
+    var pb = String(b).replace(/^v/i, '').split('.').map(function (x) { return parseInt(x, 10) || 0; });
+    for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
+      var d = (pa[i] || 0) - (pb[i] || 0);
+      if (d !== 0) return d > 0 ? 1 : -1;
+    }
+    return 0;
+  }
+
+  // 手动点「检查更新」:演示端转圈一下再渲染 mock;块7 fetch /api/update/check。
+  function checkForUpdate() {
+    var btn = document.getElementById('checkUpdateBtn');
+    var icon = document.getElementById('checkUpdateIcon');
+    if (btn) btn.setAttribute('disabled', 'true');
+    if (icon) icon.classList.add('animate-spin');
+    setTimeout(function () {
+      if (btn) btn.removeAttribute('disabled');
+      if (icon) icon.classList.remove('animate-spin');
+      renderUpdateResult(MOCK_LATEST, false);
+    }, 700);
+  }
+
+  // 渲染更新检查结果。silent=true 时(自动检查)已是最新则不弹 toast,只更新面板。
+  function renderUpdateResult(latest, silent) {
+    var panel = document.getElementById('updatePanel');
+    var dot = document.getElementById('aboutUpdateDot');
+    if (!panel) return;
+    var hasNew = latest && latest.tag_name && cmpVersion(latest.tag_name, APP_VERSION) > 0;
+
+    if (!hasNew) {
+      if (dot) dot.classList.add('hidden');
+      panel.classList.remove('hidden');
+      panel.innerHTML =
+        '<div class="flex items-center gap-2 text-sm">' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-600 dark:text-emerald-400"><path d="M20 6 9 17l-5-5"/></svg>' +
+        '<span>当前已是最新版本 ' + escHtml(APP_VERSION) + '</span></div>';
+      if (!silent) toast('当前已是最新版本', 'success');
+      return;
+    }
+
+    // 小红点徽章
+    if (dot) {
+      dot.textContent = '有新版 ' + latest.tag_name;
+      dot.classList.remove('hidden');
+    }
+
+    // 更新日志:body 按行转义 + 列表化
+    var logHtml = String(latest.body || '').split('\n').filter(function (l) { return l.trim(); })
+      .map(function (l) { return '<li>' + escHtml(l.replace(/^[-*]\s*/, '')) + '</li>'; }).join('');
+
+    panel.classList.remove('hidden');
+    panel.innerHTML =
+      '<div class="flex flex-wrap items-center justify-between gap-2">' +
+        '<div class="flex items-center gap-2">' +
+          '<span class="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-sm font-medium text-primary">发现新版本</span>' +
+          '<span class="text-sm font-semibold">' + escHtml(APP_VERSION) + ' → ' + escHtml(latest.tag_name) + '</span>' +
+        '</div>' +
+        '<span class="text-xs text-[hsl(var(--muted-foreground))]">' + escHtml(latest.published_at || '') + '</span>' +
+      '</div>' +
+      (logHtml ? '<ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-[hsl(var(--muted-foreground))]">' + logHtml + '</ul>' : '') +
+      updateStepsHtml(latest.tag_name);
+
+    if (!silent) toast('发现新版本 ' + latest.tag_name, 'info');
+  }
+
+  // 按当前部署平台给出升级步骤(Workers/Docker 都无法应用内自更新,只给命令/步骤)。
+  function updateStepsHtml(tag) {
+    var isWorkers = deployPlatform === 'workers';
+    var relUrl = 'https://github.com/' + GITHUB_REPO + '/releases/tag/' + tag;
+    var head =
+      '<div class="mt-4 border-t border-border pt-3">' +
+      '<p class="text-sm font-medium">升级步骤 · ' + (isWorkers ? 'Cloudflare Workers' : 'Docker / Node') + '</p>' +
+      '<p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">应用无法自更新;请在部署环境执行以下步骤。</p>';
+    var cmds = isWorkers
+      ? 'git pull\nnpm ci\nnpm run build\nnpx wrangler deploy'
+      : 'docker compose pull\ndocker compose up -d';
+    var note = isWorkers
+      ? 'Workers 需重新构建并部署;若已接 GitHub 自动部署,推送 tag 后会自动发布。'
+      : '拉取最新镜像并重建容器;数据卷(SQLite/挂载目录)保留不受影响。';
+    return head +
+      '<pre class="mt-2 overflow-x-auto rounded-md border border-border bg-[hsl(var(--muted))] p-3 font-mono text-xs leading-relaxed">' + escHtml(cmds) + '</pre>' +
+      '<p class="mt-2 text-xs text-[hsl(var(--muted-foreground))]">' + escHtml(note) + '</p>' +
+      '<a href="' + relUrl + '" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">' +
+      '查看该版本发布说明' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>' +
+      '</div>';
+  }
+
+  // 自动检查开关:持久化到 localStorage(块7 落 /api/settings)。
+  function loadAutoUpdate() {
+    var v = localStorage.getItem('rrelaynest-auto-update');
+    autoUpdate = v === null ? true : v === 'true';
+    var b = document.getElementById('autoUpdateSwitch');
+    if (!b) return;
+    b.setAttribute('data-on', autoUpdate ? 'true' : 'false');
+    b.classList.toggle('bg-[hsl(var(--foreground))]', autoUpdate);
+    b.classList.toggle('bg-[hsl(var(--muted))]', !autoUpdate);
+    var knob = b.querySelector('span');
+    if (knob) { knob.classList.toggle('translate-x-5', autoUpdate); knob.classList.toggle('translate-x-0', !autoUpdate); }
+  }
+  function toggleAutoUpdate() {
+    autoUpdate = !autoUpdate;
+    localStorage.setItem('rrelaynest-auto-update', autoUpdate ? 'true' : 'false');
+    loadAutoUpdate();
+    toast(autoUpdate ? '已开启自动检查更新' : '已关闭自动检查更新', 'info');
+  }
+
+  // ---- 部署平台检测 + 一键隐藏非当前平台功能(通用偏好里)----
+  // deployPlatform:'workers'=Cloudflare | 'node'=Docker(与代理页/爬虫页共用同一变量)。
+  // platformFilterOn:是否隐藏「非当前平台」的导航项+页面(CF 隐 Docker 专属;Docker 隐 CF 专属)。
+  // 演示端 deployPlatform 可切换看两态;块7 换成启动探测(后端注入 /api/meta 的 platform 字段)。
+  var platformFilterOn = false;
+  function platformLabel(p) { return p === 'workers' ? 'Cloudflare' : 'Docker'; }
+  // 载入持久化的平台与过滤态(块7 平台由后端注入,过滤态可落 /api/settings)
+  function loadPlatformFilter() {
+    var p = localStorage.getItem('rrelaynest-platform');
+    if (p === 'workers' || p === 'node') deployPlatform = p;
+    platformFilterOn = localStorage.getItem('rrelaynest-platform-filter') === 'true';
+    applyPlatformFilter();
+  }
+  // 自动检测:演示端转圈后沿用当前 deployPlatform(块7 读后端注入的真实平台)。
+  function detectPlatform() {
+    var btn = document.getElementById('platformDetectBtn');
+    if (btn) btn.setAttribute('disabled', 'true');
+    setTimeout(function () {
+      if (btn) btn.removeAttribute('disabled');
+      localStorage.setItem('rrelaynest-platform', deployPlatform);
+      syncPlatformFilterCard();
+      toast('检测到部署平台:' + platformLabel(deployPlatform), 'success');
+    }, 600);
+  }
+  // 填充卡片:检测结果文案 + 过滤按钮标签(随平台与开关态变)+ 说明。
+  function syncPlatformFilterCard() {
+    var res = document.getElementById('platformDetectResult');
+    var btn = document.getElementById('platformFilterBtn');
+    var desc = document.getElementById('platformFilterDesc');
+    var label = platformLabel(deployPlatform);
+    var other = platformLabel(deployPlatform === 'workers' ? 'node' : 'workers');
+    if (res) res.textContent = '当前:' + label + (deployPlatform === 'workers' ? ' Workers' : ' / Node');
+    if (btn) {
+      btn.textContent = platformFilterOn ? '显示全部功能' : ('隐藏非 ' + label + ' 功能');
+      btn.classList.toggle('bg-primary', !platformFilterOn);
+      btn.classList.toggle('text-primary-foreground', !platformFilterOn);
+      btn.classList.toggle('border', platformFilterOn);
+      btn.classList.toggle('border-border', platformFilterOn);
+      btn.classList.toggle('bg-card', platformFilterOn);
+      btn.classList.toggle('hover:bg-[hsl(var(--accent))]', platformFilterOn);
+      btn.classList.toggle('hover:opacity-90', !platformFilterOn);
+    }
+    if (desc) {
+      desc.textContent = platformFilterOn
+        ? ('已隐藏「' + other + '」专属功能(侧栏及页面);再次点击可恢复显示全部。')
+        : ('点击后隐藏「' + other + '」专属功能:' + (deployPlatform === 'workers'
+            ? '爬虫 · Docker、代理(Workers 上代理本就不生效)。'
+            : '爬虫 · Cloudflare。'));
+    }
+  }
+  // 应用过滤:过滤开时,隐藏 data-platform 与当前平台不符的导航项;正看着被隐藏的页则回站点页。
+  function applyPlatformFilter() {
+    document.querySelectorAll('.nav-item[data-platform]').forEach(function (a) {
+      var mine = a.getAttribute('data-platform') === deployPlatform;
+      var hide = platformFilterOn && !mine;
+      a.classList.toggle('hidden', hide);
+      if (hide && a.getAttribute('data-nav') === currentView) showView('dashboard');
+    });
+  }
+  function togglePlatformFilter() {
+    platformFilterOn = !platformFilterOn;
+    localStorage.setItem('rrelaynest-platform-filter', platformFilterOn ? 'true' : 'false');
+    applyPlatformFilter();
+    syncPlatformFilterCard();
+    toast(platformFilterOn
+      ? ('已隐藏非 ' + platformLabel(deployPlatform) + ' 功能')
+      : '已恢复显示全部功能', 'info');
   }
 
   // ---- 代理池(演示端仅本次会话生效;块7 对接 /api/settings 的 global_proxy_id)----
@@ -1145,6 +1977,19 @@
     var has = proxies.some(function (p) { return p.name === sel; });
     el.value = has ? sel : '';
   }
+  // 填充站点弹窗的「测活词」下拉:首项「跟随全局」(空值),其后列出启用中的词条。
+  // sel = 该站已绑定的测活词(编辑回填;新建传空)。绑定的词若已删/停用,回落到「跟随全局」。
+  function fillProbeOptions(sel) {
+    var el = document.getElementById('m_probeText');
+    if (!el) return;
+    var g = (probeUsable(globalProbeText) ? globalProbeText : 'hi');
+    var opts = '<option value="">跟随全局(' + escHtml(g) + ')</option>';
+    probeWords.filter(function (w) { return w.enabled; }).forEach(function (w) {
+      opts += '<option value="' + escHtml(w.text) + '">' + escHtml(w.text) + '</option>';
+    });
+    el.innerHTML = opts;
+    el.value = (sel && probeUsable(sel)) ? sel : '';
+  }
   // 打开弹窗时重置测速缓存(不同站/不同代理列表,旧延迟无意义)+ 停掉可能残留的定时器
   function resetSiteProxyPings() {
     stopSiteProxyPing();
@@ -1311,10 +2156,132 @@
     toast('「' + pname + '」已配置 ' + cnt + ' 个站点', 'success');
   }
 
+  // ---- 测活词页:配置「哪些站点使用此测活词」弹窗(平行于代理版,不复用以免动坏代理逻辑)----
+  var assigningProbe = null;     // 正在配置站点的测活词 text
+  var probeAssignView = 'default';
+  var probeAssignStash = null;   // { siteName: true } 本次会话勾选态;null=用 s.probeText 判定
+  // 打开:列出全部站点,已绑定此词的勾选;每次打开回到「默认」视图
+  function openProbeAssign(i) {
+    var w = probeWords[i];
+    if (!w) return;
+    assigningProbe = w.text;
+    probeAssignView = 'default';
+    probeAssignStash = null;
+    var t = document.getElementById('probeAssignTitle');
+    if (t) t.textContent = '配置使用「' + w.text + '」的站点';
+    syncProbeAssignViewButtons();
+    renderProbeAssignList();
+    var wrap = document.getElementById('probeAssignModalWrap');
+    if (wrap) { wrap.classList.remove('hidden'); wrap.classList.add('flex'); }
+  }
+  function closeProbeAssign() {
+    var wrap = document.getElementById('probeAssignModalWrap');
+    if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('flex'); }
+    assigningProbe = null;
+  }
+  function setProbeAssignView(v) {
+    if (v === probeAssignView) return;
+    stashProbeAssignChecks();
+    probeAssignView = v;
+    syncProbeAssignViewButtons();
+    renderProbeAssignList();
+  }
+  function syncProbeAssignViewButtons() {
+    var d = document.getElementById('probeAssignViewDefault');
+    var g = document.getElementById('probeAssignViewGroup');
+    [['default', d], ['group', g]].forEach(function (pair) {
+      var on = probeAssignView === pair[0];
+      var b = pair[1];
+      if (!b) return;
+      b.classList.toggle('bg-primary', on);
+      b.classList.toggle('text-primary-foreground', on);
+      b.classList.toggle('hover:bg-[hsl(var(--accent))]', !on);
+      b.classList.toggle('text-[hsl(var(--muted-foreground))]', !on);
+    });
+  }
+  function stashProbeAssignChecks() {
+    var boxes = document.querySelectorAll('#probeAssignList input[data-passign]');
+    probeAssignStash = {};
+    boxes.forEach(function (b) {
+      var idx = parseInt(b.getAttribute('data-passign'), 10);
+      var s = sites[idx];
+      if (s) probeAssignStash[s.name] = b.checked;
+    });
+  }
+  function probeAssignChecked(s) {
+    if (probeAssignStash && Object.prototype.hasOwnProperty.call(probeAssignStash, s.name)) return !!probeAssignStash[s.name];
+    return s.probeText === assigningProbe;
+  }
+  // 单站勾选行:复选框 + 站名 + 绑到别的词时的当前提示
+  function probeAssignRowHtml(s, idx) {
+    var other = (s.probeText && s.probeText !== assigningProbe) ? '<span class="ml-2 shrink-0 text-xs text-[hsl(var(--muted-foreground))]">当前:' + escHtml(s.probeText) + '</span>' : '';
+    return '<label class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-[hsl(var(--accent))]">'
+      + '<input type="checkbox" data-passign="' + idx + '"' + (probeAssignChecked(s) ? ' checked' : '') + ' class="h-4 w-4 shrink-0 accent-[hsl(var(--foreground))]" />'
+      + '<span class="min-w-0 flex-1 truncate text-sm">' + s.name + '</span>' + other
+      + '</label>';
+  }
+  function renderProbeAssignList() {
+    var host = document.getElementById('probeAssignList');
+    if (!host) return;
+    if (!sites.length) {
+      host.innerHTML = '<div class="p-6 text-center text-sm text-[hsl(var(--muted-foreground))]">暂无站点</div>';
+      return;
+    }
+    if (probeAssignView === 'group') {
+      var groups = allGroups();
+      host.innerHTML = groups.map(function (g) {
+        var rows = sites
+          .map(function (s, idx) { return { s: s, idx: idx }; })
+          .filter(function (o) { return (o.s.group || '未分组') === g; });
+        var gEsc = g.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        var head = '<button type="button" onclick="toggleProbeAssignGroup(\'' + gEsc + '\')" '
+          + 'class="flex w-full items-center gap-2 rounded-md bg-[hsl(var(--muted))]/40 px-3 py-1.5 text-left text-xs font-semibold hover:bg-[hsl(var(--muted))]/70">'
+          + '<span>' + g + '</span>'
+          + '<span class="rounded-full bg-[hsl(var(--background))] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">' + rows.length + ' 站</span>'
+          + '</button>';
+        return '<div class="space-y-0.5">' + head
+          + rows.map(function (o) { return probeAssignRowHtml(o.s, o.idx); }).join('')
+          + '</div>';
+      }).join('');
+    } else {
+      host.innerHTML = sites.map(function (s, idx) { return probeAssignRowHtml(s, idx); }).join('');
+    }
+  }
+  function toggleProbeAssignGroup(g) {
+    var host = document.getElementById('probeAssignList');
+    if (!host) return;
+    var boxes = [];
+    host.querySelectorAll('input[data-passign]').forEach(function (b) {
+      var idx = parseInt(b.getAttribute('data-passign'), 10);
+      var s = sites[idx];
+      if (s && (s.group || '未分组') === g) boxes.push(b);
+    });
+    var allOn = boxes.length > 0 && boxes.every(function (b) { return b.checked; });
+    boxes.forEach(function (b) { b.checked = !allOn; });
+  }
+  // 保存:勾选→绑定此词;取消勾选且原本绑的是此词→清空(回落跟随全局)
+  function saveProbeAssign() {
+    var boxes = document.querySelectorAll('#probeAssignList input[data-passign]');
+    var cnt = 0;
+    boxes.forEach(function (b) {
+      var idx = parseInt(b.getAttribute('data-passign'), 10);
+      var s = sites[idx];
+      if (!s) return;
+      if (b.checked) { s.probeText = assigningProbe; cnt++; }
+      else if (s.probeText === assigningProbe) { s.probeText = ''; }
+    });
+    var wtext = assigningProbe;
+    closeProbeAssign();
+    renderProbeList();
+    renderRows();
+    toast('「' + wtext + '」已配置 ' + cnt + ' 个站点', 'success');
+  }
+
   // ---- 爬虫设置(演示端仅本次会话生效;块7 对接 /api/settings 的 scrape 段)----
+  // 两个平台各一页,元素 id 以 'cf'(Cloudflare)/'dk'(Docker)为前缀区分。
   // 定时爬取开关:切换视觉 + data-on;后端据此决定 cron 是否触发
-  function toggleScrapeAuto() {
-    var b = document.getElementById('scrapeAutoSwitch');
+  function toggleScrapeAuto(p) {
+    var b = document.getElementById(p + '_scrapeAutoSwitch');
     if (!b) return;
     var on = b.getAttribute('data-on') !== 'true';
     b.setAttribute('data-on', on ? 'true' : 'false');
@@ -1323,27 +2290,299 @@
     var knob = b.querySelector('span');
     if (knob) { knob.classList.toggle('translate-x-5', on); knob.classList.toggle('translate-x-0', !on); }
   }
+  // Cloudflare 页:cron 表达式 → 同步 wrangler.toml 片段预览
+  function syncCfCronPreview() {
+    var input = document.getElementById('cf_cron');
+    var pre = document.getElementById('cf_cronSnippet');
+    if (!input || !pre) return;
+    var expr = (input.value || '').trim() || '* * * * *';
+    pre.textContent = '[triggers]\ncrons = ["' + expr + '"]';
+  }
+  // Cloudflare 页:复制 wrangler.toml 片段
+  function copyCfCron() {
+    var pre = document.getElementById('cf_cronSnippet');
+    if (!pre) return;
+    var text = pre.textContent || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast('已复制片段', 'success'); },
+        function () { toast('复制失败,请手动选择', 'error'); });
+    } else { toast('当前环境不支持自动复制', 'info'); }
+  }
   // 保存爬取设置:演示端只做基本校验 + toast;块7 PUT /api/settings
-  function saveScrapeSettings() {
-    var interval = parseInt(document.getElementById('scrapeInterval').value, 10);
-    var conc = parseInt(document.getElementById('scrapeConcurrency').value, 10);
+  function saveScrapeSettings(p) {
+    if (p === 'cf') {
+      var expr = (document.getElementById('cf_cron').value || '').trim();
+      var cfConc = parseInt(document.getElementById('cf_scrapeConcurrency').value, 10);
+      if (!expr) { toast('Cron 表达式不能为空', 'error'); return; }
+      if (expr.trim().split(/\s+/).length !== 5) { toast('Cron 表达式需为 5 段', 'error'); return; }
+      if (!(cfConc >= 1)) { toast('并发数需 ≥ 1', 'error'); return; }
+      toast('Cloudflare 爬取设置已保存', 'success');
+      return;
+    }
+    var interval = parseInt(document.getElementById('dk_scrapeInterval').value, 10);
+    var conc = parseInt(document.getElementById('dk_scrapeConcurrency').value, 10);
     if (!(interval >= 1)) { toast('爬取间隔需 ≥ 1', 'error'); return; }
     if (!(conc >= 1)) { toast('并发数需 ≥ 1', 'error'); return; }
-    toast('爬取设置已保存', 'success');
+    toast('Docker 爬取设置已保存', 'success');
   }
 
-  // ---- 测活:站点连通性检测(mock;块7 需新增 /api/sites/:id/ping 类端点)----
-  var activityResults = {};   // { 站名: { status:'ok'|'slow'|'down', ms:number } }
+  // ---- 测活:两种检测(mock;块7 需新增 /api/sites/:id/ping 类端点)----
+  // 测试连接:探测响应耗时 → connResults[name] = { status:'ok'|'slow'|'down'|'checking', ms }
+  // 渠道测试:发一句测活词看模型能否正常回复 → modelResults[name] = { status:'ok'|'down'|'checking', probe }
+  var connResults = {};
+  var modelResults = {};
   var activityRunning = false;
-  // 单站状态徽章:ok=绿(正常)/ slow=琥珀(慢)/ down=红(不可达)/ pending=灰(待检)/ checking=蓝(检测中)
-  function activityBadge(st, ms) {
+  var activityGroupMode = false;       // 默认(平铺)/ 分组视图,复用主页 allGroups()
+  var activityCollapsed = {};          // 测活页各分组的折叠态(与主页 collapsedGroups 独立)
+  // 测活词池:仿 proxies 数组,text 为唯一键;站点以 site.probeText=某 text 单值绑定(一站对一词)。
+  // 词条列表 + 全局默认词都落 localStorage(persist);站点绑定随内存(与其他站点字段一致,演示端不落库)。
+  var probeWords = [];                 // [{ text, enabled }],loadProbeWords 启动填充
+  var globalProbeText = 'hi';          // 全局默认测活词(某词条 text);单站 site.probeText 覆盖
+  var editingProbe = null;             // 词条编辑:原始 text 快照(create 时 null)
+  var DEFAULT_PROBE_WORDS = [
+    { text: 'hi', enabled: true },
+    { text: '你好', enabled: true },
+    { text: 'ping', enabled: true },
+  ];
+  // 启动读盘:词条列表 + 全局默认词。无缓存则用内置默认;全局词校验必须指向存在且启用的词条,否则回落
+  function loadProbeWords() {
+    try {
+      var raw = localStorage.getItem('rrelaynest-probes');
+      probeWords = raw ? JSON.parse(raw) : DEFAULT_PROBE_WORDS.slice();
+    } catch (e) { probeWords = DEFAULT_PROBE_WORDS.slice(); }
+    if (!Array.isArray(probeWords) || !probeWords.length) probeWords = DEFAULT_PROBE_WORDS.slice();
+    globalProbeText = localStorage.getItem('rrelaynest-probe-global') || 'hi';
+    // 全局词必须指向一个启用中的词条,否则取第一条启用词,再兜底 hi
+    if (!probeWords.some(function (w) { return w.text === globalProbeText && w.enabled; })) {
+      var first = probeWords.filter(function (w) { return w.enabled; })[0];
+      globalProbeText = first ? first.text : 'hi';
+    }
+  }
+  function saveProbeWords() {
+    try { localStorage.setItem('rrelaynest-probes', JSON.stringify(probeWords)); } catch (e) {}
+  }
+  // 全局默认词切换(测活词池的 select)→ 落盘;渠道测试正在跑时也即时生效
+  function setGlobalProbeText(v) {
+    globalProbeText = (v || '').trim() || 'hi';
+    try { localStorage.setItem('rrelaynest-probe-global', globalProbeText); } catch (e) {}
+  }
+  // 某词条是否为「有效可用」(存在且启用)
+  function probeUsable(text) {
+    return probeWords.some(function (w) { return w.text === text && w.enabled; });
+  }
+  // 某站生效的测活词:单站绑定优先(须指向启用词条),否则全局默认,再兜底 'hi'
+  function effectiveProbe(s) {
+    if (s.probeText && probeUsable(s.probeText)) return s.probeText;
+    if (probeUsable(globalProbeText)) return globalProbeText;
+    var first = probeWords.filter(function (w) { return w.enabled; })[0];
+    return first ? first.text : 'hi';
+  }
+  // 统计绑定到某测活词的站点数(词条卡片「配置站点」按钮上的徽章)
+  function probeSiteCount(text) {
+    return sites.filter(function (s) { return s.probeText === text; }).length;
+  }
+  // 同步「全局默认词」下拉:仅列启用中的词条;当前全局词若失效则回落
+  function syncGlobalProbeSelect() {
+    var sel = document.getElementById('globalProbeSelect');
+    if (!sel) return;
+    var enabled = probeWords.filter(function (w) { return w.enabled; });
+    if (!probeWords.some(function (w) { return w.text === globalProbeText && w.enabled; })) {
+      globalProbeText = enabled[0] ? enabled[0].text : 'hi';
+      try { localStorage.setItem('rrelaynest-probe-global', globalProbeText); } catch (e) {}
+    }
+    sel.innerHTML = enabled.length
+      ? enabled.map(function (w) {
+          return '<option value="' + escHtml(w.text) + '">' + escHtml(w.text) + '</option>';
+        }).join('')
+      : '<option value="hi">hi</option>';
+    sel.value = globalProbeText;
+  }
+  // 词条启用状态徽章:enabled=绿/停用=灰;全局默认词额外标「全局」
+  function probeStateBadge(w) {
+    var badge = w.enabled
+      ? '<span class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">● 已启用</span>'
+      : '<span class="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">○ 已停用</span>';
+    if (w.text === globalProbeText) badge += '<span class="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">全局</span>';
+    return badge;
+  }
+  // 渲染测活词卡片列表:每卡=词内容 + 状态徽章 / 启用开关 + 编辑 + 配置站点(带绑定数) + 删除
+  function renderProbeList() {
+    var host = document.getElementById('probeList');
+    if (!host) return;
+    if (!probeWords.length) {
+      host.innerHTML = '<div class="rounded-lg border border-dashed border-border p-6 text-center text-sm text-[hsl(var(--muted-foreground))]">暂无测活词,点击右上角「新增测活词」添加。</div>';
+      return;
+    }
+    host.innerHTML = probeWords.map(function (w, i) {
+      var dim = w.enabled ? '' : ' opacity-60';
+      return '<div class="rounded-lg border border-border bg-[hsl(var(--background))] p-3">'
+        + '<div class="flex flex-wrap items-center justify-between gap-3">'
+        +   '<div class="flex min-w-0 flex-wrap items-center gap-2' + dim + '">'
+        +     '<span class="truncate font-mono text-sm font-semibold">' + escHtml(w.text) + '</span>'
+        +     probeStateBadge(w)
+        +   '</div>'
+        +   '<div class="flex shrink-0 items-center gap-2">'
+        +     '<button onclick="toggleProbeEnabled(' + i + ')" title="' + (w.enabled ? '停用' : '启用') + '此测活词" class="relative h-6 w-11 shrink-0 rounded-full transition ' + (w.enabled ? 'bg-[hsl(var(--foreground))]' : 'bg-[hsl(var(--muted))]') + '"><span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-[hsl(var(--card))] shadow transition-transform ' + (w.enabled ? 'translate-x-5' : 'translate-x-0') + '"></span></button>'
+        +   '</div>'
+        + '</div>'
+        + '<div class="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">'
+        +   '<button onclick="openProbeModal(\'edit\',' + i + ')" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--accent))]"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>编辑</button>'
+        +   '<button onclick="openProbeAssign(' + i + ')" title="配置哪些站点使用此测活词" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--accent))]"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>配置站点<span class="ml-0.5 rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[10px] font-semibold">' + probeSiteCount(w.text) + '</span></button>'
+        +   '<button onclick="deleteProbe(' + i + ')" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>删除</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+  // 切换单条测活词启用位。停用的若正是全局默认词,则回落到第一条启用词
+  function toggleProbeEnabled(i) {
+    var w = probeWords[i];
+    if (!w) return;
+    w.enabled = !w.enabled;
+    if (!w.enabled && globalProbeText === w.text) {
+      var first = probeWords.filter(function (x) { return x.enabled; })[0];
+      globalProbeText = first ? first.text : 'hi';
+      try { localStorage.setItem('rrelaynest-probe-global', globalProbeText); } catch (e) {}
+    }
+    saveProbeWords();
+    syncGlobalProbeSelect();
+    renderProbeList();
+    toast('「' + w.text + '」' + (w.enabled ? '已启用' : '已停用'), w.enabled ? 'success' : 'info');
+  }
+  // 删除单条测活词(演示端直接删;块7 走 DELETE)。绑定此词的站点回落到「跟随全局」
+  function deleteProbe(i) {
+    var w = probeWords[i];
+    if (!w) return;
+    if (!confirm('确定删除测活词「' + w.text + '」?绑定它的站点将回落到全局默认词。')) return;
+    sites.forEach(function (s) { if (s.probeText === w.text) s.probeText = ''; });
+    if (globalProbeText === w.text) {
+      probeWords.splice(i, 1);
+      var first = probeWords.filter(function (x) { return x.enabled; })[0];
+      globalProbeText = first ? first.text : 'hi';
+      try { localStorage.setItem('rrelaynest-probe-global', globalProbeText); } catch (e) {}
+    } else {
+      probeWords.splice(i, 1);
+    }
+    saveProbeWords();
+    syncGlobalProbeSelect();
+    renderProbeList();
+    if (typeof renderRows === 'function') renderRows();
+    toast('已删除「' + w.text + '」', 'success');
+  }
+  // 打开测活词弹窗:create=空;edit=回填第 i 条(editingProbe 记原始 text 作重名排除)
+  function openProbeModal(mode, i) {
+    editingProbe = null;
+    var title = document.getElementById('probeModalTitle');
+    var input = document.getElementById('probe_text');
+    if (mode === 'edit' && probeWords[i]) {
+      editingProbe = probeWords[i].text;
+      if (title) title.textContent = '编辑测活词';
+      if (input) input.value = probeWords[i].text;
+    } else {
+      if (title) title.textContent = '新增测活词';
+      if (input) input.value = '';
+    }
+    var err = document.getElementById('probeModalError');
+    if (err) err.classList.add('hidden');
+    var wrap = document.getElementById('probeModalWrap');
+    if (wrap) { wrap.classList.remove('hidden'); wrap.classList.add('flex'); }
+    if (input) setTimeout(function () { input.focus(); }, 0);
+  }
+  function closeProbeModal() {
+    var wrap = document.getElementById('probeModalWrap');
+    if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('flex'); }
+  }
+  // 保存测活词:非空 + 重名校验(编辑排除自身);edit 改名同步绑定它的站点与全局默认词
+  function submitProbeModal() {
+    var text = document.getElementById('probe_text').value.trim();
+    var err = document.getElementById('probeModalError');
+    function fail(msg) { if (err) { err.textContent = msg; err.classList.remove('hidden'); } }
+    if (!text) return fail('请填写测活词内容');
+    var dup = probeWords.some(function (w) { return w.text === text && w.text !== editingProbe; });
+    if (dup) return fail('已存在相同的测活词');
+    if (editingProbe != null) {
+      var ex = probeWords.filter(function (w) { return w.text === editingProbe; })[0];
+      if (ex) {
+        var oldText = ex.text;
+        ex.text = text;
+        if (oldText !== text) {
+          // 改名:以 text 为键的引用同步(站点绑定 + 全局默认词)
+          sites.forEach(function (s) { if (s.probeText === oldText) s.probeText = text; });
+          if (globalProbeText === oldText) { globalProbeText = text; try { localStorage.setItem('rrelaynest-probe-global', globalProbeText); } catch (e) {} }
+        }
+      }
+      toast('已保存「' + text + '」', 'success');
+    } else {
+      probeWords.push({ text: text, enabled: true });
+      toast('已新增「' + text + '」', 'success');
+    }
+    saveProbeWords();
+    closeProbeModal();
+    syncGlobalProbeSelect();
+    renderProbeList();
+    if (typeof renderRows === 'function') renderRows();
+  }
+  // 连接徽章:ok=绿(正常)/ slow=琥珀(慢)/ down=红(不可达)/ checking=蓝 / pending=灰(待检)
+  function connBadge(st, ms) {
     if (st === 'ok')   return '<span class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">● 正常 ' + ms + 'ms</span>';
     if (st === 'slow') return '<span class="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">● 较慢 ' + ms + 'ms</span>';
     if (st === 'down') return '<span class="inline-flex items-center gap-1 rounded-md bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-500">● 不可达</span>';
-    if (st === 'checking') return '<span class="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">● 检测中…</span>';
-    return '<span class="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">● 待检测</span>';
+    if (st === 'checking') return '<span class="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">● 连接中…</span>';
+    return '<span class="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">连接 待检</span>';
   }
-  // 渲染测活列表:每站一行(站名 + 地址 + 状态徽章)
+  // HTML 转义(测活词可能含 < & " 等,拼进徽章前先转义)
+  function escHtml(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  // 模型徽章:ok=可用(带测活词)/ down=不可用(带测活词)/ checking=蓝 / pending=灰(待检)
+  function modelBadge(st, probe) {
+    var p = probe ? (' · ' + escHtml(probe)) : '';
+    if (st === 'ok')   return '<span class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">● 可用' + p + '</span>';
+    if (st === 'down') return '<span class="inline-flex items-center gap-1 rounded-md bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-500">● 不可用' + p + '</span>';
+    if (st === 'checking') return '<span class="inline-flex items-center gap-1 rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">● 测试中…</span>';
+    return '<span class="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">渠道 待检</span>';
+  }
+  // 单站行:站名 + 地址 + 连接徽章 + 模型徽章(各自独立更新)
+  function activityRowHtml(s) {
+    var c = connResults[s.name];
+    var m = modelResults[s.name];
+    var cBadge = c ? connBadge(c.status, c.ms) : connBadge('pending');
+    var mBadge = m ? modelBadge(m.status, m.probe) : modelBadge('pending');
+    return '<div class="flex items-center justify-between gap-3 px-4 py-3">'
+      + '<div class="min-w-0"><p class="truncate text-sm font-medium">' + s.name + '</p>'
+      + '<p class="truncate text-xs text-[hsl(var(--muted-foreground))]">' + s.url + '</p></div>'
+      + '<div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">' + cBadge + mBadge + '</div></div>';
+  }
+  // 测活分组标题行:组名 + 数量 + 折叠箭头(整行可点折叠),与主页分组同款观感
+  function activityGroupHeaderHtml(g, rows) {
+    var collapsed = !!activityCollapsed[g];
+    var caret = collapsed
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>'
+      : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+    return '<div onclick="toggleActivityGroup(\'' + g.replace(/'/g, "\\'") + '\')" class="flex cursor-pointer select-none items-center gap-2 bg-[hsl(var(--muted))]/40 px-4 py-2 hover:bg-[hsl(var(--muted))]/70">'
+      + '<span class="text-[hsl(var(--muted-foreground))]">' + caret + '</span>'
+      + '<span class="text-sm font-semibold">' + g + '</span>'
+      + '<span class="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-xs text-[hsl(var(--muted-foreground))]">' + rows.length + '</span></div>';
+  }
+  function toggleActivityGroup(g) {
+    activityCollapsed[g] = !activityCollapsed[g];
+    renderActivityList();
+  }
+  // 分组按钮激活态同步
+  function toggleActivityGroupMode() {
+    activityGroupMode = !activityGroupMode;
+    var btn = document.getElementById('activityGroupBtn');
+    if (btn) {
+      btn.classList.toggle('bg-primary', activityGroupMode);
+      btn.classList.toggle('text-primary-foreground', activityGroupMode);
+      btn.classList.toggle('hover:bg-primary', activityGroupMode);
+      btn.classList.toggle('bg-card', !activityGroupMode);
+      btn.classList.toggle('hover:bg-[hsl(var(--accent))]', !activityGroupMode);
+    }
+    renderActivityList();
+  }
+  // 渲染测活列表:默认=平铺(主页顺序);分组=按 allGroups() 归类,组标题可折叠
   function renderActivityList() {
     var host = document.getElementById('activityList');
     if (!host) return;
@@ -1351,46 +2590,93 @@
       host.innerHTML = '<div class="p-8 text-center text-sm text-[hsl(var(--muted-foreground))]">暂无站点</div>';
       return;
     }
-    host.innerHTML = sites.map(function (s) {
-      var r = activityResults[s.name];
-      var badge = r ? activityBadge(r.status, r.ms) : activityBadge('pending');
-      return '<div class="flex items-center justify-between gap-3 px-4 py-3">'
-        + '<div class="min-w-0"><p class="truncate text-sm font-medium">' + s.name + '</p>'
-        + '<p class="truncate text-xs text-[hsl(var(--muted-foreground))]">' + s.url + '</p></div>'
-        + '<div class="shrink-0">' + badge + '</div></div>';
-    }).join('');
+    if (!activityGroupMode) {
+      host.innerHTML = sites.map(activityRowHtml).join('');
+      return;
+    }
+    // 分组视图:组序同主页 allGroups()
+    var html = '';
+    allGroups().forEach(function (g) {
+      var rows = sites.filter(function (s) { return (s.group || '未分组') === g; });
+      if (!rows.length) return;
+      html += activityGroupHeaderHtml(g, rows);
+      if (!activityCollapsed[g]) html += rows.map(activityRowHtml).join('');
+    });
+    host.innerHTML = html;
   }
-  // 开始检测:逐站串行(演示用 setTimeout 模拟往返延迟),每站随机 mock 一个结果
-  function runActivityCheck() {
+  // 两个检测按钮的禁用/恢复(检测期间都禁用,避免并发跑乱状态)
+  function setActivityButtonsDisabled(disabled) {
+    ['activityConnBtn', 'activityModelBtn'].forEach(function (id) {
+      var b = document.getElementById(id);
+      if (!b) return;
+      b.disabled = disabled;
+      b.classList.toggle('opacity-60', disabled);
+      b.classList.toggle('cursor-not-allowed', disabled);
+    });
+  }
+  // 测试连接:逐站串行(演示用 setTimeout 模拟往返延迟),mock 响应耗时/可达性
+  function runConnectivityCheck() {
     if (activityRunning || !sites.length) return;
     activityRunning = true;
-    var btn = document.getElementById('activityRunBtn');
-    if (btn) { btn.disabled = true; btn.classList.add('opacity-60', 'cursor-not-allowed'); }
-    activityResults = {};
-    var host = document.getElementById('activityList');
+    setActivityButtonsDisabled(true);
+    connResults = {};
     var i = 0;
     var step = function () {
       if (i >= sites.length) {
         activityRunning = false;
-        if (btn) { btn.disabled = false; btn.classList.remove('opacity-60', 'cursor-not-allowed'); }
-        var down = sites.filter(function (s) { return activityResults[s.name] && activityResults[s.name].status === 'down'; }).length;
-        toast(down ? ('检测完成,' + down + ' 个站点不可达') : '检测完成,全部站点正常', down ? 'error' : 'success');
+        setActivityButtonsDisabled(false);
+        var down = sites.filter(function (s) { return connResults[s.name] && connResults[s.name].status === 'down'; }).length;
+        toast(down ? ('连接检测完成,' + down + ' 个站点不可达') : '连接检测完成,全部站点可达', down ? 'error' : 'success');
         return;
       }
       var s = sites[i];
-      // 先标记「检测中」
-      activityResults[s.name] = { status: 'checking', ms: 0 };
+      connResults[s.name] = { status: 'checking', ms: 0 };
       renderActivityList();
       var delay = 220 + Math.floor(Math.random() * 480);
       setTimeout(function () {
-        // mock 结果:无 token 的站点更可能不可达;其余多为正常/偶尔较慢
+        // mock:无 token 的站点更可能不可达;其余多为正常/偶尔较慢
         var roll = Math.random();
         var st, ms = Math.floor(delay);
         if (!s.hasToken && roll < 0.35) st = 'down';
         else if (roll < 0.12) st = 'down';
         else if (ms > 550) st = 'slow';
         else st = 'ok';
-        activityResults[s.name] = { status: st, ms: ms };
+        connResults[s.name] = { status: st, ms: ms };
+        renderActivityList();
+        i++;
+        step();
+      }, delay);
+    };
+    step();
+  }
+  // 渠道测试:逐站发一句测活词(site.probeText||全局),mock 模型是否正常回复
+  function runModelCheck() {
+    if (activityRunning || !sites.length) return;
+    activityRunning = true;
+    setActivityButtonsDisabled(true);
+    modelResults = {};
+    var i = 0;
+    var step = function () {
+      if (i >= sites.length) {
+        activityRunning = false;
+        setActivityButtonsDisabled(false);
+        var down = sites.filter(function (s) { return modelResults[s.name] && modelResults[s.name].status === 'down'; }).length;
+        toast(down ? ('渠道测试完成,' + down + ' 个站点模型不可用') : '渠道测试完成,全部站点模型可用', down ? 'error' : 'success');
+        return;
+      }
+      var s = sites[i];
+      var probe = effectiveProbe(s);
+      modelResults[s.name] = { status: 'checking', probe: probe };
+      renderActivityList();
+      var delay = 260 + Math.floor(Math.random() * 520);
+      setTimeout(function () {
+        // mock:无 token 必不可用;其余偶发不可用
+        var roll = Math.random();
+        var st;
+        if (!s.hasToken) st = 'down';
+        else if (roll < 0.15) st = 'down';
+        else st = 'ok';
+        modelResults[s.name] = { status: st, probe: probe };
         renderActivityList();
         i++;
         step();
@@ -1460,6 +2746,7 @@
       val('m_email', site.email || ''); val('m_note', site.note || '');
       val('m_balance', site.balNum != null ? site.balNum : '');
       val('m_group', site.group || '');
+      fillProbeOptions(site.probeText || '');
       resetSiteProxyPings();
       fillProxyOptions(site.proxy || '');
       document.getElementById('m_token').placeholder = '留空则保留原 token';
@@ -1481,6 +2768,7 @@
       val('m_rechargeRmb', '10'); val('m_rechargeAmount', '1.4');
       val('m_currency', 'USD'); val('m_email', ''); val('m_note', '');
       val('m_balance', ''); val('m_group', '');
+      fillProbeOptions('');
       resetSiteProxyPings();
       fillProxyOptions('');
       document.getElementById('m_token').placeholder = '选填,不填则该站无法爬取/签到,主页会有提示';
@@ -1590,6 +2878,8 @@
     if (group === '未分组') group = '';
     // 出站代理:空=跟随全局/直连;否则为某代理名
     var proxy = document.getElementById('m_proxy').value;
+    // 测活词:空=渠道测试时用全局测活词;否则此站单独覆盖
+    var probeText = document.getElementById('m_probeText').value.trim();
     // 签到设置:主开关 → 启用签到;auto → 自动签到;defAmtOn+defAmt → 默认签到到账金额
     var ckMaster   = document.getElementById('toggleSwitch').dataset.on === 'true';
     var autoOn     = document.getElementById('ckAutoSwitch').dataset.on === 'true';
@@ -1640,6 +2930,7 @@
         ckAmount: null,   // 本次签到实际到账(签到后填)
         group: group,   // 分组:留空=不分组
         proxy: proxy,   // 出站代理名:留空=跟随全局/直连
+        probeText: probeText,   // 测活词:留空=用全局测活词
       };
       recalcBalance(ns);
       sites.push(ns);
@@ -1651,6 +2942,7 @@
         target.rechargeRmb = rechargeRmb; target.rechargeAmount = rechargeAmount;
         target.group = group;
         target.proxy = proxy;   // 出站代理名:留空=跟随全局/直连
+        target.probeText = probeText;   // 测活词:留空=用全局测活词
         target.rate = (rechargeRmb / rechargeAmount).toFixed(2); target.cur = cur;
         target.email = email; target.note = note;
         target.balNum = balNum;          // 手填余额(留空=未知);随后按新汇率重算
@@ -2182,9 +3474,9 @@
   var sites = [
     { name:'OpenAI-Relay', url:'api.openai-relay.com',   balNum:48.20,  bal:'$48.20',  rmb:'¥346.94', rate:'7.20', ck:'signed',  scraped:'2 分钟前',  rmbNum:346.94, scrapedMin:2,   hasToken:true,  autoCheckin:false, defAmtEnabled:true,  defAmt:0.10, ckAmount:0.10, group:'主力' },
     { name:'GPT中转-A',     url:'gpt-zhongzhuan.net',     balNum:520.00, bal:'¥520.00', rmb:'¥520.00', rate:'1.00', ck:'manual',  scraped:'15 分钟前', rmbNum:520.00, scrapedMin:15,  hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'主力' },
-    { name:'Claude-Pool',  url:'pool.claude-cn.io',      balNum:120.50, bal:'$120.50', rmb:'¥867.60', rate:'7.20', ck:'signed',  scraped:'1 小时前',  rmbNum:867.60, scrapedMin:60,  hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.20, ckAmount:0.20, group:'主力' },
+    { name:'Claude-Pool',  url:'pool.claude-cn.io',      balNum:120.50, bal:'$120.50', rmb:'¥867.60', rate:'7.20', ck:'signed',  scraped:'1 小时前',  rmbNum:867.60, scrapedMin:60,  hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.20, ckAmount:0.20, group:'主力', probeText:'你好' },
     { name:'API聚合站',     url:'api-juhe.cn',            balNum:88.00,  bal:'¥88.00',  rmb:'¥88.00',  rate:'1.00', ck:'off',     scraped:'未爬取',    rmbNum:88.00,  scrapedMin:Infinity, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
-    { name:'DeepSeek-Hub', url:'hub.deepseek-relay.com', balNum:12.30,  bal:'$12.30',  rmb:'¥88.56',  rate:'7.20', ck:'manual',  scraped:'3 小时前',  rmbNum:88.56,  scrapedMin:180, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
+    { name:'DeepSeek-Hub', url:'hub.deepseek-relay.com', balNum:12.30,  bal:'$12.30',  rmb:'¥88.56',  rate:'7.20', ck:'manual',  scraped:'3 小时前',  rmbNum:88.56,  scrapedMin:180, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用', probeText:'ping' },
     { name:'Gemini-中转',  url:'gemini-relay.example.com', balNum:null, bal:'—',    rmb:'—',       rate:'7.20', ck:'manual',  scraped:'未爬取',    rmbNum:0,      scrapedMin:Infinity, hasToken:false, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
     { name:'Azure-OpenAI', url:'azure-oai-proxy.cn',     balNum:256.80, bal:'$256.80', rmb:'¥1849.00', rate:'7.20', ck:'signed',  scraped:'5 分钟前',  rmbNum:1849.00, scrapedMin:5,   hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.50, ckAmount:0.50, group:'主力' },
     { name:'月之暗面-Kimi', url:'kimi-relay.moonshot.cn', balNum:66.66,  bal:'¥66.66',  rmb:'¥66.66',  rate:'1.00', ck:'manual',  scraped:'42 分钟前', rmbNum:66.66,  scrapedMin:42,  hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
@@ -3014,6 +4306,17 @@
         + '<div class="flex items-center gap-4 rounded-lg border border-border p-4">'
         + '<button id="paginationHideSwitch" data-on="false" onclick="togglePaginationHidden()" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--muted))] transition"><span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-0 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span></button>'
         + '<div><p class="text-sm font-medium">隐藏分页</p><p class="text-xs text-[hsl(var(--muted-foreground))]">开启后主页站点表格不分页,一次平铺全部站点。</p></div></div>'
+        // 部署平台检测:自动识别 Cloudflare/Docker,一键隐藏另一平台专属功能(导航项+页面)。标签/状态由 syncPlatformFilterCard() 动态填充。
+        + '<div class="space-y-3 rounded-lg border border-border p-4">'
+        + '<div class="flex flex-wrap items-start justify-between gap-3">'
+        + '<div class="min-w-0"><p class="text-sm font-medium">部署平台</p>'
+        + '<p id="platformDetectResult" class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">尚未检测</p></div>'
+        + '<button id="platformDetectBtn" onclick="detectPlatform()" class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-[hsl(var(--accent))]">'
+        + '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>'
+        + '自动检测</button></div>'
+        + '<button id="platformFilterBtn" onclick="togglePlatformFilter()" class="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"></button>'
+        + '<p id="platformFilterDesc" class="text-xs text-[hsl(var(--muted-foreground))]"></p>'
+        + '</div>'
         + '</div>',
     },
     security: {
@@ -3100,9 +4403,45 @@
         + '<div id="recordsBody"></div>'
         + '</div>',
     },
+    // 协作与隐私(仅 admin 可见):跨用户只读的条款解锁。默认关闭,读完条款勾选同意后才可开启。
+    // 对应后端 settings 的 admin_global_view_ack;开=后端放行 /api/admin/users/:uid/sites,关=一律 403。
+    privacy: {
+      title: '协作与隐私',
+      body:
+        '<div class="space-y-6">'
+        + '<div><h3 class="text-base font-semibold">协作与隐私</h3><p class="mt-1 text-sm text-[hsl(var(--muted-foreground))]">管理员查看其他用户数据的权限开关。默认关闭。</p></div>'
+        // 条款卡:滚动阅读区 + 勾选同意 + 开关
+        + '<div class="rounded-lg border border-border p-5">'
+        + '<div class="flex items-start gap-3">'
+        + '<span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--muted))]"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span>'
+        + '<div class="min-w-0 flex-1"><div class="flex items-center gap-2"><p class="text-sm font-medium">查看他人站点数据</p>'
+        + '<span id="ackStatus" class="rounded-full px-2 py-0.5 text-xs font-medium text-[hsl(var(--muted-foreground))]">未解锁</span></div>'
+        + '<p class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">开启后可在「用户管理」里<b>只读</b>查看任一用户的站点(余额、签到状态等,token 已隐藏)。仅用于管理排障,不能编辑、删除、爬取或签到。</p></div></div>'
+        // 条款正文:限高可滚动
+        + '<div class="mt-4 max-h-44 overflow-y-auto rounded-md border border-border bg-[hsl(var(--muted))]/30 p-4 text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">'
+        + '<p class="font-medium text-[hsl(var(--foreground))]">使用条款</p>'
+        + '<p class="mt-2">1. 本功能允许管理员越过数据隔离,只读查看其他用户的站点数据,仅限用于故障排查、合规审计与必要的运维支持。</p>'
+        + '<p class="mt-2">2. 你不得将查看到的他人数据用于任何未经授权的目的,包括但不限于转发、公开、商业利用或个人用途。</p>'
+        + '<p class="mt-2">3. 本功能为只读:系统不提供通过该入口编辑、删除、爬取、签到或导出他人数据的能力;敏感字段(如 access token)始终隐藏。</p>'
+        + '<p class="mt-2">4. 后端会记录该权限的开启状态(admin_global_view_ack);关闭开关后,查看他人站点的接口将立即恢复拒绝(返回 403)。</p>'
+        + '<p class="mt-2">5. 你作为管理员对查看行为负责,应遵守所在地区的数据保护与隐私法律法规。若不同意上述条款,请勿开启本功能。</p>'
+        + '</div>'
+        // 勾选同意
+        + '<label class="mt-4 flex cursor-pointer items-start gap-2 text-sm">'
+        + '<input id="ackAgree" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--foreground))]" onchange="syncAckAgree()" />'
+        + '<span>我已阅读并同意上述条款,理解此功能仅用于只读的管理排障用途。</span></label>'
+        // 开关行
+        + '<div class="mt-4 flex items-center gap-4 border-t border-border pt-4">'
+        + '<button id="ackSwitch" data-on="false" onclick="toggleGlobalViewAck()" class="relative h-6 w-11 shrink-0 rounded-full bg-[hsl(var(--muted))] transition"><span class="absolute left-0.5 top-0.5 h-5 w-5 translate-x-0 rounded-full bg-[hsl(var(--card))] shadow transition-transform"></span></button>'
+        + '<div><p class="text-sm font-medium">启用「查看他人站点」</p><p class="text-xs text-[hsl(var(--muted-foreground))]">需先勾选上方同意项。关闭即撤销权限。</p></div></div>'
+        + '</div>'
+        + '</div>',
+    },
   };
   var settingsSection = 'general';
   function renderSettings() {
+    // 协作与隐私仅 admin 可见:非 admin 落到此分区则回退通用偏好(模拟后端 403 兜底)
+    if (settingsSection === 'privacy' && currentRole !== 'admin') settingsSection = 'general';
     var sec = SETTINGS_SECTIONS[settingsSection];
     var pageBody = document.getElementById('settingsBody');
     if (pageBody) pageBody.innerHTML = sec.body;
@@ -3121,8 +4460,10 @@
     });
     // 记录分区:注入当前 tab 的流水明细
     if (settingsSection === 'records') renderRecords();
-    // 通用偏好分区:同步「隐藏分页」开关视觉
-    if (settingsSection === 'general') syncPaginationSwitch();
+    // 通用偏好分区:同步「隐藏分页」开关视觉 + 平台检测卡片文案/按钮态
+    if (settingsSection === 'general') { syncPaginationSwitch(); syncPlatformFilterCard(); }
+    // 协作与隐私分区:同步条款解锁开关/勾选框/状态
+    if (settingsSection === 'privacy') syncAckCard();
   }
   function showSettingsSection(key) {
     settingsSection = key;
@@ -3343,11 +4684,18 @@
   syncCustomizePanel();
   bindScrollSync();
   loadInterval();
+  loadProbeWords();
+  loadPlatformFilter();   // 恢复上次的平台过滤开关(隐藏非当前平台功能)
+  loadMultiUser();        // 恢复演示角色 + 跨用户只读解锁标记,并按角色显隐 admin 入口
   // Esc:优先关弹窗,其次关自定义面板,再次关抽屉
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     var psMenu = document.getElementById('pageSizeMenu');
     if (psMenu && !psMenu.classList.contains('hidden')) { closePageSizeMenu(); return; }
+    var pbAsModal = document.getElementById('probeAssignModalWrap');
+    if (pbAsModal && !pbAsModal.classList.contains('hidden')) { closeProbeAssign(); return; }
+    var pbModal = document.getElementById('probeModalWrap');
+    if (pbModal && !pbModal.classList.contains('hidden')) { closeProbeModal(); return; }
     var asModal = document.getElementById('assignModalWrap');
     if (asModal && !asModal.classList.contains('hidden')) { closeSiteAssign(); return; }
     var exModal = document.getElementById('exportModalWrap');

@@ -1,7 +1,7 @@
 # 续接说明 / HANDOFF
 
 > 新终端接手本任务时，先读这个文件，再读 `prd.md` / `design.md` / `implement.md`。
-> 最近更新：2026-07-24 会话（新增出站代理功能：后端 + 前端预览）。任务处于 **Phase 2 执行中**（`task.py start` 已执行，status=in_progress）。
+> 最近更新：2026-07-25 会话（依赖漏洞清零 9→0 已提交推送；UI 预览删爬虫页「立即全部爬取」+ 测活页加默认/分组切换；下一步待 Playwright 实测）。任务处于 **Phase 2 执行中**（`task.py start` 已执行，status=in_progress）。
 
 ## 🔑 恢复本任务的一句话（新终端直接照做）
 
@@ -197,6 +197,100 @@ UI 活文件在仓库 docs/ui-preview.html，改前先 Read
 **遗留/待办（代理相关）**：块 7 接真实 API 时——(a) 前端 `deployPlatform` 换成后端注入的真实平台标识；
 (b) 代理页对接 `/api/proxies` CRUD 与 `/api/settings` 的 `global_proxy_id`；(c) 「测试」按钮对接真实探活端点；
 (d) 密码字段遵循 has_password 语义（不回明文）。
+
+## 2026-07-25 追加：依赖漏洞清零 + 块7 前三条 UI 决策（本轮会话）
+
+**依赖漏洞清零（已提交 `660f35a` 并推送到 main）：** `npm audit` 9→0。
+- 升级：`@hono/node-server` 1→2.0.11（修 Windows serve-static 路径穿越 `%5C`，我们正好在 Windows 用 serveStatic，是真实运行时风险）、
+  `node-cron` 3→4.6.0（4.x 自带 TS 类型，`import cron`+`cron.schedule` 用法不变）、`wrangler` 3→4.114.0、`@cloudflare/workers-types` 4→5.x（wrangler4 peer 要求）。
+- 删除 `@types/node-cron`（node-cron 4 自带类型）。
+- 验证：两套 typecheck 全绿；`build:server`(tsc) + `wrangler deploy --dry-run`(bundle 通过、D1/Assets binding 正确) 均 PASS；
+  `vite build` 失败但**与升级无关**——`src/frontend/main.ts` 不存在（块7 前端未写）。
+
+**块7 三条 UI 决策（2026-07-25 用户提出，已落地 `docs/ui-preview.html` + node 语法校验通过）：**
+㉝ **爬虫页删「立即全部爬取」按钮**：`data-view="scraper"` 底部按钮区只留「保存设置」（原 `scrapeAll()` 按钮已删）。
+㉞ **测活页加默认/分组切换**：仿主页——工具条加「分组」按钮（`activityGroupBtn` → `toggleActivityGroupMode()`）；
+  新增状态 `activityGroupMode`/`activityCollapsed`（与主页 `collapsedGroups` 独立）；抽出 `activityRowHtml(s)` 单站行 +
+  `activityGroupHeaderHtml(g,rows)` 组标题（整行可点折叠，同款观感）；`renderActivityList()` 加分组分支，组序复用主页 `allGroups()`。
+  测活页**不做**分页/跨组拖拽（那是主页职责），只归类展示 + 折叠。
+㉟ **待补后端逻辑（memory 已记 [[scraper-backend-concurrency-todo]]）**：爬虫页的并发/超时/重试字段后端 `scrapeAndStore`/`runScheduledTick`
+  目前是串行 for、无超时、无重试——块7 接 API 时需补后端实现，或前端先只留「定时开关 + 间隔」两个真实生效字段。
+
+**块7 测活「两种检测 + 自定义测活词」（2026-07-25 用户提出，已落地 `docs/ui-preview.html` + node 语法校验 + Playwright 实测通过）：**
+㊱ 参考 new-api `/channels`：测活拆两种检测——**测试连接**（响应耗时，`runConnectivityCheck()`→`connResults`）+ **渠道测试**
+  （发一句「测活词」看模型能否正常回复，`runModelCheck()`→`modelResults`）。两套结果独立，每行并排显示两个徽章。
+  连接徽章：正常 xxms／较慢／不可达／连接中／待检；模型徽章：可用／不可用（均带 `· <测活词>`）／测试中／待检。
+㊲ **「测活词」= 发给模型的 prompt（不是模型名、也不是搜关键词）**，new-api 写死 `hi`，此处做成可自定义：
+  全局默认 `globalProbeText`（测活页顶部 `#activityProbeText` 输入框，默认 `hi`，`setGlobalProbeText()` 即时生效）+
+  单站覆盖 `site.probeText`（编辑弹窗 `#m_probeText`，留空=用全局）。取值优先级见 `effectiveProbe(s)`：单站 > 全局 > 兜底 `hi`。
+㊳ 测活词经 `escHtml()` 转义后再进徽章（防 XSS，已 Playwright 验证 `<img onerror>` 被转义）。
+㊴ 术语澄清（避免再走弯路）：用户口中「自定义测活词」**特指发送的那句话**，不要理解成"测试模型名"或"响应关键词匹配"。
+
+**块7 测活「测活词池升级」+ 回到顶部（2026-07-25 用户提出，已落地 + node 语法校验 + Playwright 实测通过）：**
+㊵ **测活词从单输入框升级为「测活词池」**（仿代理页 `proxies` + 「配置站点」那套同构架构）：
+  - 数据：`probeWords=[{text,enabled}]`，`text` 为唯一键；站点 `site.probeText`=某 text **单值绑定（一站对一词，用户明确定）**，
+    空串=跟随全局。内置默认三条 `hi/你好/ping`。取词回落 `effectiveProbe(s)`：单站绑定（须启用）> 全局默认（须启用）> 第一条启用 > `hi`。
+  - **持久化（本轮新增，覆盖上轮㊳的"内存态"结论）**：词条列表存 `localStorage['rrelaynest-probes']`、全局默认词存
+    `['rrelaynest-probe-global']`；`loadProbeWords()` 在 init 调用（同 `loadInterval` 时机），增删改词后 `saveProbeWords()`。
+    **站点绑定 `site.probeText` 仍随内存**（与其他站点字段一致，演示端不落库）。
+  - UI：测活页顶部「测活词」区块 = 新增按钮 + 全局默认词 `#globalProbeSelect`（仅列启用词）+ 词条卡片列表 `renderProbeList()`
+    （每卡：词内容 + 启用/停用/全局徽章 + 启用开关 + 编辑 + 配置站点[带绑定数] + 删除）。
+  - 词条增删改：`probeModalWrap`（单字段，仿 `proxyModalWrap` 缩水版）+ `openProbeModal/submitProbeModal`；改名会同步绑定它的站点与全局默认词。
+  - 「配置站点」：**平行新增** `probeAssignModalWrap` + `openProbeAssign/renderProbeAssignList/saveProbeAssign`（照抄代理版逻辑改写
+    `site.probeText`，`data-passign` 复选框，默认/分组视图 + 暂存切视图）。**未复用代理那套函数**，以免动坏代理绑定。
+㊶ **站点编辑弹窗 `#m_probeText` 从自由输入改为下拉选词**（`fillProbeOptions()`：首项「跟随全局(当前全局词)」+ 启用词条；
+  用户选 A 方案=值域受控，建词只能在测活页）。
+㊷ **测活页 + 代理页加「回到顶部」按钮**（`#backTopBtn`，fixed 右下）：`showView` 记 `currentView`，`syncBackTop()` 在
+  `currentView∈{activity,proxy}` 且 `window.scrollY>400` 时淡入；`window.scroll` 监听 + 切页各触发一次。页面是 window 级滚动。
+
+**块7 爬虫拆成两个平台页（2026-07-25 用户提出，已落地 `docs/ui-preview.html` + node 语法校验 + Playwright 实测通过）：**
+㊸ **爬虫单页拆成两个独立导航项**（用户明确「两个独立导航项」）：原 `data-view="scraper"` → `scraperCf`（爬虫·Cloudflare）
+  + `scraperDocker`（爬虫·Docker）；侧栏两条 nav（`showScraperCf()`/`showScraperDocker()`）。两页元素 id 以 `cf_`/`dk_` 前缀区分。
+㊹ **两页差异体现在四个维度**（用户多选：定时机制/代理支持/并发超时重试/平台限制提示）：
+  - **定时机制**：CF 页=Cron Triggers，输入 `#cf_cron`（5 段 cron，`syncCfCronPreview()` 实时生成 `wrangler.toml` 片段
+    `#cf_cronSnippet` + `copyCfCron()` 复制；文案强调「不能运行时热更新，需改 wrangler.toml 重新部署」）；
+    Docker 页=node-cron，`#dk_scrapeInterval`+单位下拉（文案「修改即时生效，无需重启」）。
+  - **代理支持**：CF 页=不支持卡片（灰掉 opacity-70，斜杠图标，强制直连）；Docker 页=支持卡片（http/https/socks5 + 「前往代理页」跳转按钮）。
+    与 [[proxy-node-only-architecture]] 一致（代理仅 Node/Docker 生效）。
+  - **并发/超时/重试**：CF 页仅并发(`max=6`，注 subrequest 上限)+超时(`max=30`，注 CPU 时限)，**无重试**；
+    Docker 页并发(`max=50`)+超时+失败重试(`#dk_scrapeRetry`)，文案「无平台硬限制」。
+  - **平台限制提示**：CF 页顶部橙色提示条(Cron Triggers/不支持代理/subrequest·CPU 限制)；Docker 页顶部绿色提示条(node-cron/支持代理/无硬限制)。
+  - 头部各带平台徽章（CF=橙「Workers」、Docker=蓝「Node/Docker」）。`toggleScrapeAuto(p)`/`saveScrapeSettings(p)` 收 `'cf'|'dk'` 前缀参数。
+  - ⚠**mock 与真实后端的落差（用户 2026-07-25 指出，须在块7 校正）**：当前 `src/*/index.ts` 两个入口的 cron 其实**都写死每 5 分钟 tick**，
+    真实间隔由 `settings.scrape_interval_min` 节流（`scheduler.ts:43`，`now-lastRun>=interval` 才跑），**CF 与 Docker 机制相同、都热改即时生效、都不需重新部署**。
+    mock 里「CF=改 cron 表达式 + 写 wrangler.toml 重新部署」是**超前/理想化设计**，非当前实现。块7 接后端时二选一：
+    (a) 把 CF 页也改成「间隔 + setting 热改」贴合现状；(b) 后端真去支持 wrangler Cron Triggers 表达式落地。此决策留给块7。
+
+**块7 关于页「检查更新」（2026-07-25 用户提出，参考 Wei-Shaw/sub2api，已落地 `docs/ui-preview.html` + node 语法校验 + Playwright 实测通过）：**
+㊺ **关于页加「发布更新→所有部署者收到通知」机制**：数据源 = GitHub Releases API（`buzhidao10068/Rrelaynest`），每个部署实例查
+  `releases/latest` 的 `tag_name`，与本地 `APP_VERSION` 用 `cmpVersion()`(语义版本三段比较) 比对；有新版仅**通知 + 给对应平台升级步骤**。
+  - **关键约束（与 sub2api 的差异，须记牢）**：sub2api 的「一键更新」只在其脚本/二进制安装模式可用（下载新二进制替换自己）。
+    本项目 Workers/Docker **都无法应用内自更新**（容器改不了自己的镜像、Workers 运行时无权改自己的部署）。所以**不做假的一键按钮**，
+    只做「检查 + 通知 + 展示升级命令」：`updateStepsHtml()` 按 `deployPlatform` 出步骤——Workers=`git pull/npm ci/build/wrangler deploy`，
+    Docker=`docker compose pull && up -d`。
+  - UI：版本行旁小红点徽章 `#aboutUpdateDot`（有新版显示「有新版 vX.Y.Z」）；`#checkUpdateBtn`（转圈 700ms mock）+ 发布记录外链；
+    `#updatePanel`（发现新版=版本号 vA→vB + 更新日志列表[body 按行 `escHtml` 转义防 XSS] + 平台升级步骤 + 该版本 release 外链；
+    已最新=对勾「已是最新版本」）；`#autoUpdateSwitch` 自动检查开关（`localStorage['rrelaynest-auto-update']` 持久化，默认开，
+    开启则进关于页静默 `renderUpdateResult(...,silent=true)` 查一次）。
+  - mock 数据：`MOCK_LATEST={tag_name:'v1.2.0',...}`，块7 换成真实 fetch。**后端待补 `/api/update/check` 代理 GitHub Releases**
+    （前端直连 GitHub 有 CORS/限流问题，且能隐藏 repo 细节 → 走后端代理更稳）。
+
+**块7 通用偏好「平台检测 + 一键隐藏非当前平台功能」（2026-07-25 用户提出，已落地 `docs/ui-preview.html` + node 语法校验 + Playwright 实测通过）：**
+㊻ **设置·通用偏好加「部署平台」卡片**：自动检测按钮 + 一键过滤按钮，按钮文案随检测平台动态变。
+  - 自动检测 `detectPlatform()`：演示端转圈 600ms 后沿用当前 `deployPlatform` 并落 `localStorage['rrelaynest-platform']`；
+    块7 换成读后端注入的真实平台（启动探测 / `/api/meta` 的 platform 字段），**不靠前端猜**。
+  - 过滤按钮 `togglePlatformFilter()`：文案随平台变——Docker 部署显示「隐藏非 Docker 功能」，Cloudflare 显示「隐藏非 Cloudflare 功能」；
+    开启后隐藏 `data-platform` 与当前平台不符的**侧栏导航项 + 对应页面**，再点变「显示全部功能」恢复。状态落 `localStorage['rrelaynest-platform-filter']`。
+  - **平台标记**：侧栏三个平台相关导航项打 `data-platform`——爬虫·Cloudflare=`workers`、爬虫·Docker=`node`、代理=`node`（代理仅 Node/Docker，见 [[proxy-node-only-architecture]]）。
+    测活/站点/设置/关于**无标记=两平台通用**，永不隐藏。
+  - **隐藏效果**：Cloudflare 隐「爬虫·Docker + 代理」；Docker 隐「爬虫·Cloudflare」。`applyPlatformFilter()` 用 `.hidden` 切显隐；
+    若正停留在被隐藏的页（`currentView` 命中），自动 `showView('dashboard')` 弹回站点页，避免看空白页。
+  - `syncPlatformFilterCard()`（general 分区渲染 + 检测/切换后调）填充检测结果文案 + 按钮标签样式 + 说明；`loadPlatformFilter()` 在 init 调（恢复持久化平台+过滤态并 apply）。
+
+**下一步（新终端接手）**：测活页 + 爬虫两页 + 关于页更新检查前端本轮全完；后端仍缺 `/api/sites/:id/ping`（测连接）与渠道测试端点（发 probe 调模型），
+且需落 `probe_words` 表 + `site.probe_text` 字段 + 全局默认词进 `/api/settings`（memory 已记 [[activity-probe-backend-todo]]）。
+爬虫两页后端：CF 用 wrangler.toml 的 Cron Triggers（前端只读展示），Docker 用 node-cron；并发/超时/重试落 `settings` scrape 段
+（[[scraper-backend-concurrency-todo]] 记的待补实现，且需按平台分别取默认上限）。
 
 ## 恢复 active task 指针（如新终端识别不到）
 
