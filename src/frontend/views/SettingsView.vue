@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // 设置页（Phase I）：左分区导航 + 右内容。分区：通用偏好 / 安全 / 签到 / 记录 / 数据 / 协作与隐私。
 // 「协作与隐私」仅 admin 可见（跨用户只读的条款解锁）；非 admin 落到该分区回退通用偏好。
-import { ref, computed, watch, type Component } from 'vue';
+import { ref, computed, watch, onMounted, type Component } from 'vue';
 import {
   Settings2, ShieldCheck, CalendarCheck, History, Database, Eye,
 } from 'lucide-vue-next';
 import AppHeader from '@/components/AppHeader.vue';
 import { users } from '@/stores/users';
+import { settingsState } from '@/stores/settings';
 import GeneralSection from '@/components/settings/GeneralSection.vue';
 import SecuritySection from '@/components/settings/SecuritySection.vue';
 import CheckinSection from '@/components/settings/CheckinSection.vue';
@@ -37,6 +38,17 @@ const isAdmin = computed(() => users.currentRole === 'admin');
 const visibleNav = computed(() => navItems.filter((it) => !it.adminOnly || isAdmin.value));
 
 const active = ref<SectionKey>('general');
+
+// 外部（用户管理页「前往设置」）请求跳转分区：消费 settingsState.pendingSection。
+function consumePending() {
+  const p = settingsState.pendingSection as SectionKey | null;
+  if (p && visibleNav.value.some((it) => it.key === p)) {
+    active.value = p;
+  }
+  settingsState.pendingSection = null;
+}
+onMounted(consumePending);
+watch(() => settingsState.pendingSection, (p) => { if (p) consumePending(); });
 
 // 角色切到非 admin 且正停在 privacy 分区 → 回退通用偏好（模拟后端 403 兜底）
 watch(isAdmin, (admin) => {

@@ -15,14 +15,14 @@ import ActivityView from '@/views/ActivityView.vue';
 import ScraperCfView from '@/views/ScraperCfView.vue';
 import ScraperDockerView from '@/views/ScraperDockerView.vue';
 import SettingsView from '@/views/SettingsView.vue';
+import UsersView from '@/views/UsersView.vue';
+import UserSitesView from '@/views/UserSitesView.vue';
 
 // 初始化：主题（含 matchMedia 监听）。角色/ack 由 users store 初始化时从 localStorage 读。
 useTheme();
 
 // 未迁移视图的占位标题（Phase D~K 逐步替换）
 const placeholderTitles: Record<string, string> = {
-  users: '用户管理',
-  userSites: '用户站点',
   about: '关于',
 };
 const placeholderTitle = computed(() => placeholderTitles[ui.view] ?? ui.view);
@@ -40,6 +40,8 @@ const placeholderTitle = computed(() => placeholderTitles[ui.view] ?? ui.view);
       <ScraperCfView v-else-if="ui.view === 'scraperCf'" />
       <ScraperDockerView v-else-if="ui.view === 'scraperDocker'" />
       <SettingsView v-else-if="ui.view === 'settings'" />
+      <UsersView v-else-if="ui.view === 'users'" />
+      <UserSitesView v-else-if="ui.view === 'userSites'" />
 
       <!-- 未迁移视图占位（Phase D~K 逐步替换） -->
       <template v-else>
