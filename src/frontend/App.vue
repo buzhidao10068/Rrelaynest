@@ -12,14 +12,14 @@ import LoginView from '@/views/LoginView.vue';
 import DashboardView from '@/views/DashboardView.vue';
 import ProxyView from '@/views/ProxyView.vue';
 import ActivityView from '@/views/ActivityView.vue';
+import ScraperCfView from '@/views/ScraperCfView.vue';
+import ScraperDockerView from '@/views/ScraperDockerView.vue';
 
 // 初始化：主题（含 matchMedia 监听）。角色/ack 由 users store 初始化时从 localStorage 读。
 useTheme();
 
 // 未迁移视图的占位标题（Phase D~K 逐步替换）
 const placeholderTitles: Record<string, string> = {
-  scraperCf: '爬虫 · Cloudflare',
-  scraperDocker: '爬虫 · Docker',
   users: '用户管理',
   userSites: '用户站点',
   settings: '设置',
@@ -37,6 +37,8 @@ const placeholderTitle = computed(() => placeholderTitles[ui.view] ?? ui.view);
       <DashboardView v-if="ui.view === 'dashboard'" />
       <ProxyView v-else-if="ui.view === 'proxy'" />
       <ActivityView v-else-if="ui.view === 'activity'" />
+      <ScraperCfView v-else-if="ui.view === 'scraperCf'" />
+      <ScraperDockerView v-else-if="ui.view === 'scraperDocker'" />
 
       <!-- 未迁移视图占位（Phase D~K 逐步替换） -->
       <template v-else>
