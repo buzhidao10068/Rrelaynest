@@ -2,7 +2,7 @@
 // 站点新增/编辑弹窗（Phase E）：连接信息 + 汇率（按一次充值折算）+ 分组自动补全
 // + 出站代理/测活词选择 + 签到设置区（主开关→自动签到/默认金额）。
 import { ref, computed, watch, nextTick } from 'vue';
-import { ChevronDown } from 'lucide-vue-next';
+import { ChevronDown, RefreshCw, X } from 'lucide-vue-next';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -20,6 +20,7 @@ import {
 } from '@/stores/sites';
 import { probeState } from '@/stores/probes';
 import { proxyState } from '@/stores/proxies';
+import { fetchModels } from '@/composables/useUpstream';
 import { toast } from '@/composables/useToast';
 
 const props = defineProps<{ open: boolean; editing: Site | null }>();
@@ -43,6 +44,11 @@ const autoOn = ref(false);
 const defAmtOn = ref(false);
 const defAmtRaw = ref('');
 const errorMsg = ref('');
+
+// ---- 上游模型 ----
+const models = ref<string[]>([]);
+const fetchingModels = ref(false);
+const modelError = ref('');
 
 const isEdit = computed(() => props.editing !== null);
 const title = computed(() => (isEdit.value ? '编辑站点' : '新增站点'));
@@ -95,6 +101,9 @@ watch(
       autoOn.value = !!site.autoCheckin;
       defAmtOn.value = !!site.defAmtEnabled;
       defAmtRaw.value = site.defAmt != null ? String(site.defAmt) : '';
+      models.value = site.models?.slice() ?? [];
+      modelError.value = '';
+      fetchingModels.value = false;
     } else {
       name.value = '';
       url.value = '';
@@ -112,6 +121,9 @@ watch(
       autoOn.value = false;
       defAmtOn.value = false;
       defAmtRaw.value = '';
+      models.value = [];
+      modelError.value = '';
+      fetchingModels.value = false;
     }
   },
   { immediate: true },
@@ -141,6 +153,34 @@ function toggleGroupMenu() {
   groupMenuOpen.value = !groupMenuOpen.value;
   // 官方 Input 未转发 ref 到内部 <input>，用 id 聚焦。
   if (groupMenuOpen.value) nextTick(() => document.getElementById('group-input')?.focus());
+}
+
+// ---- 获取上游模型 ----
+// 用当前地址 + token 真调 {base}/v1/models。编辑态 token 留空则用原 token 无法回显，
+// 提示需重填；假域名/CORS 会失败并显示可读错误（属预期，真绿态需真实站点）。
+async function onFetchModels() {
+  const u = url.value.trim();
+  if (!u) { modelError.value = '请先填写站点地址'; return; }
+  if (!/^https?:\/\//i.test(u)) { modelError.value = '站点地址需以 http:// 或 https:// 开头'; return; }
+  if (isEdit.value && !token.value.trim()) {
+    modelError.value = '编辑态不回显原 token，请在上方重填密钥后再获取';
+    return;
+  }
+  fetchingModels.value = true;
+  modelError.value = '';
+  try {
+    const ids = await fetchModels(u, token.value);
+    models.value = ids;
+    toast(`获取到 ${ids.length} 个模型`, 'success');
+  } catch (e) {
+    modelError.value = e instanceof Error ? e.message : '获取失败';
+    toast('获取模型失败', 'error');
+  } finally {
+    fetchingModels.value = false;
+  }
+}
+function removeModel(id: string) {
+  models.value = models.value.filter((m) => m !== id);
 }
 
 // ---- 提交 ----
@@ -173,6 +213,7 @@ function onSubmit() {
     email: email.value, note: note.value,
     ckMaster: ckMaster.value, autoOn: autoOn.value,
     defAmtOn: defAmtOn.value, defAmtRaw: String(defAmtRaw.value),
+    models: models.value.slice(),
   };
   const saved = saveSite(form, editingName);
   toast(editingName === null ? `已创建「${saved}」` : `已保存「${saved}」`, 'success');
@@ -214,6 +255,47 @@ const probeSel = computed({
           <Input v-model="token" type="password" :placeholder="tokenPlaceholder" />
           <p class="text-xs text-muted-foreground">{{ tokenHint }}</p>
         </div>
+
+        <!-- 上游模型 -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <Label>上游模型</Label>
+            <Button
+              type="button" variant="outline" size="sm"
+              :disabled="fetchingModels"
+              @click="onFetchModels"
+            >
+              <RefreshCw :size="14" :class="fetchingModels && 'animate-spin'" />
+              {{ fetchingModels ? '获取中…' : '获取模型' }}
+            </Button>
+          </div>
+          <p
+            v-if="modelError"
+            class="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-500"
+          >{{ modelError }}</p>
+          <div
+            v-else-if="models.length"
+            class="flex flex-wrap gap-1.5 rounded-md border border-border bg-muted/30 p-2"
+          >
+            <span
+              v-for="m in models"
+              :key="m"
+              class="inline-flex items-center gap-1 rounded-md bg-background px-2 py-0.5 font-mono text-xs"
+            >
+              {{ m }}
+              <Button
+                type="button" variant="ghost" size="icon"
+                class="h-4 w-4 text-muted-foreground hover:bg-transparent hover:text-red-500"
+                :title="`移除 ${m}`"
+                @click="removeModel(m)"
+              ><X :size="12" /></Button>
+            </span>
+          </div>
+          <p class="text-xs text-muted-foreground">
+            填好地址与密钥后点「获取模型」拉取上游模型列表（浏览器直连 {{ '{base}' }}/v1/models）。测活页「渠道测试」会逐个模型测活。
+          </p>
+        </div>
+
         <div class="space-y-1.5">
           <Label>当前余额（站点货币）</Label>
           <Input v-model="balRaw" type="number" step="0.01" placeholder="留空表示未知" />

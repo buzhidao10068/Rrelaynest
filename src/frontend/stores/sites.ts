@@ -30,6 +30,10 @@ export interface Site {
   rechargeAmount?: number;
   email?: string;
   note?: string;
+  models?: string[];
+  // 明文 token 仅存内存（本 store 本就不落 localStorage），供测活页真调渠道测试鉴权用；
+  // 编辑弹窗不回显。绝不持久化到 localStorage。
+  token?: string;
 }
 
 // 编辑/新建弹窗的表单载荷（提交后由 saveSite 落库）
@@ -50,6 +54,7 @@ export interface SiteForm {
   autoOn: boolean;
   defAmtOn: boolean;
   defAmtRaw: string;
+  models: string[];
 }
 
 export interface Column {
@@ -105,11 +110,11 @@ export function recalcBalance(s: Site): void {
 
 // ---- 种子数据（42 站，忠实自 mock）----
 const seed: Site[] = [
-  { name:'OpenAI-Relay', url:'api.openai-relay.com',   balNum:48.20,  bal:'$48.20',  rmb:'¥346.94', rate:'7.20', ck:'signed',  scraped:'2 分钟前',  rmbNum:346.94, scrapedMin:2,   hasToken:true,  autoCheckin:false, defAmtEnabled:true,  defAmt:0.10, ckAmount:0.10, group:'主力' },
+  { name:'OpenAI-Relay', url:'api.openai-relay.com',   balNum:48.20,  bal:'$48.20',  rmb:'¥346.94', rate:'7.20', ck:'signed',  scraped:'2 分钟前',  rmbNum:346.94, scrapedMin:2,   hasToken:true,  autoCheckin:false, defAmtEnabled:true,  defAmt:0.10, ckAmount:0.10, group:'主力', models:['gpt-4o','gpt-4o-mini','gpt-3.5-turbo'] },
   { name:'GPT中转-A',     url:'gpt-zhongzhuan.net',     balNum:520.00, bal:'¥520.00', rmb:'¥520.00', rate:'1.00', ck:'manual',  scraped:'15 分钟前', rmbNum:520.00, scrapedMin:15,  hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'主力' },
-  { name:'Claude-Pool',  url:'pool.claude-cn.io',      balNum:120.50, bal:'$120.50', rmb:'¥867.60', rate:'7.20', ck:'signed',  scraped:'1 小时前',  rmbNum:867.60, scrapedMin:60,  hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.20, ckAmount:0.20, group:'主力', probeText:'你好' },
+  { name:'Claude-Pool',  url:'pool.claude-cn.io',      balNum:120.50, bal:'$120.50', rmb:'¥867.60', rate:'7.20', ck:'signed',  scraped:'1 小时前',  rmbNum:867.60, scrapedMin:60,  hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.20, ckAmount:0.20, group:'主力', probeText:'你好', models:['claude-3-5-sonnet', 'claude-3-opus', 'claude-3-haiku'] },
   { name:'API聚合站',     url:'api-juhe.cn',            balNum:88.00,  bal:'¥88.00',  rmb:'¥88.00',  rate:'1.00', ck:'off',     scraped:'未爬取',    rmbNum:88.00,  scrapedMin:Infinity, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
-  { name:'DeepSeek-Hub', url:'hub.deepseek-relay.com', balNum:12.30,  bal:'$12.30',  rmb:'¥88.56',  rate:'7.20', ck:'manual',  scraped:'3 小时前',  rmbNum:88.56,  scrapedMin:180, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用', probeText:'ping' },
+  { name:'DeepSeek-Hub', url:'hub.deepseek-relay.com', balNum:12.30,  bal:'$12.30',  rmb:'¥88.56',  rate:'7.20', ck:'manual',  scraped:'3 小时前',  rmbNum:88.56,  scrapedMin:180, hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用', probeText:'ping', models:['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'] },
   { name:'Gemini-中转',  url:'gemini-relay.example.com', balNum:null, bal:'—',    rmb:'—',       rate:'7.20', ck:'manual',  scraped:'未爬取',    rmbNum:0,      scrapedMin:Infinity, hasToken:false, autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'测试' },
   { name:'Azure-OpenAI', url:'azure-oai-proxy.cn',     balNum:256.80, bal:'$256.80', rmb:'¥1849.00', rate:'7.20', ck:'signed',  scraped:'5 分钟前',  rmbNum:1849.00, scrapedMin:5,   hasToken:true,  autoCheckin:true,  defAmtEnabled:true,  defAmt:0.50, ckAmount:0.50, group:'主力' },
   { name:'月之暗面-Kimi', url:'kimi-relay.moonshot.cn', balNum:66.66,  bal:'¥66.66',  rmb:'¥66.66',  rate:'1.00', ck:'manual',  scraped:'42 分钟前', rmbNum:66.66,  scrapedMin:42,  hasToken:true,  autoCheckin:false, defAmtEnabled:false, defAmt:null, ckAmount:null, group:'备用' },
@@ -493,6 +498,8 @@ export function saveSite(form: SiteForm, editingName: string | null): string {
       group,
       proxy: form.proxy,
       probeText: form.probeText,
+      models: form.models.slice(),
+      token: form.token || undefined,
     };
     recalcBalance(ns);
     sitesState.list.push(ns);
@@ -507,6 +514,7 @@ export function saveSite(form: SiteForm, editingName: string | null): string {
   target.group = group;
   target.proxy = form.proxy;
   target.probeText = form.probeText;
+  target.models = form.models.slice();
   target.rate = (rmb / amt).toFixed(2);
   target.cur = cur;
   target.email = form.email.trim();
@@ -517,7 +525,7 @@ export function saveSite(form: SiteForm, editingName: string | null): string {
   target.autoCheckin = ckMaster && form.autoOn;
   target.defAmtEnabled = ckMaster && form.defAmtOn;
   target.defAmt = (ckMaster && form.defAmtOn) ? defAmtNum : null;
-  if (form.token) target.hasToken = true;
+  if (form.token) { target.hasToken = true; target.token = form.token; }
   return target.name;
 }
 

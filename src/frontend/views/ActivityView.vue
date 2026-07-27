@@ -13,18 +13,13 @@ import {
 import { sitesState, allGroups } from '@/stores/sites';
 import {
   probeState, setGlobalProbe, setGlobalEnabled, toggleProbe, deleteProbe, persistProbes,
-  probeSiteCount, effectiveProbe, type ProbeWord,
+  probeSiteCount, type ProbeWord,
 } from '@/stores/probes';
+import { running, runConnectivityCheck, runModelCheck } from '@/composables/useActivityCheck';
 import { toast } from '@/composables/useToast';
 import ProbeModal from '@/components/probe/ProbeModal.vue';
 import ProbeAssignModal from '@/components/probe/ProbeAssignModal.vue';
-
-// ---- 检测结果（按站名 → 结果）----
-type ConnStatus = 'ok' | 'slow' | 'down' | 'checking';
-type ModelStatus = 'ok' | 'down' | 'checking' | 'skipped';
-const connResults = reactive<Record<string, { status: ConnStatus; ms: number }>>({});
-const modelResults = reactive<Record<string, { status: ModelStatus; probe: string }>>({});
-const running = ref(false);
+import SiteCheckRow from '@/components/site/SiteCheckRow.vue';
 
 // ---- 分组视图 ----
 const groupMode = ref(false);
@@ -64,107 +59,6 @@ const globalOn = computed({
   },
 });
 
-// ---- 检测徽章 ----
-function connBadgeClass(st: ConnStatus): string {
-  if (st === 'ok') return 'bg-green-500/15 text-green-600 dark:text-green-400';
-  if (st === 'slow') return 'bg-amber-500/15 text-amber-600 dark:text-amber-400';
-  if (st === 'down') return 'bg-red-500/15 text-red-500';
-  return 'bg-blue-500/15 text-blue-600 dark:text-blue-400';
-}
-function connBadgeText(r?: { status: ConnStatus; ms: number }): string {
-  if (!r) return '连接 待检';
-  if (r.status === 'ok') return `● 正常 ${r.ms}ms`;
-  if (r.status === 'slow') return `● 较慢 ${r.ms}ms`;
-  if (r.status === 'down') return '● 不可达';
-  return '● 连接中…';
-}
-function modelBadgeClass(st: ModelStatus): string {
-  if (st === 'ok') return 'bg-green-500/15 text-green-600 dark:text-green-400';
-  if (st === 'down') return 'bg-red-500/15 text-red-500';
-  if (st === 'skipped') return 'bg-muted text-muted-foreground';
-  return 'bg-blue-500/15 text-blue-600 dark:text-blue-400';
-}
-function modelBadgeText(r?: { status: ModelStatus; probe: string }): string {
-  if (!r) return '渠道 待检';
-  const p = r.probe ? ` · ${r.probe}` : '';
-  if (r.status === 'ok') return `● 可用${p}`;
-  if (r.status === 'down') return `● 不可用${p}`;
-  if (r.status === 'skipped') return '○ 未测（无测活词）';
-  return '● 测试中…';
-}
-
-// ---- 测试连接（mock：逐站串行，模拟往返延迟）----
-function runConnectivityCheck() {
-  if (running.value || !sitesState.list.length) return;
-  running.value = true;
-  Object.keys(connResults).forEach((k) => delete connResults[k]);
-  const list = sitesState.list;
-  let i = 0;
-  const step = () => {
-    if (i >= list.length) {
-      running.value = false;
-      const down = list.filter((s) => connResults[s.name]?.status === 'down').length;
-      toast(down ? `连接检测完成，${down} 个站点不可达` : '连接检测完成，全部站点可达', down ? 'error' : 'success');
-      return;
-    }
-    const s = list[i];
-    connResults[s.name] = { status: 'checking', ms: 0 };
-    const delay = 220 + Math.floor(Math.random() * 480);
-    setTimeout(() => {
-      const roll = Math.random();
-      const ms = Math.floor(delay);
-      let st: ConnStatus;
-      if (!s.hasToken && roll < 0.35) st = 'down';
-      else if (roll < 0.12) st = 'down';
-      else if (ms > 550) st = 'slow';
-      else st = 'ok';
-      connResults[s.name] = { status: st, ms };
-      i++;
-      step();
-    }, delay);
-  };
-  step();
-}
-
-// ---- 渠道测试（mock：逐站发一句测活词，判模型是否正常回复）----
-function runModelCheck() {
-  if (running.value || !sitesState.list.length) return;
-  running.value = true;
-  Object.keys(modelResults).forEach((k) => delete modelResults[k]);
-  const list = sitesState.list;
-  let i = 0;
-  const step = () => {
-    if (i >= list.length) {
-      running.value = false;
-      const down = list.filter((s) => modelResults[s.name]?.status === 'down').length;
-      toast(down ? `渠道测试完成，${down} 个站点模型不可用` : '渠道测试完成，全部站点模型可用', down ? 'error' : 'success');
-      return;
-    }
-    const s = list[i];
-    const probe = effectiveProbe(s.probeText);
-    // 没生效测活词（未绑词且全局默认词关闭）→ 跳过渠道测试，不计入不可用
-    if (!probe) {
-      modelResults[s.name] = { status: 'skipped', probe: '' };
-      i++;
-      step();
-      return;
-    }
-    modelResults[s.name] = { status: 'checking', probe };
-    const delay = 260 + Math.floor(Math.random() * 520);
-    setTimeout(() => {
-      const roll = Math.random();
-      let st: ModelStatus;
-      if (!s.hasToken) st = 'down';
-      else if (roll < 0.15) st = 'down';
-      else st = 'ok';
-      modelResults[s.name] = { status: st, probe };
-      i++;
-      step();
-    }, delay);
-  };
-  step();
-}
-
 // ---- 测活词池操作 ----
 function onCreateProbe() {
   modalEditing.value = null;
@@ -199,7 +93,7 @@ function onAssignProbe(w: ProbeWord) {
         <div>
           <h3 class="text-base font-semibold">站点连通性检测</h3>
           <p class="mt-1 text-sm text-muted-foreground">
-            测试连接=探测响应耗时；渠道测试=发一句测活词看模型能否正常回复（演示为 mock 结果）。
+            测试连接=真调 {base}/v1/models 计时；渠道测试=对该站每个上游模型发一句测活词，逐个判可用（浏览器直连，受 CORS 限制）。
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -327,36 +221,11 @@ function onAssignProbe(w: ProbeWord) {
 
         <!-- 平铺 -->
         <div v-else-if="!groupMode" class="divide-y divide-border">
-          <div
+          <SiteCheckRow
             v-for="s in sitesState.list"
             :key="s.name"
-            class="flex items-center justify-between gap-3 px-4 py-3"
-          >
-            <div class="min-w-0">
-              <p class="truncate text-sm font-medium">{{ s.name }}</p>
-              <p class="truncate text-xs text-muted-foreground">{{ s.url }}</p>
-            </div>
-            <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-              <span
-                class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-                :class="connBadgeClass(connResults[s.name]?.status ?? 'checking')"
-                v-if="connResults[s.name]"
-              >{{ connBadgeText(connResults[s.name]) }}</span>
-              <span
-                v-else
-                class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-              >连接 待检</span>
-              <span
-                class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-                :class="modelBadgeClass(modelResults[s.name]?.status ?? 'checking')"
-                v-if="modelResults[s.name]"
-              >{{ modelBadgeText(modelResults[s.name]) }}</span>
-              <span
-                v-else
-                class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-              >渠道 待检</span>
-            </div>
-          </div>
+            :site="s"
+          />
         </div>
 
         <!-- 分组 -->
@@ -372,36 +241,11 @@ function onAssignProbe(w: ProbeWord) {
               <span class="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{{ g.sites.length }}</span>
             </div>
             <div v-if="!collapsed[g.name]" class="divide-y divide-border">
-              <div
+              <SiteCheckRow
                 v-for="s in g.sites"
                 :key="s.name"
-                class="flex items-center justify-between gap-3 px-4 py-3"
-              >
-                <div class="min-w-0">
-                  <p class="truncate text-sm font-medium">{{ s.name }}</p>
-                  <p class="truncate text-xs text-muted-foreground">{{ s.url }}</p>
-                </div>
-                <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                  <span
-                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-                    :class="connBadgeClass(connResults[s.name]?.status ?? 'checking')"
-                    v-if="connResults[s.name]"
-                  >{{ connBadgeText(connResults[s.name]) }}</span>
-                  <span
-                    v-else
-                    class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                  >连接 待检</span>
-                  <span
-                    class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-                    :class="modelBadgeClass(modelResults[s.name]?.status ?? 'checking')"
-                    v-if="modelResults[s.name]"
-                  >{{ modelBadgeText(modelResults[s.name]) }}</span>
-                  <span
-                    v-else
-                    class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                  >渠道 待检</span>
-                </div>
-              </div>
+                :site="s"
+              />
             </div>
           </template>
         </div>
