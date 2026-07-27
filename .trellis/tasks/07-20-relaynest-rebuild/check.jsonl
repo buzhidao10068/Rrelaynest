@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/backend/quality.md", "reason": "后端质量检查清单,验证路由/爬虫/cron 的错误处理与返回契约"}
-{"file": ".trellis/spec/frontend/quality.md", "reason": "前端质量检查清单,验证 Vue 组件的登录态、错误提示、导出/签到 UI"}
-{"file": ".trellis/spec/backend/security.md", "reason": "复核 token 明文不落库、导出不含 token、cookie HttpOnly+Secure 等安全要求"}
-{"file": ".trellis/spec/big-question/system-constraints.md", "reason": "复核爬取落库的唯一约束与幂等替换,防止重复行或非确定读"}
