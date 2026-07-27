@@ -1,13 +1,20 @@
 <script setup lang="ts">
-// 数据分区（Phase I）：导出（选择导出弹窗留 Phase K，此处占位提示）+ 危险区清空全部数据。
+// 数据分区（Phase I/K）：选择导出弹窗（Phase K 接入）+ 危险区清空全部数据。
+import { ref } from 'vue';
 import { Download, Trash2 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { clearAll, sitesState } from '@/stores/sites';
 import { toast } from '@/composables/useToast';
+import ExportModal from '@/components/site/ExportModal.vue';
+
+const exportOpen = ref(false);
 
 function onExport() {
-  // 选择导出弹窗在 Phase K 落地；此处先给占位提示。
-  toast('选择导出弹窗将在后续阶段接入', 'info');
+  if (!sitesState.list.length) {
+    toast('暂无站点可导出', 'info');
+    return;
+  }
+  exportOpen.value = true;
 }
 
 function onClearAll() {
@@ -48,5 +55,7 @@ function onClearAll() {
         清空全部数据
       </Button>
     </div>
+
+    <ExportModal :open="exportOpen" @close="exportOpen = false" />
   </div>
 </template>
