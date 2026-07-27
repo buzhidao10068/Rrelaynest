@@ -18,7 +18,7 @@ import {
   sitesState, allGroups, saveSite, nameExists, deriveRecharge,
   type Site, type SiteForm,
 } from '@/stores/sites';
-import { probeState } from '@/stores/probes';
+import { probeState, PROBE_OFF } from '@/stores/probes';
 import { proxyState } from '@/stores/proxies';
 import { toast } from '@/composables/useToast';
 
@@ -88,7 +88,9 @@ watch(
       cur.value = site.cur || 'USD';
       group.value = site.group || '';
       proxy.value = site.proxy || '';
-      probeText.value = site.probeText && probeOptions.value.some((w) => w.text === site.probeText) ? site.probeText : '';
+      probeText.value = site.probeText === PROBE_OFF
+        ? PROBE_OFF
+        : (site.probeText && probeOptions.value.some((w) => w.text === site.probeText) ? site.probeText : '');
       email.value = site.email || '';
       note.value = site.note || '';
       ckMaster.value = site.ck !== 'off';
@@ -309,9 +311,10 @@ const probeSel = computed({
             <SelectContent>
               <SelectItem :value="FOLLOW">跟随全局（{{ globalProbe }}）</SelectItem>
               <SelectItem v-for="w in probeOptions" :key="w.text" :value="w.text">{{ w.text }}</SelectItem>
+              <SelectItem :value="PROBE_OFF">不测活（跳过连接与渠道检测）</SelectItem>
             </SelectContent>
           </Select>
-          <p class="text-xs text-muted-foreground">测活页「渠道测试」发给本站模型的话，模型正常回复即判存活；留空则跟随全局默认词。词条在「测活」页管理。</p>
+          <p class="text-xs text-muted-foreground">测活页「渠道测试」发给本站模型的话，模型正常回复即判存活；留空则跟随全局默认词；选「不测活」则测活页两种检测都跳过本站。词条在「测活」页管理。</p>
         </div>
 
         <!-- 签到设置区 -->
