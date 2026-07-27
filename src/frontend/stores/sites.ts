@@ -3,6 +3,7 @@
 // 重算 bal/rmb —— 因此种子数据的余额列显示为裸数字(无币种符号)，RMB 按派生 ratio 重算。
 // 轻量 reactive 单例，不引 Pinia。
 import { reactive, computed } from 'vue';
+import { logRecharge, logCheckin, logScrape } from './records';
 
 export type CheckinState = 'signed' | 'manual' | 'off';
 
@@ -402,6 +403,7 @@ export function scrapeSite(name: string): boolean {
   s.balNum = Math.round((10 + (name.length * 7 % 90)) * 100) / 100;
   recalcBalance(s);
   s.scraped = '刚刚'; s.scrapedMin = 0;
+  logScrape({ site: s.name, ok: true, balance: s.balNum, cur: s.cur, ts: Date.now() });
   return true;
 }
 export function deleteSite(name: string): boolean {
@@ -411,6 +413,13 @@ export function deleteSite(name: string): boolean {
   sitesState.selected.delete(name);
   return true;
 }
+// 清空全部数据（设置页危险区）：清站点列表 + 选择集 + 退出批量模式
+export function clearAll(): void {
+  sitesState.list.splice(0, sitesState.list.length);
+  sitesState.selected.clear();
+  sitesState.batchMode = false;
+  sitesState.currentPage = 1;
+}
 
 // 签到落账：标记已签 + 记录本次到账额 + 累加到余额（余额未知则以到账额为起点）
 export function applyCheckin(s: Site, amt: number): void {
@@ -418,6 +427,7 @@ export function applyCheckin(s: Site, amt: number): void {
   s.ckAmount = amt;
   s.balNum = (s.balNum == null || isNaN(s.balNum)) ? amt : (s.balNum + amt);
   recalcBalance(s);
+  logCheckin({ site: s.name, amount: amt, cur: s.cur, ts: Date.now() });
 }
 
 // 签到入口：返回签到结果。
@@ -538,6 +548,7 @@ export function rechargeSite(name: string, rmb: number, amt: number): boolean {
   s.rate = (rmb / amt).toFixed(2);
   s.balNum = (s.balNum == null || isNaN(s.balNum)) ? amt : (s.balNum + amt);
   recalcBalance(s);
+  logRecharge({ site: s.name, rmb, amount: amt, cur: s.cur, ts: Date.now() });
   return true;
 }
 
