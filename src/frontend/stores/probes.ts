@@ -11,10 +11,6 @@ export interface ProbeWord {
 const PROBES_KEY = 'rrelaynest-probes';
 const GLOBAL_KEY = 'rrelaynest-probe-global';
 
-// site.probeText 的第三态哨兵：'' = 跟随全局；某词 = 用该词；PROBE_OFF = 不测活（两种检测都跳过）。
-// 用哨兵值复用单值字段，不新增 Site 字段。真词校验会禁止用户输入此值，避免撞车。
-export const PROBE_OFF = '__off__';
-
 const DEFAULT_PROBE_WORDS: ProbeWord[] = [
   { text: 'hi', enabled: true },
   { text: '你好', enabled: true },
@@ -53,14 +49,9 @@ export function probeUsable(text: string): boolean {
   return probeState.words.some((w) => w.text === text && w.enabled);
 }
 
-// 该站是否设为「不测活」（两种检测都跳过）
-export function isProbeOff(siteProbe?: string): boolean {
-  return siteProbe === PROBE_OFF;
-}
-
-// 某站实际生效的测活词：单站绑定优先，否则全局。（调用前应先用 isProbeOff 排除不测活的站）
+// 某站实际生效的测活词：单站绑定优先，否则全局
 export function effectiveProbe(siteProbe?: string): string {
-  if (siteProbe && siteProbe !== PROBE_OFF && probeUsable(siteProbe)) return siteProbe;
+  if (siteProbe && probeUsable(siteProbe)) return siteProbe;
   if (probeUsable(probeState.globalText)) return probeState.globalText;
   return 'hi';
 }

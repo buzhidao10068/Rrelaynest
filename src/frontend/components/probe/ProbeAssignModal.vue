@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { sitesState, allGroups, type Site } from '@/stores/sites';
-import { assignSitesToProbe, PROBE_OFF } from '@/stores/probes';
+import { assignSitesToProbe } from '@/stores/probes';
 import { toast } from '@/composables/useToast';
 
 const props = defineProps<{ open: boolean; probeText: string | null }>();
@@ -51,10 +51,9 @@ function toggleGroup(g: string) {
   const allOn = rows.length > 0 && rows.every((s) => checks.value[s.name]);
   rows.forEach((s) => { checks.value[s.name] = !allOn; });
 }
-// 绑到别的测活词时的当前提示（不测活的站显示「不测活」而非哨兵字面量）
+// 绑到别的测活词时的当前提示
 function otherProbe(s: Site): string {
-  if (!s.probeText || s.probeText === props.probeText) return '';
-  return s.probeText === PROBE_OFF ? '不测活' : s.probeText;
+  return s.probeText && s.probeText !== props.probeText ? s.probeText : '';
 }
 
 function onSave() {

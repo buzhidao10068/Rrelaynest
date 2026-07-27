@@ -13,15 +13,15 @@ import {
 import { sitesState, allGroups } from '@/stores/sites';
 import {
   probeState, setGlobalProbe, toggleProbe, deleteProbe, persistProbes,
-  probeSiteCount, effectiveProbe, isProbeOff, type ProbeWord,
+  probeSiteCount, effectiveProbe, type ProbeWord,
 } from '@/stores/probes';
 import { toast } from '@/composables/useToast';
 import ProbeModal from '@/components/probe/ProbeModal.vue';
 import ProbeAssignModal from '@/components/probe/ProbeAssignModal.vue';
 
 // ---- 检测结果（按站名 → 结果）----
-type ConnStatus = 'ok' | 'slow' | 'down' | 'checking' | 'off';
-type ModelStatus = 'ok' | 'down' | 'checking' | 'off';
+type ConnStatus = 'ok' | 'slow' | 'down' | 'checking';
+type ModelStatus = 'ok' | 'down' | 'checking';
 const connResults = reactive<Record<string, { status: ConnStatus; ms: number }>>({});
 const modelResults = reactive<Record<string, { status: ModelStatus; probe: string }>>({});
 const running = ref(false);
@@ -60,7 +60,6 @@ function connBadgeClass(st: ConnStatus): string {
   if (st === 'ok') return 'bg-green-500/15 text-green-600 dark:text-green-400';
   if (st === 'slow') return 'bg-amber-500/15 text-amber-600 dark:text-amber-400';
   if (st === 'down') return 'bg-red-500/15 text-red-500';
-  if (st === 'off') return 'bg-muted text-muted-foreground';
   return 'bg-blue-500/15 text-blue-600 dark:text-blue-400';
 }
 function connBadgeText(r?: { status: ConnStatus; ms: number }): string {
@@ -68,13 +67,11 @@ function connBadgeText(r?: { status: ConnStatus; ms: number }): string {
   if (r.status === 'ok') return `● 正常 ${r.ms}ms`;
   if (r.status === 'slow') return `● 较慢 ${r.ms}ms`;
   if (r.status === 'down') return '● 不可达';
-  if (r.status === 'off') return '○ 不测活';
   return '● 连接中…';
 }
 function modelBadgeClass(st: ModelStatus): string {
   if (st === 'ok') return 'bg-green-500/15 text-green-600 dark:text-green-400';
   if (st === 'down') return 'bg-red-500/15 text-red-500';
-  if (st === 'off') return 'bg-muted text-muted-foreground';
   return 'bg-blue-500/15 text-blue-600 dark:text-blue-400';
 }
 function modelBadgeText(r?: { status: ModelStatus; probe: string }): string {
@@ -82,7 +79,6 @@ function modelBadgeText(r?: { status: ModelStatus; probe: string }): string {
   const p = r.probe ? ` · ${r.probe}` : '';
   if (r.status === 'ok') return `● 可用${p}`;
   if (r.status === 'down') return `● 不可用${p}`;
-  if (r.status === 'off') return '○ 不测活';
   return '● 测试中…';
 }
 
@@ -101,13 +97,6 @@ function runConnectivityCheck() {
       return;
     }
     const s = list[i];
-    // 「不测活」的站两种检测都跳过，直接标记 off
-    if (isProbeOff(s.probeText)) {
-      connResults[s.name] = { status: 'off', ms: 0 };
-      i++;
-      step();
-      return;
-    }
     connResults[s.name] = { status: 'checking', ms: 0 };
     const delay = 220 + Math.floor(Math.random() * 480);
     setTimeout(() => {
@@ -141,12 +130,6 @@ function runModelCheck() {
       return;
     }
     const s = list[i];
-    if (isProbeOff(s.probeText)) {
-      modelResults[s.name] = { status: 'off', probe: '' };
-      i++;
-      step();
-      return;
-    }
     const probe = effectiveProbe(s.probeText);
     modelResults[s.name] = { status: 'checking', probe };
     const delay = 260 + Math.floor(Math.random() * 520);
