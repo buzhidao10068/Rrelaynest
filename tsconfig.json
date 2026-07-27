@@ -15,7 +15,11 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "jsx": "preserve"
+    "jsx": "preserve",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/frontend/*"]
+    }
   },
   "include": ["src/shared", "src/worker", "src/frontend"],
   "exclude": ["node_modules", "dist", "dist-server", "src/server"]

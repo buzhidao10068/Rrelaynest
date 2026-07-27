@@ -24,3 +24,6 @@ data/
 
 # Playwright MCP 临时产物
 .playwright-mcp/
+
+# 根目录开发验证截图（临时产物，勿提交）
+/*.png
