@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { sitesState, allGroups } from '@/stores/sites';
 import {
-  probeState, setGlobalProbe, toggleProbe, deleteProbe, persistProbes,
+  probeState, setGlobalProbe, setGlobalEnabled, toggleProbe, deleteProbe, persistProbes,
   probeSiteCount, effectiveProbe, type ProbeWord,
 } from '@/stores/probes';
 import { toast } from '@/composables/useToast';
@@ -21,7 +21,7 @@ import ProbeAssignModal from '@/components/probe/ProbeAssignModal.vue';
 
 // ---- 检测结果（按站名 → 结果）----
 type ConnStatus = 'ok' | 'slow' | 'down' | 'checking';
-type ModelStatus = 'ok' | 'down' | 'checking';
+type ModelStatus = 'ok' | 'down' | 'checking' | 'skipped';
 const connResults = reactive<Record<string, { status: ConnStatus; ms: number }>>({});
 const modelResults = reactive<Record<string, { status: ModelStatus; probe: string }>>({});
 const running = ref(false);
@@ -54,6 +54,15 @@ const globalSel = computed({
     toast(`全局默认词已设为「${probeState.globalText}」`, 'success');
   },
 });
+// 全局默认词开关：关闭后未单独绑词的站点渠道测试跳过（测试连接不受影响）。
+const globalOn = computed({
+  get: () => probeState.globalEnabled,
+  set: (on: boolean) => {
+    setGlobalEnabled(on);
+    persistProbes();
+    toast(on ? '全局默认词已开启' : '全局默认词已关闭，未绑定词的站点将跳过渠道测试', on ? 'success' : 'info');
+  },
+});
 
 // ---- 检测徽章 ----
 function connBadgeClass(st: ConnStatus): string {
@@ -72,6 +81,7 @@ function connBadgeText(r?: { status: ConnStatus; ms: number }): string {
 function modelBadgeClass(st: ModelStatus): string {
   if (st === 'ok') return 'bg-green-500/15 text-green-600 dark:text-green-400';
   if (st === 'down') return 'bg-red-500/15 text-red-500';
+  if (st === 'skipped') return 'bg-muted text-muted-foreground';
   return 'bg-blue-500/15 text-blue-600 dark:text-blue-400';
 }
 function modelBadgeText(r?: { status: ModelStatus; probe: string }): string {
@@ -79,6 +89,7 @@ function modelBadgeText(r?: { status: ModelStatus; probe: string }): string {
   const p = r.probe ? ` · ${r.probe}` : '';
   if (r.status === 'ok') return `● 可用${p}`;
   if (r.status === 'down') return `● 不可用${p}`;
+  if (r.status === 'skipped') return '○ 未测（无测活词）';
   return '● 测试中…';
 }
 
@@ -131,6 +142,13 @@ function runModelCheck() {
     }
     const s = list[i];
     const probe = effectiveProbe(s.probeText);
+    // 没生效测活词（未绑词且全局默认词关闭）→ 跳过渠道测试，不计入不可用
+    if (!probe) {
+      modelResults[s.name] = { status: 'skipped', probe: '' };
+      i++;
+      step();
+      return;
+    }
     modelResults[s.name] = { status: 'checking', probe };
     const delay = 260 + Math.floor(Math.random() * 520);
     setTimeout(() => {
@@ -223,10 +241,13 @@ function onAssignProbe(w: ProbeWord) {
         <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background p-3">
           <div class="min-w-0 flex-1">
             <p class="text-sm font-medium">全局默认词</p>
-            <p class="text-xs text-muted-foreground">未单独绑定测活词的站点默认用这条。</p>
+            <p class="text-xs text-muted-foreground">
+              未单独绑定测活词的站点默认用这条。关闭后这些站点将跳过渠道测试（测试连接不受影响）。
+            </p>
           </div>
-          <Select v-model="globalSel">
-            <SelectTrigger class="w-full shrink-0 sm:w-56">
+          <Switch v-model="globalOn" />
+          <Select v-model="globalSel" :disabled="!globalOn">
+            <SelectTrigger class="w-full shrink-0 sm:w-56" :class="!globalOn && 'opacity-50'">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

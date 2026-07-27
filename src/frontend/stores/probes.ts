@@ -10,6 +10,7 @@ export interface ProbeWord {
 
 const PROBES_KEY = 'rrelaynest-probes';
 const GLOBAL_KEY = 'rrelaynest-probe-global';
+const GLOBAL_ON_KEY = 'rrelaynest-probe-global-on';
 
 const DEFAULT_PROBE_WORDS: ProbeWord[] = [
   { text: 'hi', enabled: true },
@@ -29,11 +30,14 @@ function loadWords(): ProbeWord[] {
 interface ProbeState {
   words: ProbeWord[];
   globalText: string;
+  globalEnabled: boolean;
 }
 
 export const probeState = reactive<ProbeState>({
   words: loadWords(),
   globalText: localStorage.getItem(GLOBAL_KEY) || 'hi',
+  // 全局默认词开关：关闭后未单独绑词的站点渠道测试跳过（测试连接不受影响）。默认开。
+  globalEnabled: localStorage.getItem(GLOBAL_ON_KEY) !== '0',
 });
 
 // 全局词必须指向一个启用中的词条，否则回落到第一条启用词，再兜底 hi
@@ -49,17 +53,19 @@ export function probeUsable(text: string): boolean {
   return probeState.words.some((w) => w.text === text && w.enabled);
 }
 
-// 某站实际生效的测活词：单站绑定优先，否则全局
+// 某站实际生效的测活词（仅用于渠道测试）：单站绑定优先；否则全局默认词，
+// 但全局开关关闭时未绑词的站点返回空串，表示该站渠道测试跳过（测试连接不受影响）。
 export function effectiveProbe(siteProbe?: string): string {
   if (siteProbe && probeUsable(siteProbe)) return siteProbe;
-  if (probeUsable(probeState.globalText)) return probeState.globalText;
-  return 'hi';
+  if (probeState.globalEnabled && probeUsable(probeState.globalText)) return probeState.globalText;
+  return '';
 }
 
 export function persistProbes(): void {
   try {
     localStorage.setItem(PROBES_KEY, JSON.stringify(probeState.words));
     localStorage.setItem(GLOBAL_KEY, probeState.globalText);
+    localStorage.setItem(GLOBAL_ON_KEY, probeState.globalEnabled ? '1' : '0');
   } catch { /* noop */ }
 }
 
@@ -79,6 +85,10 @@ export function probeSiteCount(text: string): number {
 // ---- 全局默认词 ----
 export function setGlobalProbe(text: string): void {
   probeState.globalText = (text || '').trim() || 'hi';
+}
+// 全局默认词开关：关闭后未单独绑词的站点渠道测试跳过。
+export function setGlobalEnabled(on: boolean): void {
+  probeState.globalEnabled = on;
 }
 
 // ---- CRUD ----
