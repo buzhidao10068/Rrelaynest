@@ -2,8 +2,6 @@
 // 与前端 src/frontend/stores/about.ts 的 cmpVersion 同义（容错非数字段、忽略前缀 v）。
 import type { FetchLike } from './types.js';
 
-import type { FetchLike } from './types.js';
-
 // a>b 返回 1，a<b 返回 -1，相等 0。容错：非数字段按 0，忽略大小写前缀 v。
 export function cmpVersion(a: string, b: string): number {
   const parse = (s: string): number[] =>

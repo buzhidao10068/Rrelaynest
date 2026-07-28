@@ -207,3 +207,121 @@ export async function checkinSite(baseUrl: string, token: string, opts?: ScrapeO
   const msg = data.message ?? '签到失败';
   return { ok: false, message: msg, needsManual: /未启用|未开启/.test(msg) };
 }
+
+// ==== 测活（连通性 + 渠道测试）====
+// 参考 QuantumNous/new-api 的 /channels 两种测试：
+//  - 测试连接（connectivity）：GET /api/pricing，量响应耗时，判可达/较慢/不可达。
+//  - 渠道测试（channel）：向 /v1/chat/completions 发一句测活词，看模型能否正常回复。
+
+export interface PingResult {
+  ok: boolean; // 可达（HTTP 2xx）
+  status: number; // HTTP 状态码；网络错误为 0
+  latencyMs: number; // 请求往返耗时（毫秒）
+  message: string; // 人类可读（正常 / 较慢 / 不可达 / 超时）
+}
+
+// 较慢阈值（毫秒）：超过判「较慢」，但仍算可达。
+const SLOW_THRESHOLD_MS = 2000;
+
+// 测试连接：GET /api/pricing 量响应耗时。可达即 ok（不解析内容），仅按耗时分「正常 / 较慢」。
+// 平台无关；走注入的 fetchImpl（可经代理）。失败（网络/超时）返回 ok=false，不抛。
+export async function pingSite(baseUrl: string, token: string, opts?: ScrapeOptions): Promise<PingResult> {
+  const base = normalizeBase(baseUrl);
+  const doFetch = (opts?.fetchImpl ?? fetch) as FetchLike;
+  const started = Date.now();
+  try {
+    const resp = await fetchWithTimeout(
+      doFetch,
+      `${base}/api/pricing`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } },
+      opts?.timeoutMs,
+    );
+    const latencyMs = Date.now() - started;
+    if (!resp.ok) {
+      return { ok: false, status: resp.status, latencyMs, message: `不可达 (HTTP ${resp.status})` };
+    }
+    const slow = latencyMs > SLOW_THRESHOLD_MS;
+    return {
+      ok: true,
+      status: resp.status,
+      latencyMs,
+      message: slow ? `较慢 ${latencyMs}ms` : `正常 ${latencyMs}ms`,
+    };
+  } catch (err) {
+    const latencyMs = Date.now() - started;
+    const msg = err instanceof Error ? err.message : String(err);
+    // fetchWithTimeout 已把 AbortError 转成「请求超时」文案。
+    return { ok: false, status: 0, latencyMs, message: /超时/.test(msg) ? msg : `不可达：${msg}` };
+  }
+}
+
+export interface ChannelTestResult {
+  ok: boolean; // 模型正常回复
+  message: string; // 人类可读（可用 / 不可用 + 原因）
+  model?: string; // 实际测试用的模型
+  latencyMs: number;
+}
+
+// 渠道测试：向 /v1/chat/completions 发一句测活词（probe），看模型能否回复。
+// 对齐 new-api testChannel（其写死 'hi'），此处 probe 由调用方按「单站绑定 > 全局默认」解析后传入。
+// model 由调用方给（通常取该站已爬到的第一个模型）；缺失则用兜底名，让上游报错以暴露真实原因。
+export async function channelTest(
+  baseUrl: string,
+  token: string,
+  probe: string,
+  model: string,
+  opts?: ScrapeOptions,
+): Promise<ChannelTestResult> {
+  const base = normalizeBase(baseUrl);
+  const doFetch = (opts?.fetchImpl ?? fetch) as FetchLike;
+  const started = Date.now();
+  let resp: Response;
+  try {
+    resp = await fetchWithTimeout(
+      doFetch,
+      `${base}/v1/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: probe }],
+          max_tokens: 16,
+          stream: false,
+        }),
+      },
+      opts?.timeoutMs,
+    );
+  } catch (err) {
+    const latencyMs = Date.now() - started;
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: /超时/.test(msg) ? msg : `不可用：${msg}`, model, latencyMs };
+  }
+
+  const latencyMs = Date.now() - started;
+  const data = (await resp.json().catch(() => null)) as {
+    error?: { message?: string } | string;
+    choices?: { message?: { content?: string } }[];
+  } | null;
+
+  if (!resp.ok || !data) {
+    const errMsg =
+      data && typeof data.error === 'object'
+        ? data.error?.message
+        : data && typeof data.error === 'string'
+          ? data.error
+          : `HTTP ${resp.status}`;
+    return { ok: false, message: `不可用：${errMsg ?? `HTTP ${resp.status}`}`, model, latencyMs };
+  }
+
+  // 有 choices[].message.content 即视为模型正常回复。
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content === 'string') {
+    return { ok: true, message: `可用 ${latencyMs}ms`, model, latencyMs };
+  }
+  return { ok: false, message: '不可用：响应无有效回复', model, latencyMs };
+}

@@ -58,6 +58,19 @@ export interface SiteRow {
   last_scraped_at: number | null;
   last_error: string | null;
   proxy_id: number | null; // 绑定的代理 id；NULL=跟随全局代理（全局也未设则直连）
+  probe_text: string | null; // 单站绑定的测活词（空/NULL = 跟随全局默认词）；见 0003 迁移
+  created_at: number;
+  updated_at: number;
+}
+
+// 测活词行：每用户隔离（UNIQUE(user_id, text)）。text 为业务唯一键；
+// 站点以 sites.probe_text = 某 text 单值绑定。全局默认词与开关走每用户 settings
+// (probe_global_text / probe_global_enabled)，不在此表。见 0003 迁移与前端 stores/probes.ts。
+export interface ProbeWordRow {
+  id: number;
+  user_id: number;
+  text: string;
+  enabled: number;
   created_at: number;
   updated_at: number;
 }

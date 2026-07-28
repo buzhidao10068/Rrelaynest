@@ -125,8 +125,29 @@ DROP TABLE settings;
 ALTER TABLE settings_new RENAME TO settings;
 `;
 
+// 0003：测活词池 + 站点绑定词。probe_words 每用户隔离（UNIQUE(user_id, text)）；
+// sites 加 probe_text（单站绑定的测活词，空/NULL = 跟随全局）。全局默认词与开关走每用户 settings
+// （probe_global_text / probe_global_enabled），故此处只建表/加列，不塞 settings（由入口按需 seed）。
+// 只做 DDL；不回填（新列可空，老数据自然为 NULL = 跟随全局）。见 memory activity-probe-backend-todo。
+const M0003_PROBE = `
+CREATE TABLE IF NOT EXISTS probe_words (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES users(id),
+  text       TEXT    NOT NULL,
+  enabled    INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (user_id, text)
+);
+
+CREATE INDEX IF NOT EXISTS idx_probe_words_user ON probe_words(user_id);
+
+ALTER TABLE sites ADD COLUMN probe_text TEXT;
+`;
+
 // 顺序即应用序。
 export const MIGRATIONS: Migration[] = [
   { version: '0001_init', sql: M0001_INIT },
   { version: '0002_multiuser', sql: M0002_MULTIUSER },
+  { version: '0003_probe', sql: M0003_PROBE },
 ];

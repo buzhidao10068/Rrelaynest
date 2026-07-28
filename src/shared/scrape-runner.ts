@@ -49,7 +49,8 @@ function clampNum(raw: string | undefined, fallback: number, min: number, max: n
 // 解析某站点实际该走的代理，返回绑好代理的 fetch（未注入工厂/直连时为 undefined，scraper 回落全局 fetch）。
 // 选取优先级（与前端一致）：站点自绑代理(enabled) > 全局代理(enabled) > 直连。
 // 代理密码解密失败时降级为直连（不中断爬取，容错优先）。
-async function resolveFetch(
+// 导出供测活端点（ping / channel-test）复用同一套代理选取逻辑（见 routes.ts）。
+export async function resolveFetch(
   db: Database,
   secrets: AppSecrets,
   site: SiteRow,

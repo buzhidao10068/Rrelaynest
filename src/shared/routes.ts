@@ -2,7 +2,7 @@
 // 跨平台：不直接依赖 Workers 的 Env，改由入口注入 Database + AppSecrets。
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
-import type { AppSecrets, Database, SiteRow, GroupRow, ModelRow, ProxyRow, UserRow, MakeFetch } from './types.js';
+import type { AppSecrets, Database, SiteRow, GroupRow, ModelRow, ProxyRow, UserRow, ProbeWordRow, MakeFetch } from './types.js';
 import {
   createSession,
   sessionCookie,
@@ -13,10 +13,11 @@ import {
 } from './auth.js';
 import { verifyPassword, hashPassword } from './password.js';
 import type { StartupResult } from './startup.js';
-import { encryptToken } from './crypto.js';
-import { scrapeAndStore, checkinAndStore, readScrapeConfig } from './scrape-runner.js';
+import { encryptToken, decryptToken } from './crypto.js';
+import { scrapeAndStore, checkinAndStore, readScrapeConfig, resolveFetch } from './scrape-runner.js';
 import { mapWithConcurrency } from './concurrency.js';
 import { fetchLatestRelease } from './version.js';
+import { pingSite, channelTest } from './scraper.js';
 
 // 中间件在查库校验 session_version/disabled 通过后注入的当前用户上下文。
 // role 以库里最新值为准（不信 cookie 里的 role），供路由做授权判定。
@@ -55,6 +56,7 @@ interface SiteInput {
   note?: string | null;
   sort_order?: number | null;
   proxy_id?: number | null; // 绑定代理 id；null=跟随全局，undefined=不改
+  probe_text?: string | null; // 单站绑定的测活词；null/''=清除(跟随全局)，undefined=不改
 }
 
 interface ProxyInput {
@@ -462,8 +464,8 @@ export function createApp(deps: AppDeps) {
     const res = await db
       .prepare(
         `INSERT INTO sites
-          (user_id, name, base_url, token_encrypted, rate, currency, checkin_enabled, email, note, sort_order, proxy_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (user_id, name, base_url, token_encrypted, rate, currency, checkin_enabled, email, note, sort_order, proxy_id, probe_text, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         uid,
@@ -477,6 +479,7 @@ export function createApp(deps: AppDeps) {
         body.note ?? null,
         body.sort_order ?? 0,
         body.proxy_id ?? null,
+        body.probe_text || null,
         now,
         now,
       )
@@ -507,11 +510,15 @@ export function createApp(deps: AppDeps) {
     const proxyId =
       body.proxy_id === undefined ? existing.proxy_id : body.proxy_id;
 
+    // probe_text: undefined=不变, ''=清除(回落全局默认词), 非空=绑定该测活词
+    const probeText =
+      body.probe_text === undefined ? existing.probe_text : body.probe_text || null;
+
     await db
       .prepare(
         `UPDATE sites SET
           name = ?, base_url = ?, token_encrypted = ?, rate = ?, currency = ?,
-          checkin_enabled = ?, checkin_done = ?, email = ?, note = ?, sort_order = ?, proxy_id = ?, updated_at = ?
+          checkin_enabled = ?, checkin_done = ?, email = ?, note = ?, sort_order = ?, proxy_id = ?, probe_text = ?, updated_at = ?
          WHERE id = ? AND user_id = ?`,
       )
       .bind(
@@ -534,6 +541,7 @@ export function createApp(deps: AppDeps) {
         body.note ?? existing.note,
         body.sort_order ?? existing.sort_order,
         proxyId,
+        probeText,
         Date.now(),
         id,
         uid,
@@ -598,6 +606,199 @@ export function createApp(deps: AppDeps) {
     if (!site) return c.json({ error: '站点不存在' }, 404); // 不属己也 404，避免探测
     const { config } = await readScrapeConfig(db, uid);
     const result = await checkinAndStore(db, secrets, site, makeFetch, config);
+    return c.json(result);
+  });
+
+  // ==== 测活词池 CRUD（每用户隔离，见 0003 迁移 + 前端 stores/probes.ts）====
+  // text 为业务唯一键（UNIQUE(user_id, text)）；站点以 sites.probe_text 单值绑定。
+  // 全局默认词/开关走每用户 settings(probe_global_text / probe_global_enabled)，不在此表。
+  app.get('/api/probe-words', async (c) => {
+    const { uid } = c.get('user');
+    const rows = await db
+      .prepare('SELECT * FROM probe_words WHERE user_id = ? ORDER BY id ASC')
+      .bind(uid)
+      .all<ProbeWordRow>();
+    return c.json({ words: rows.results });
+  });
+
+  // 新增测活词。text 必填、查重（409）。默认 enabled。
+  app.post('/api/probe-words', async (c) => {
+    const { uid } = c.get('user');
+    const body = await c.req
+      .json<{ text?: string; enabled?: boolean }>()
+      .catch(() => ({}) as { text?: string; enabled?: boolean });
+    const text = body.text?.trim();
+    if (!text) return c.json({ error: 'text 必填' }, 400);
+    const dup = await db
+      .prepare('SELECT id FROM probe_words WHERE user_id = ? AND text = ?')
+      .bind(uid, text)
+      .first<{ id: number }>();
+    if (dup) return c.json({ error: '该测活词已存在' }, 409);
+    const now = Date.now();
+    const res = await db
+      .prepare(
+        'INSERT INTO probe_words (user_id, text, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      )
+      .bind(uid, text, body.enabled === false ? 0 : 1, now, now)
+      .run();
+    return c.json({ ok: true, id: res.meta.last_row_id });
+  });
+
+  // 改测活词：改名 / 启停。改名会级联同步本用户 sites.probe_text 与全局默认词 setting。
+  // 停用的若正是全局默认词，则清空全局默认词 setting（前端据此回落）。
+  app.put('/api/probe-words/:id', async (c) => {
+    const { uid } = c.get('user');
+    const id = Number(c.req.param('id'));
+    const body = await c.req
+      .json<{ text?: string; enabled?: boolean }>()
+      .catch(() => ({}) as { text?: string; enabled?: boolean });
+    const existing = await db
+      .prepare('SELECT * FROM probe_words WHERE id = ? AND user_id = ?')
+      .bind(id, uid)
+      .first<ProbeWordRow>();
+    if (!existing) return c.json({ error: '测活词不存在' }, 404); // 不属己也 404
+
+    const nextText = body.text?.trim() || existing.text;
+    const nextEnabled = body.enabled === undefined ? existing.enabled : body.enabled ? 1 : 0;
+
+    // 改名查重（排除自身）。
+    if (nextText !== existing.text) {
+      const dup = await db
+        .prepare('SELECT id FROM probe_words WHERE user_id = ? AND text = ? AND id != ?')
+        .bind(uid, nextText, id)
+        .first<{ id: number }>();
+      if (dup) return c.json({ error: '该测活词已存在' }, 409);
+    }
+
+    const now = Date.now();
+    const stmts = [
+      db
+        .prepare('UPDATE probe_words SET text = ?, enabled = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+        .bind(nextText, nextEnabled, now, id, uid),
+    ];
+    // 改名级联：本用户名下绑定旧词的站点改指新词。
+    if (nextText !== existing.text) {
+      stmts.push(
+        db
+          .prepare('UPDATE sites SET probe_text = ?, updated_at = ? WHERE user_id = ? AND probe_text = ?')
+          .bind(nextText, now, uid, existing.text),
+      );
+      // 全局默认词若指向旧词，同步改名。
+      stmts.push(
+        db
+          .prepare(
+            "UPDATE settings SET value = ? WHERE user_id = ? AND key = 'probe_global_text' AND value = ?",
+          )
+          .bind(nextText, uid, existing.text),
+      );
+    }
+    await db.batch(stmts);
+    return c.json({ ok: true });
+  });
+
+  // 删测活词：解绑本用户名下引用它的站点（probe_text 置 NULL，回落全局）+
+  // 若它是全局默认词则清空该 setting。
+  app.delete('/api/probe-words/:id', async (c) => {
+    const { uid } = c.get('user');
+    const id = Number(c.req.param('id'));
+    const existing = await db
+      .prepare('SELECT * FROM probe_words WHERE id = ? AND user_id = ?')
+      .bind(id, uid)
+      .first<ProbeWordRow>();
+    if (!existing) return c.json({ error: '测活词不存在' }, 404);
+    const now = Date.now();
+    await db.batch([
+      db
+        .prepare('UPDATE sites SET probe_text = NULL, updated_at = ? WHERE user_id = ? AND probe_text = ?')
+        .bind(now, uid, existing.text),
+      db
+        .prepare(
+          "UPDATE settings SET value = '' WHERE user_id = ? AND key = 'probe_global_text' AND value = ?",
+        )
+        .bind(uid, existing.text),
+      db.prepare('DELETE FROM probe_words WHERE id = ? AND user_id = ?').bind(id, uid),
+    ]);
+    return c.json({ ok: true });
+  });
+
+  // ==== 测活：连通性探测 + 渠道测试（见 [[activity-probe-backend-todo]]）====
+  // 都按站点归属查（WHERE user_id），不属己 404。走站点绑定的代理（resolveFetch）。
+
+  // 测试连接：GET /api/pricing 量响应耗时，判可达 / 较慢 / 不可达。不改库（纯探测）。
+  app.post('/api/sites/:id/ping', async (c) => {
+    const { uid } = c.get('user');
+    const id = Number(c.req.param('id'));
+    const site = await db
+      .prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?')
+      .bind(id, uid)
+      .first<SiteRow>();
+    if (!site) return c.json({ error: '站点不存在' }, 404);
+    const token = site.token_encrypted
+      ? await decryptToken(secrets.ENCRYPTION_KEY, site.token_encrypted).catch(() => '')
+      : '';
+    const { config } = await readScrapeConfig(db, uid);
+    const fetchImpl = await resolveFetch(db, secrets, site, makeFetch);
+    const result = await pingSite(site.base_url, token, {
+      fetchImpl,
+      timeoutMs: config.timeoutMs,
+    });
+    return c.json(result);
+  });
+
+  // 渠道测试：用站点某模型发一句测活词，看模型能否回复。
+  // 测活词解析（对齐前端 effectiveProbe）：单站绑定(sites.probe_text) > 全局默认词
+  // (probe_global_text，且 probe_global_enabled 开)；都无 → 跳过（返回 skipped）。
+  // 且解析出的词必须是本用户仍启用的词条，否则视作无效 → 跳过。
+  // 测试用的 model 由前端传入（通常取该站已爬到的首个模型）；缺失回落 'gpt-3.5-turbo'。
+  app.post('/api/sites/:id/channel-test', async (c) => {
+    const { uid } = c.get('user');
+    const id = Number(c.req.param('id'));
+    const body = await c.req
+      .json<{ model?: string }>()
+      .catch(() => ({}) as { model?: string });
+    const site = await db
+      .prepare('SELECT * FROM sites WHERE id = ? AND user_id = ?')
+      .bind(id, uid)
+      .first<SiteRow>();
+    if (!site) return c.json({ error: '站点不存在' }, 404);
+    if (!site.token_encrypted) return c.json({ error: '未配置 access token' }, 400);
+
+    // 本用户启用中的测活词集合，用于校验解析出的词有效。
+    const enabledRows = await db
+      .prepare('SELECT text FROM probe_words WHERE user_id = ? AND enabled = 1')
+      .bind(uid)
+      .all<{ text: string }>();
+    const enabled = new Set(enabledRows.results.map((r) => r.text));
+
+    // 全局默认词与开关（每用户 settings）。
+    const settingRows = await db
+      .prepare(
+        "SELECT key, value FROM settings WHERE user_id = ? AND key IN ('probe_global_text','probe_global_enabled')",
+      )
+      .bind(uid)
+      .all<{ key: string; value: string }>();
+    const sMap: Record<string, string> = {};
+    for (const r of settingRows.results) sMap[r.key] = r.value;
+    const globalText = sMap.probe_global_text ?? '';
+    const globalOn = sMap.probe_global_enabled !== '0'; // 缺省视为开（与前端一致）
+
+    // effectiveProbe：单站绑定优先（须启用）；否则全局默认词（开关开且启用）；都无 → 空串。
+    let probe = '';
+    if (site.probe_text && enabled.has(site.probe_text)) probe = site.probe_text;
+    else if (globalOn && globalText && enabled.has(globalText)) probe = globalText;
+    if (!probe) {
+      return c.json({ ok: false, skipped: true, message: '未配置有效测活词，跳过渠道测试' });
+    }
+
+    const model = body.model?.trim() || 'gpt-3.5-turbo';
+    const token = await decryptToken(secrets.ENCRYPTION_KEY, site.token_encrypted).catch(() => '');
+    if (!token) return c.json({ error: 'token 解密失败' }, 500);
+    const { config } = await readScrapeConfig(db, uid);
+    const fetchImpl = await resolveFetch(db, secrets, site, makeFetch);
+    const result = await channelTest(site.base_url, token, probe, model, {
+      fetchImpl,
+      timeoutMs: config.timeoutMs,
+    });
     return c.json(result);
   });
 
