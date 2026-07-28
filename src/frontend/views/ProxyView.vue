@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// 代理页（Phase F）：平台提示（Workers 灰掉）+ 代理池卡片 + 全局代理选择
-// + 新增/编辑弹窗 + 配置站点弹窗 + 单条测试（mock）。
-// 唯一事实来源：proxyState.list / proxyState.globalProxy / sites[].proxy。
-import { ref, computed } from 'vue';
-import { Plus, Zap, Pencil, LayoutGrid, Trash2, AlertTriangle } from 'lucide-vue-next';
+// 代理页（块8 已接线）：平台提示（Workers 灰掉）+ 代理池卡片 + 全局代理选择
+// + 新增/编辑弹窗 + 配置站点弹窗（过渡：仍绑 mock 站点）。
+// 事实来源：后端 /api/proxies + settings.global_proxy_id（proxyState 是其前端缓存）。
+import { ref, computed, onMounted } from 'vue';
+import { Plus, Pencil, LayoutGrid, Trash2, AlertTriangle } from 'lucide-vue-next';
 import AppHeader from '@/components/AppHeader.vue';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -11,7 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  proxyState, PROXY_TYPE_STYLE, setGlobalProxy, toggleProxyEnabled,
+  proxyState, PROXY_TYPE_STYLE, loadProxies, setGlobalProxy, toggleProxyEnabled,
   deleteProxy, proxySiteCount, findProxy, type Proxy,
 } from '@/stores/proxies';
 import { ui } from '@/stores/ui';
@@ -27,17 +27,30 @@ const modalEditing = ref<Proxy | null>(null);
 const assignOpen = ref(false);
 const assignProxyName = ref<string | null>(null);
 
-// 全局代理下拉：Reka Select 不接受空字符串 value，用哨兵表示直连。
+// 进页拉取。失败 toast，不阻塞渲染（列表为空 → 显示空态）。
+onMounted(async () => {
+  try {
+    await loadProxies();
+  } catch (e) {
+    toast(e instanceof Error ? e.message : '加载代理失败', 'error');
+  }
+});
+
+// 全局代理下拉：Reka Select 不接受空字符串 value，用哨兵表示直连；value 用 id 字符串。
 const DIRECT = '__direct__';
 const globalSel = computed({
-  get: () => (proxyState.globalProxy === '' ? DIRECT : proxyState.globalProxy),
-  set: (v: string) => {
-    const name = v === DIRECT ? '' : v;
-    setGlobalProxy(name);
-    const p = findProxy(name);
-    if (!name) toast('全局设为直连；未单独绑定代理的站点将直连', 'info');
-    else if (p && !p.enabled) toast(`「${name}」已设为全局，但它当前被停用`, 'info');
-    else toast(`全局代理已设为「${name}」`, 'success');
+  get: () => (proxyState.globalProxyId == null ? DIRECT : String(proxyState.globalProxyId)),
+  set: async (v: string) => {
+    const id = v === DIRECT ? null : Number(v);
+    try {
+      await setGlobalProxy(id);
+      const p = id == null ? undefined : findProxy(id);
+      if (id == null) toast('全局设为直连；未单独绑定代理的站点将直连', 'info');
+      else if (p && !p.enabled) toast(`「${p.name}」已设为全局，但它当前被停用`, 'info');
+      else if (p) toast(`全局代理已设为「${p.name}」`, 'success');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '设置全局代理失败', 'error');
+    }
   },
 });
 
@@ -56,24 +69,26 @@ function onEdit(p: Proxy) {
   modalEditing.value = p;
   modalOpen.value = true;
 }
-function onToggle(p: Proxy) {
-  const en = toggleProxyEnabled(p.name);
-  if (en === null) return;
-  toast(`「${p.name}」${en ? '已启用' : '已停用'}`, en ? 'success' : 'info');
+async function onToggle(p: Proxy) {
+  try {
+    const en = await toggleProxyEnabled(p.id);
+    toast(`「${p.name}」${en ? '已启用' : '已停用'}`, en ? 'success' : 'info');
+  } catch (e) {
+    toast(e instanceof Error ? e.message : '操作失败', 'error');
+  }
 }
-function onDelete(p: Proxy) {
+async function onDelete(p: Proxy) {
   if (!confirm(`确定删除代理「${p.name}」？绑定它的站点将回落跟随全局。`)) return;
-  if (deleteProxy(p.name)) toast(`已删除「${p.name}」`, 'success');
+  try {
+    await deleteProxy(p.id);
+    toast(`已删除「${p.name}」`, 'success');
+  } catch (e) {
+    toast(e instanceof Error ? e.message : '删除失败', 'error');
+  }
 }
 function onAssign(p: Proxy) {
   assignProxyName.value = p.name;
   assignOpen.value = true;
-}
-// 单条测试（mock：80–800ms 往返；块7 接 /api/proxies/:id/test）
-function onTest(p: Proxy) {
-  toast(`正在测试「${p.name}」…`, 'info');
-  const ms = Math.floor(80 + Math.random() * 720);
-  setTimeout(() => toast(`「${p.name}」连接正常 · ${ms}ms`, 'success'), ms);
 }
 </script>
 
@@ -122,7 +137,7 @@ function onTest(p: Proxy) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem :value="DIRECT">直连（不使用代理）</SelectItem>
-            <SelectItem v-for="p in proxyState.list" :key="p.name" :value="p.name">
+            <SelectItem v-for="p in proxyState.list" :key="p.id" :value="String(p.id)">
               {{ p.name }} · {{ p.type.toUpperCase() }} {{ p.host }}:{{ p.port }}{{ p.enabled ? '' : '（已停用）' }}
             </SelectItem>
           </SelectContent>
@@ -140,7 +155,7 @@ function onTest(p: Proxy) {
 
         <div
           v-for="p in proxyState.list"
-          :key="p.name"
+          :key="p.id"
           class="rounded-lg border border-border bg-card p-4"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
@@ -160,7 +175,7 @@ function onTest(p: Proxy) {
                   class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
                 >○ 已停用</span>
                 <span
-                  v-if="p.name === proxyState.globalProxy"
+                  v-if="p.id === proxyState.globalProxyId"
                   class="inline-flex items-center rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400"
                 >全局</span>
               </div>
@@ -177,10 +192,6 @@ function onTest(p: Proxy) {
           </div>
 
           <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-            <Button variant="outline" size="sm" @click="onTest(p)">
-              <Zap :size="14" />
-              测试
-            </Button>
             <Button variant="outline" size="sm" @click="onEdit(p)">
               <Pencil :size="14" />
               编辑

@@ -1,6 +1,6 @@
-// 多用户状态：当前角色、mock 用户表、跨用户站点、条款解锁标记。
-// 全部前端 mock（块 7 本轮不接后端）。角色/ack 持久化到 localStorage，
-// 对齐 docs/ui-preview.html 的演示行为。真实端角色来自 /api/me，前端不可切。
+// 多用户状态：当前角色（后端权威）、mock 用户表、跨用户站点、条款解锁标记。
+// 角色/用户名来自 /api/session（登录引导时注入 setSession），前端不可切——
+// 演示端的角色切换已删。用户表/跨用户站点仍 mock，留待各自轮次接线。
 import { reactive } from 'vue';
 import { ui, showView } from '@/stores/ui';
 import { settingsState } from '@/stores/settings';
@@ -36,16 +36,11 @@ interface UsersState {
   viewingUserId: number | null;
 }
 
-const ROLE_KEY = 'rrelaynest-demo-role';
 const ACK_KEY = 'rrelaynest-global-view-ack';
 
-function loadRole(): Role {
-  return localStorage.getItem(ROLE_KEY) === 'user' ? 'user' : 'admin';
-}
-
 export const users = reactive<UsersState>({
-  currentRole: loadRole(),
-  currentUsername: 'admin',
+  currentRole: 'user', // 占位，登录引导 setSession 后以后端为准
+  currentUsername: '',
   globalViewAck: localStorage.getItem(ACK_KEY) === 'true',
   users: [
     { id: 1, username: 'admin', role: 'admin', disabled: 0, sites: 6, created_at: '2026-06-01' },
@@ -67,14 +62,21 @@ export function isAdmin(): boolean {
   return users.currentRole === 'admin';
 }
 
-// 演示端角色切换（块 7 删除；真实端角色由后端决定）。
-// 切到非 admin 且正停在 admin 专属页（用户管理/用户站点）→ 弹回主页（模拟后端 403 兜底）。
-export function setDemoRole(r: Role): void {
-  users.currentRole = r;
-  localStorage.setItem(ROLE_KEY, r);
-  if (r !== 'admin' && (ui.view === 'users' || ui.view === 'userSites')) {
+// 登录引导：把 /api/session 的角色/用户名注入 store（后端权威，前端不可切）。
+// 若非 admin 却停在 admin 专属页，弹回主页（前端兜底，真正拦截在后端 403）。
+export function setSession(username: string, role: Role): void {
+  users.currentUsername = username;
+  users.currentRole = role;
+  if (role !== 'admin' && (ui.view === 'users' || ui.view === 'userSites')) {
     showView('dashboard');
   }
+}
+
+// 退出/会话失效：清空当前用户上下文。
+export function clearSession(): void {
+  users.currentUsername = '';
+  users.currentRole = 'user';
+  users.viewingUserId = null;
 }
 
 export function setGlobalViewAck(v: boolean): void {

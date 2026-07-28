@@ -41,7 +41,8 @@ watch(
       host.value = p.host;
       port.value = String(p.port);
       user.value = p.user || '';
-      pass.value = p.pass || '';
+      // 密码明文不回传（后端只给 has_password）；编辑时留空=保留原密码。
+      pass.value = '';
     } else {
       name.value = '';
       type.value = 'http';
@@ -54,23 +55,33 @@ watch(
   { immediate: true },
 );
 
-function onSubmit() {
+const busy = ref(false);
+
+async function onSubmit() {
+  if (busy.value) return;
   const nm = name.value.trim();
   const h = host.value.trim();
   const pt = parseInt(String(port.value), 10);
   if (!nm) { errorMsg.value = '请填写代理名称'; return; }
   if (!h) { errorMsg.value = '请填写主机地址'; return; }
   if (!(pt >= 1 && pt <= 65535)) { errorMsg.value = '端口需为 1–65535'; return; }
-  const editingName = props.editing ? props.editing.name : null;
-  if (proxyNameExists(nm, editingName)) { errorMsg.value = '已存在同名代理'; return; }
+  const editingId = props.editing ? props.editing.id : null;
+  if (proxyNameExists(nm, editingId)) { errorMsg.value = '已存在同名代理'; return; }
 
   const form: ProxyForm = {
     name: nm, type: type.value, host: h, port: pt,
     user: user.value.trim(), pass: pass.value,
   };
-  saveProxy(form, editingName);
-  toast(editingName === null ? `已新增「${nm}」` : `已保存「${nm}」`, 'success');
-  emit('close');
+  busy.value = true;
+  try {
+    await saveProxy(form, editingId);
+    toast(editingId === null ? `已新增「${nm}」` : `已保存「${nm}」`, 'success');
+    emit('close');
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : '保存失败';
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 

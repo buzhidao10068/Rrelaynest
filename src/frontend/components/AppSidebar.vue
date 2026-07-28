@@ -12,8 +12,10 @@ import {
   SidebarRail, SidebarSeparator, useSidebar,
 } from '@/components/ui/sidebar';
 import { ui, showView, type ViewName } from '@/stores/ui';
-import { users, setDemoRole } from '@/stores/users';
+import { users, clearSession } from '@/stores/users';
 import { useTheme, type ThemeMode } from '@/composables/useTheme';
+import { api } from '@/api';
+import { toast } from '@/composables/useToast';
 
 const { theme, setTheme } = useTheme();
 const { isMobile, setOpenMobile } = useSidebar();
@@ -67,7 +69,13 @@ function go(v: ViewName) {
   if (isMobile.value) setOpenMobile(false);
 }
 
-function logout() {
+async function logout() {
+  try {
+    await api.post('/api/logout');
+  } catch {
+    // 退出接口失败也照常清理本地会话（cookie 可能已失效）
+  }
+  clearSession();
   showView('login');
   if (isMobile.value) setOpenMobile(false);
 }
@@ -144,24 +152,7 @@ function logout() {
               :class="roleBadgeClass"
             >{{ roleBadgeText }}</span>
           </p>
-          <p class="truncate text-xs text-muted-foreground">{{ users.currentUsername }}@example.com</p>
-        </div>
-      </div>
-
-      <!-- 演示端角色切换：块7 删除，真实端角色由后端 /api/me 决定 -->
-      <div class="mt-1 flex items-center gap-2 rounded-md border border-dashed border-border px-2 py-1.5 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-        <span class="shrink-0">演示视角</span>
-        <div class="ml-auto inline-flex overflow-hidden rounded-md border border-border">
-          <button
-            class="px-2 py-1"
-            :class="isAdmin ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'"
-            @click="setDemoRole('admin')"
-          >管理员</button>
-          <button
-            class="border-l border-border px-2 py-1"
-            :class="!isAdmin ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'"
-            @click="setDemoRole('user')"
-          >普通用户</button>
+          <p class="truncate text-xs text-muted-foreground">{{ isAdmin ? '管理员账户' : '普通用户账户' }}</p>
         </div>
       </div>
 
