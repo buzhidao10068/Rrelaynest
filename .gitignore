@@ -27,3 +27,13 @@ data/
 
 # 根目录开发验证截图（临时产物，勿提交）
 /*.png
+
+# AI 工具脚手架与内部规划（不进公开仓库）
+.trellis/
+.agents/
+.codex/
+.claude/
+AGENTS.md
+
+# 设计稿基线（本地保留，不公开）
+docs/

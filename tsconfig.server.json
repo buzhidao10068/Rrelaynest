@@ -10,5 +10,5 @@
     "jsx": "preserve"
   },
   "include": ["src/server", "src/shared"],
-  "exclude": ["node_modules", "dist", "dist-server", "src/worker", "src/frontend"]
+  "exclude": ["node_modules", "dist", "dist-server", "src/worker", "src/frontend", "**/*.test.ts"]
 }

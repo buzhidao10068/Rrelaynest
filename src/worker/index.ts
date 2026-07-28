@@ -1,9 +1,17 @@
 // Cloudflare Workers 入口：fetch 处理 API + 静态资源，scheduled 处理 Cron 定时任务。
 // D1 与 ASSETS 由平台绑定注入；密钥来自 wrangler secret。
-import type { AppSecrets } from '../shared/types';
-import { createApp } from '../shared/routes';
-import { wrapD1 } from './db-d1';
-import { runScheduledTick } from '../shared/scheduler';
+import type { AppSecrets } from '../shared/types.js';
+import { createApp } from '../shared/routes.js';
+import { wrapD1 } from './db-d1.js';
+import { runScheduledTick } from '../shared/scheduler.js';
+import { runStartupMigration, type StartupDeps } from '../shared/startup.js';
+import { runMigrations } from '../shared/migrate.js';
+import { MIGRATIONS } from '../shared/migrations.js';
+import { hashPassword } from '../shared/password.js';
+
+// 组合根：把迁移原语绑给 startup（startup 自身只留类型 import，见其顶部说明）。
+// Workers 无启动钩子，故不在此处 await；由 /api/admin/bootstrap 首访触发（双闸 + 令牌）。
+const startupDeps: StartupDeps = { runMigrations, hashPassword, migrations: MIGRATIONS };
 
 interface WorkerEnv {
   DB: D1Database;
@@ -26,7 +34,11 @@ export default {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) {
-      const app = createApp({ db: wrapD1(env.DB), secrets: secretsOf(env) });
+      const app = createApp({
+        db: wrapD1(env.DB),
+        secrets: secretsOf(env),
+        runStartup: (d, s) => runStartupMigration(d, s, startupDeps),
+      });
       return app.fetch(request, env, ctx);
     }
     // 静态资源由 [assets] 绑定处理，未命中回落 index.html（见 wrangler.toml）

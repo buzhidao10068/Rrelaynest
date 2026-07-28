@@ -9,7 +9,7 @@
 //   再把该 socket 交回 undici 的连接器做 TLS 升级（https 目标）。
 import { Agent, ProxyAgent, buildConnector, fetch as undiciFetch, type Dispatcher } from 'undici';
 import { SocksClient } from 'socks';
-import type { ProxyConfig, FetchLike, MakeFetch } from '../shared/types';
+import type { ProxyConfig, FetchLike, MakeFetch } from '../shared/types.js';
 
 // 构造 http/https 代理的 dispatcher。URI 的 scheme 表示「如何连到代理本身」：
 // http → 明文连代理，https → TLS 连代理。认证信息编码进 URI。

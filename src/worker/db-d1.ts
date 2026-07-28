@@ -1,6 +1,6 @@
 // D1 适配：本项目的 Database 接口形状即对齐 D1，故基本是透传。
 // 仅补齐 batch 的返回类型与 run 的 last_row_id 形状，使其与 SQLite 适配一致。
-import type { Database, PreparedStatement } from '../shared/types';
+import type { Database, PreparedStatement } from '../shared/types.js';
 
 // D1PreparedStatement 与本接口的方法签名兼容，直接包一层以统一类型。
 export function wrapD1(d1: D1Database): Database {

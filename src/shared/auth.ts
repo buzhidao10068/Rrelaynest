@@ -1,8 +1,23 @@
-// 登录鉴权：密码校验 + 签名会话 cookie（HMAC-SHA256，无需数据库存 session）。
+// 会话签名 cookie（HMAC-SHA256）。payload 从「仅过期时间」升级为
+// {uid, role, ver, exp}：uid/role 供路由做数据隔离与授权，ver 是签发时该用户的
+// users.session_version 快照——即时吊销核心（见 multiuser-plan 第三节）。
+// verifySession 只做「签名 + 过期」的无状态校验；session_version / disabled 的
+// 有状态查库校验由中间件承担（拿 uid 回查 users 表）。
 // 基于 Web Crypto（crypto.subtle），Workers 与 Node 20+ 通用（见 TD2）。
+//
+// 登录密码校验已移出本模块：单向哈希在 shared/password.ts，登录查 users 表。
+// 旧的明文 verifyPassword(adminPassword, ...) 随单用户模式一并删除，避免误用。
 
 const COOKIE_NAME = 'rn_session';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 天
+
+// 会话内容：签发时写入，verifySession 校验签名+过期后原样返回（role 仅作参考，
+// 授权判定以库里最新 role 为准，见中间件）。
+export interface SessionClaims {
+  uid: number;
+  role: string;
+  ver: number; // 签发时的 users.session_version 快照
+}
 
 const enc = new TextEncoder();
 
@@ -33,33 +48,52 @@ async function hmac(secret: string, data: string): Promise<Uint8Array> {
   return new Uint8Array(sig);
 }
 
-// 恒定时间比较，避免时序攻击。
-function timingSafeEqual(a: string, b: string): boolean {
+// 恒定时间比较，避免时序攻击。导出供 bootstrap 令牌校验复用。
+export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
 
-// 生成会话 token：payload 为过期时间戳，附 HMAC 签名。
-export async function createSession(sessionSecret: string): Promise<string> {
-  const exp = String(Date.now() + SESSION_TTL_MS);
-  const payload = b64urlEncode(enc.encode(exp));
+// 生成会话 token：payload = b64url(JSON.stringify({uid, role, ver, exp}))，附 HMAC 签名。
+export async function createSession(
+  sessionSecret: string,
+  uid: number,
+  role: string,
+  ver: number,
+): Promise<string> {
+  const claims = { uid, role, ver, exp: Date.now() + SESSION_TTL_MS };
+  const payload = b64urlEncode(enc.encode(JSON.stringify(claims)));
   const sig = b64urlEncode(await hmac(sessionSecret, payload));
   return `${payload}.${sig}`;
 }
 
+// 无状态校验：验签 + 未过期 + payload 结构合法。通过返回 claims，否则 null。
+// ⚠ 只保证「本服务签发、未过期」；用户是否被停用/改密/降级需中间件回查 users 表。
 export async function verifySession(
   sessionSecret: string,
   token: string | undefined,
-): Promise<boolean> {
-  if (!token) return false;
+): Promise<SessionClaims | null> {
+  if (!token) return null;
   const [payload, sig] = token.split('.');
-  if (!payload || !sig) return false;
+  if (!payload || !sig) return null;
   const expected = b64urlEncode(await hmac(sessionSecret, payload));
-  if (!timingSafeEqual(sig, expected)) return false;
-  const exp = Number(new TextDecoder().decode(b64urlDecode(payload)));
-  return Number.isFinite(exp) && Date.now() < exp;
+  if (!timingSafeEqual(sig, expected)) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(b64urlDecode(payload)));
+  } catch {
+    return null; // 旧格式 cookie（仅 exp 数字串）或损坏 → 无效，需重新登录
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const { uid, role, ver, exp } = parsed as Record<string, unknown>;
+  if (typeof uid !== 'number' || typeof role !== 'string' || typeof ver !== 'number') {
+    return null;
+  }
+  if (typeof exp !== 'number' || !Number.isFinite(exp) || Date.now() >= exp) return null;
+  return { uid, role, ver };
 }
 
 // 会话 cookie 属性：HttpOnly + Secure + SameSite=Lax（见 design 安全章节）。
@@ -81,9 +115,4 @@ export function readSessionCookie(req: Request): string | undefined {
     if (k === COOKIE_NAME) return v.join('=');
   }
   return undefined;
-}
-
-export function verifyPassword(adminPassword: string, password: string): boolean {
-  if (!adminPassword) return false;
-  return timingSafeEqual(password, adminPassword);
 }

@@ -17,7 +17,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import type { Database as AppDatabase, PreparedStatement } from '../shared/types';
+import type { Database as AppDatabase, PreparedStatement } from '../shared/types.js';
 
 // bind 值在 D1 里可传 boolean/undefined，node:sqlite 只接受 number/string/bigint/null/Uint8Array。
 function normalize(values: unknown[]): unknown[] {

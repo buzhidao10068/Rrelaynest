@@ -3,7 +3,7 @@
 // - GET /api/user/self    → data.quota，按 QuotaPerUnit=500000 换算余额
 // - POST /api/user/checkin→ 签到（对齐 QuantumNous/new-api，见 prd.md Background）
 // 认证：Authorization: Bearer <access_token>
-import type { FetchLike } from './types';
+import type { FetchLike } from './types.js';
 
 export interface PricingGroup {
   group_name: string;

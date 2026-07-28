@@ -13,7 +13,8 @@
     "build:server": "tsc -p tsconfig.server.json",
     "db:init": "wrangler d1 execute rrelaynest-db --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute rrelaynest-db --remote --file=./schema.sql",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.11",
@@ -37,6 +38,7 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.7.2",
     "vite": "^6.0.7",
+    "vitest": "^3.2.7",
     "vue": "^3.5.13",
     "wrangler": "^4.114.0"
   }

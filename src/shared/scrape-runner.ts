@@ -2,10 +2,10 @@
 // 平台无关：只依赖 shared/db 的 Database 抽象与 shared/scraper 的纯 fetch 逻辑。
 // 代理注入走「依赖注入」：Node 入口传 makeFetch（按代理配置返回绑好 dispatcher 的 undici.fetch），
 // Workers 不传（makeFetch=undefined → 用全局 fetch 恒直连），故本文件不 import 任何 Node 专属模块。
-import type { Database } from './db';
-import type { SiteRow, AppSecrets, ProxyRow, MakeFetch, FetchLike } from './types';
-import { decryptToken } from './crypto';
-import { scrapeSite, checkinSite } from './scraper';
+import type { Database } from './db.js';
+import type { SiteRow, AppSecrets, ProxyRow, MakeFetch, FetchLike } from './types.js';
+import { decryptToken } from './crypto.js';
+import { scrapeSite, checkinSite } from './scraper.js';
 
 // 解析某站点实际该走的代理，返回绑好代理的 fetch（未注入工厂/直连时为 undefined，scraper 回落全局 fetch）。
 // 选取优先级（与前端一致）：站点自绑代理(enabled) > 全局代理(enabled) > 直连。
@@ -18,22 +18,25 @@ async function resolveFetch(
 ): Promise<FetchLike | undefined> {
   if (!makeFetch) return undefined; // Workers：无工厂，用全局 fetch 恒直连
 
-  // 站点绑定优先；未绑定则回落全局代理
+  // 站点绑定优先；未绑定则回落该用户的全局代理。
+  // ⚠ settings 已是复合主键 (user_id, key)，全局代理按站点归属用户查（见 multiuser-plan 1.3）。
   let proxyId: number | null = site.proxy_id;
   if (proxyId == null) {
     const row = await db
-      .prepare("SELECT value FROM settings WHERE key = 'global_proxy_id'")
+      .prepare("SELECT value FROM settings WHERE user_id = ? AND key = 'global_proxy_id'")
+      .bind(site.user_id)
       .first<{ value: string }>();
     const gid = row?.value ? Number(row.value) : NaN;
     proxyId = Number.isFinite(gid) ? gid : null;
   }
   if (proxyId == null) return undefined; // 无绑定且无全局 → 直连
 
+  // 代理也按归属用户查：即便 proxy_id 越界指向他人代理，也查不到 → 降级直连（隔离兜底）。
   const proxy = await db
-    .prepare('SELECT * FROM proxies WHERE id = ?')
-    .bind(proxyId)
+    .prepare('SELECT * FROM proxies WHERE id = ? AND user_id = ?')
+    .bind(proxyId, site.user_id)
     .first<ProxyRow>();
-  if (!proxy || !proxy.enabled) return undefined; // 代理不存在或被禁用 → 直连
+  if (!proxy || !proxy.enabled) return undefined; // 代理不存在/不属己/被禁用 → 直连
 
   let password: string | null = null;
   if (proxy.password_encrypted) {

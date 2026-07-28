@@ -6,7 +6,7 @@
 //
 // DB/ASSETS 用运行时无关的类型：DB 是 shared/db.ts 的抽象接口，静态资源由各入口自行处理，
 // 故这里不强制 ASSETS 字段（仅 Workers 入口使用）。
-import type { Database, PreparedStatement, RunResult, AllResult } from './db';
+import type { Database, PreparedStatement, RunResult, AllResult } from './db.js';
 
 // 从 db.ts 集中 re-export，使业务层可统一从 './types' 引入类型。
 export type { Database, PreparedStatement, RunResult, AllResult };
@@ -25,9 +25,23 @@ export interface Env {
   ENCRYPTION_KEY: string; // base64 的 32 字节 AES key
 }
 
+// 用户表：邀请制多用户。password_hash 为 PBKDF2 单向哈希（见 shared/password.ts）。
+// session_version 是即时吊销核心：停用/改密/降级/删号时 +1，使旧 cookie 立即失效。
+export interface UserRow {
+  id: number;
+  username: string;
+  password_hash: string;
+  role: string; // 'admin' | 'user'
+  disabled: number; // 0/1
+  session_version: number;
+  created_at: number;
+  updated_at: number;
+}
+
 // 数据库行类型
 export interface SiteRow {
   id: number;
+  user_id: number; // 归属用户；INSERT 必带（应用层保证非空，见 multiuser-plan 1.2）
   name: string;
   base_url: string;
   token_encrypted: string | null;
@@ -69,6 +83,7 @@ export type MakeFetch = (cfg: ProxyConfig) => FetchLike;
 // 代理行：出站代理池。仅 Node/Docker 部署生效（Workers 的 fetch 无法走自建代理）。
 export interface ProxyRow {
   id: number;
+  user_id: number; // 归属用户；INSERT 必带（应用层保证非空，见 multiuser-plan 1.2）
   name: string;
   type: string; // http / https / socks5
   host: string;

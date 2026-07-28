@@ -1,7 +1,11 @@
 // 定时任务的平台无关逻辑：按 scrape_interval_min 节流爬取 + 跨天重置签到 + 自动签到。
 // Workers 的 scheduled() 和 Node 的 node-cron 都调用 runScheduledTick。
-import type { Database, AppSecrets, SiteRow, MakeFetch } from './types';
-import { scrapeAndStore, checkinAndStore } from './scrape-runner';
+//
+// 多用户改造（见 multiuser-plan 第五节）：settings 每用户化后，节流也每用户化。
+// runScheduledTick 先取所有未停用用户，逐用户按「其」scrape_interval_min / last_cron_run_at
+// 节流、只爬「其」站点；跨天重置只清「其」站点的 checkin_done。停用用户不参与定时（见 8.5-28）。
+import type { Database, AppSecrets, SiteRow, MakeFetch } from './types.js';
+import { scrapeAndStore, checkinAndStore } from './scrape-runner.js';
 
 // 日界固定用 UTC+8，避免 Workers(UTC) 与 Docker(本地时区) 的跨天判定不一致。
 const TZ_OFFSET_MS = 8 * 60 * 60 * 1000;
@@ -10,24 +14,68 @@ function dayIndex(ts: number): number {
   return Math.floor((ts + TZ_OFFSET_MS) / (24 * 60 * 60 * 1000));
 }
 
-async function getSetting(db: Database, key: string): Promise<string | null> {
-  const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first<{ value: string }>();
+// 每用户设置读写：复合主键 (user_id, key)（见 multiuser-plan 1.3）。
+async function getSetting(db: Database, userId: number, key: string): Promise<string | null> {
+  const row = await db
+    .prepare('SELECT value FROM settings WHERE user_id = ? AND key = ?')
+    .bind(userId, key)
+    .first<{ value: string }>();
   return row?.value ?? null;
 }
 
-async function setSetting(db: Database, key: string, value: string): Promise<void> {
+async function setSetting(db: Database, userId: number, key: string, value: string): Promise<void> {
   await db
-    .prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?')
-    .bind(key, value, value)
+    .prepare(
+      'INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = ?',
+    )
+    .bind(userId, key, value, value)
     .run();
 }
 
-// 跨天则把所有站的 checkin_done 归零，供当天重新自动签到。
-async function maybeResetCheckin(db: Database, now: number): Promise<void> {
-  const lastReset = Number((await getSetting(db, 'checkin_last_reset_at')) ?? '0');
+// 跨天则把「该用户」名下站点的 checkin_done 归零，供当天重新自动签到。
+async function maybeResetCheckin(db: Database, userId: number, now: number): Promise<void> {
+  const lastReset = Number((await getSetting(db, userId, 'checkin_last_reset_at')) ?? '0');
   if (dayIndex(now) === dayIndex(lastReset)) return;
-  await db.prepare('UPDATE sites SET checkin_done = 0 WHERE checkin_done = 1').run();
-  await setSetting(db, 'checkin_last_reset_at', String(now));
+  await db
+    .prepare('UPDATE sites SET checkin_done = 0 WHERE user_id = ? AND checkin_done = 1')
+    .bind(userId)
+    .run();
+  await setSetting(db, userId, 'checkin_last_reset_at', String(now));
+}
+
+// 单个用户的一轮 tick：跨天重置 → 节流爬取 → 自动补签。全部只碰「该用户」的数据与设置。
+async function runUserTick(
+  db: Database,
+  secrets: AppSecrets,
+  userId: number,
+  now: number,
+  makeFetch?: MakeFetch,
+): Promise<void> {
+  // 1) 跨天重置签到标记（只清该用户的站）
+  await maybeResetCheckin(db, userId, now);
+
+  // 2) 按该用户设定的间隔节流爬取
+  const intervalMin = Math.max(1, Number((await getSetting(db, userId, 'scrape_interval_min')) ?? '30'));
+  const lastRun = Number((await getSetting(db, userId, 'last_cron_run_at')) ?? '0');
+  const due = now - lastRun >= intervalMin * 60 * 1000;
+
+  if (due) {
+    // 先占位时间戳，避免多次触发叠加
+    await setSetting(db, userId, 'last_cron_run_at', String(now));
+    const sites = await db.prepare('SELECT * FROM sites WHERE user_id = ?').bind(userId).all<SiteRow>();
+    for (const site of sites.results) {
+      await scrapeAndStore(db, secrets, site, makeFetch);
+    }
+  }
+
+  // 3) 自动签到：仅对该用户已开启且今日未签的站（独立于爬取节流，每次 tick 都尝试补签）
+  const pending = await db
+    .prepare('SELECT * FROM sites WHERE user_id = ? AND checkin_enabled = 1 AND checkin_done = 0')
+    .bind(userId)
+    .all<SiteRow>();
+  for (const site of pending.results) {
+    await checkinAndStore(db, secrets, site, makeFetch);
+  }
 }
 
 export async function runScheduledTick(
@@ -36,28 +84,12 @@ export async function runScheduledTick(
   now: number,
   makeFetch?: MakeFetch,
 ): Promise<void> {
-  // 1) 跨天重置签到标记
-  await maybeResetCheckin(db, now);
-
-  // 2) 按面板设定的间隔节流爬取
-  const intervalMin = Math.max(1, Number((await getSetting(db, 'scrape_interval_min')) ?? '30'));
-  const lastRun = Number((await getSetting(db, 'last_cron_run_at')) ?? '0');
-  const due = now - lastRun >= intervalMin * 60 * 1000;
-
-  if (due) {
-    // 先占位时间戳，避免多次触发叠加
-    await setSetting(db, 'last_cron_run_at', String(now));
-    const sites = await db.prepare('SELECT * FROM sites').all<SiteRow>();
-    for (const site of sites.results) {
-      await scrapeAndStore(db, secrets, site, makeFetch);
-    }
-  }
-
-  // 3) 自动签到：仅对已开启且今日未签的站（独立于爬取节流，每次 tick 都尝试补签）
-  const pending = await db
-    .prepare('SELECT * FROM sites WHERE checkin_enabled = 1 AND checkin_done = 0')
-    .all<SiteRow>();
-  for (const site of pending.results) {
-    await checkinAndStore(db, secrets, site, makeFetch);
+  // 停用用户不参与定时（见 8.5-28）。逐用户串行——node:sqlite 单文件锁下本就串行，
+  // 规模大时随 SCALING NOTE 升级（关联 [[scraper-backend-concurrency-todo]]）。
+  const users = await db
+    .prepare('SELECT id FROM users WHERE disabled = 0 ORDER BY id ASC')
+    .all<{ id: number }>();
+  for (const u of users.results) {
+    await runUserTick(db, secrets, u.id, now, makeFetch);
   }
 }

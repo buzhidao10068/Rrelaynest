@@ -22,5 +22,5 @@
     }
   },
   "include": ["src/shared", "src/worker", "src/frontend"],
-  "exclude": ["node_modules", "dist", "dist-server", "src/server"]
+  "exclude": ["node_modules", "dist", "dist-server", "src/server", "**/*.test.ts"]
 }
