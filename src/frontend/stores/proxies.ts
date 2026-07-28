@@ -2,12 +2,10 @@
 // 事实来源改为后端 /api/proxies（每用户隔离，见 routes.ts）；本 store 只是它的前端缓存：
 // 每次增删改后 reload() 重拉，不再在前端维护级联。id 为后端主键，name 仅展示/去重用。
 // 全局代理落后端 settings 的 global_proxy_id（按 id），读写走 /api/settings。
-//
-// ⚠ 过渡态：sites 尚未接线（仍 mock，按代理「名」绑定）。故「配置站点」弹窗与站点计数徽章
-// 暂仍操作 mock 的 sitesState（按 name），不与后端 proxy_id 打通——留待 sites 轮次接线。
+// 站点 ↔ 代理绑定已接线后端（按 id，PUT /api/sites/:id { proxy_id }），见文件底部。
 import { reactive } from 'vue';
 import { api } from '@/api';
-import { sitesState } from '@/stores/sites';
+import { sitesState, loadSites } from '@/stores/sites';
 
 export type ProxyType = 'http' | 'https' | 'socks5';
 
@@ -151,16 +149,26 @@ export async function deleteProxy(id: number): Promise<void> {
   await loadProxies();
 }
 
-// ---- 站点 ↔ 代理绑定（过渡：仍操作 mock sitesState，按 name）----
-// TODO(sites 轮次)：接线后改为 PUT /api/sites/:id { proxy_id }，按 id 绑定。
-export function proxySiteCount(name: string): number {
-  return sitesState.list.filter((s) => s.proxy === name).length;
+// ---- 站点 ↔ 代理绑定（接线后端，按 id）----
+// 绑定该代理的站点数（代理卡「配置站点」徽章）。按 proxy_id 计。
+export function proxySiteCount(proxyId: number): number {
+  return sitesState.list.filter((s) => s.proxyId === proxyId).length;
 }
-export function assignSitesToProxy(name: string, checkedNames: Set<string>): number {
+// checkedIds 站点绑定此代理；取消勾选且原本绑的是此代理 → 清空(proxy_id=null, 回落全局)。
+// 逐个 PUT /api/sites/:id { proxy_id } 后 reload 站点列表。返回绑定数。
+export async function assignSitesToProxy(
+  proxyId: number,
+  checkedIds: Set<number>,
+): Promise<number> {
   let cnt = 0;
-  sitesState.list.forEach((s) => {
-    if (checkedNames.has(s.name)) { s.proxy = name; cnt++; }
-    else if (s.proxy === name) { s.proxy = ''; }
-  });
+  for (const s of sitesState.list) {
+    if (checkedIds.has(s.id)) {
+      if (s.proxyId !== proxyId) await api.put(`/api/sites/${s.id}`, { proxy_id: proxyId });
+      cnt++;
+    } else if (s.proxyId === proxyId) {
+      await api.put(`/api/sites/${s.id}`, { proxy_id: null });
+    }
+  }
+  await loadSites();
   return cnt;
 }

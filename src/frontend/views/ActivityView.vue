@@ -2,7 +2,7 @@
 // 测活页（Phase G）：站点连通性检测（测试连接=响应耗时 / 渠道测试=发一句测活词看模型能否回复，均为 mock）
 // + 分组视图 + 测活词池（新增/编辑/启停/删除/配置站点，全局默认词选择）。
 // 唯一事实来源：probeState.words / probeState.globalText / sites[].probeText。
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { Wifi, MessageSquare, LayoutGrid, Plus, Pencil, Trash2, ChevronRight, ChevronDown } from 'lucide-vue-next';
 import AppHeader from '@/components/AppHeader.vue';
 import { Button } from '@/components/ui/button';
@@ -10,10 +10,11 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { sitesState, allGroups } from '@/stores/sites';
+import { ApiError } from '@/api';
+import { sitesState, allGroups, loadSites } from '@/stores/sites';
 import {
-  probeState, setGlobalProbe, setGlobalEnabled, toggleProbe, deleteProbe, persistProbes,
-  probeSiteCount, type ProbeWord,
+  probeState, setGlobalProbe, setGlobalEnabled, toggleProbe, deleteProbe,
+  probeSiteCount, loadProbeWords, type ProbeWord,
 } from '@/stores/probes';
 import { running, runConnectivityCheck, runModelCheck } from '@/composables/useActivityCheck';
 import { toast } from '@/composables/useToast';
@@ -35,7 +36,7 @@ const groupedRows = computed(() =>
 
 // ---- 弹窗状态 ----
 const modalOpen = ref(false);
-const modalEditing = ref<string | null>(null);
+const modalEditing = ref<number | null>(null);
 const assignOpen = ref(false);
 const assignProbeText = ref<string | null>(null);
 
@@ -44,20 +45,24 @@ const enabledWords = computed(() => probeState.words.filter((w) => w.enabled));
 const globalSel = computed({
   get: () => probeState.globalText,
   set: (v: string) => {
-    setGlobalProbe(v);
-    persistProbes();
-    toast(`全局默认词已设为「${probeState.globalText}」`, 'success');
+    setGlobalProbe(v)
+      .then(() => toast(`全局默认词已设为「${probeState.globalText}」`, 'success'))
+      .catch((e) => toast(errMsg(e, '设置全局默认词失败'), 'error'));
   },
 });
 // 全局默认词开关：关闭后未单独绑词的站点渠道测试跳过（测试连接不受影响）。
 const globalOn = computed({
   get: () => probeState.globalEnabled,
   set: (on: boolean) => {
-    setGlobalEnabled(on);
-    persistProbes();
-    toast(on ? '全局默认词已开启' : '全局默认词已关闭，未绑定词的站点将跳过渠道测试', on ? 'success' : 'info');
+    setGlobalEnabled(on)
+      .then(() => toast(on ? '全局默认词已开启' : '全局默认词已关闭，未绑定词的站点将跳过渠道测试', on ? 'success' : 'info'))
+      .catch((e) => toast(errMsg(e, '切换全局开关失败'), 'error'));
   },
 });
+
+function errMsg(e: unknown, fallback: string): string {
+  return e instanceof ApiError ? e.message : fallback;
+}
 
 // ---- 测活词池操作 ----
 function onCreateProbe() {
@@ -65,22 +70,38 @@ function onCreateProbe() {
   modalOpen.value = true;
 }
 function onEditProbe(w: ProbeWord) {
-  modalEditing.value = w.text;
+  modalEditing.value = w.id;
   modalOpen.value = true;
 }
-function onToggleProbe(w: ProbeWord) {
-  const en = toggleProbe(w.text);
-  if (en === null) return;
-  toast(`「${w.text}」${en ? '已启用' : '已停用'}`, en ? 'success' : 'info');
+async function onToggleProbe(w: ProbeWord) {
+  try {
+    const en = await toggleProbe(w.id);
+    if (en === null) return;
+    toast(`「${w.text}」${en ? '已启用' : '已停用'}`, en ? 'success' : 'info');
+  } catch (e) {
+    toast(errMsg(e, '切换启用状态失败'), 'error');
+  }
 }
-function onDeleteProbe(w: ProbeWord) {
+async function onDeleteProbe(w: ProbeWord) {
   if (!confirm(`确定删除测活词「${w.text}」？绑定它的站点将回落到全局默认词。`)) return;
-  if (deleteProbe(w.text)) toast(`已删除「${w.text}」`, 'success');
+  try {
+    if (await deleteProbe(w.id)) toast(`已删除「${w.text}」`, 'success');
+  } catch (e) {
+    toast(errMsg(e, '删除失败'), 'error');
+  }
 }
 function onAssignProbe(w: ProbeWord) {
   assignProbeText.value = w.text;
   assignOpen.value = true;
 }
+
+onMounted(async () => {
+  try {
+    await Promise.all([loadSites(), loadProbeWords()]);
+  } catch (e) {
+    toast(errMsg(e, '加载测活数据失败'), 'error');
+  }
+});
 </script>
 
 <template>

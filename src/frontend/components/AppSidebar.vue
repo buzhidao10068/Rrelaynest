@@ -13,9 +13,8 @@ import {
 } from '@/components/ui/sidebar';
 import { ui, showView, type ViewName } from '@/stores/ui';
 import { users, clearSession } from '@/stores/users';
-import { useTheme, type ThemeMode } from '@/composables/useTheme';
+import { useTheme, type Theme } from '@/composables/useTheme';
 import { api } from '@/api';
-import { toast } from '@/composables/useToast';
 
 const { theme, setTheme } = useTheme();
 const { isMobile, setOpenMobile } = useSidebar();
@@ -49,7 +48,7 @@ const visibleNav = computed(() =>
   }),
 );
 
-const themeSegs: { key: ThemeMode; label: string }[] = [
+const themeSegs: { key: Theme; label: string }[] = [
   { key: 'light', label: '亮色' },
   { key: 'dark', label: '暗色' },
   { key: 'system', label: '跟随' },

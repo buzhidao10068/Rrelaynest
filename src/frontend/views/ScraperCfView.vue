@@ -2,18 +2,26 @@
 // 爬虫 · Cloudflare（Phase H）：Workers 部署下的全局爬取设置。
 // 定时=Cron Triggers（wrangler.toml，运行时不可热改）；不支持代理（强制直连）；受 subrequest/CPU 硬限。
 // 唯一事实来源：scraperState.cf；后端并发/超时对接见 [[scraper-backend-concurrency-todo]]。
-import { computed } from 'vue';
-import { CloudUpload, Info, WifiOff, Copy } from 'lucide-vue-next';
+import { computed, onMounted, ref } from 'vue';
+import { Info, WifiOff, Copy } from 'lucide-vue-next';
 import AppHeader from '@/components/AppHeader.vue';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { scraperState, persistCf, cronSnippet } from '@/stores/scraper';
+import { scraperState, loadScraperSettings, saveCf, cronSnippet } from '@/stores/scraper';
+import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 
 const cf = scraperState.cf;
 const snippet = computed(() => cronSnippet(cf.cron));
+const busy = ref(false);
+
+onMounted(() => {
+  loadScraperSettings().catch((e) =>
+    toast(e instanceof ApiError ? e.message : '加载爬取设置失败', 'error'),
+  );
+});
 
 async function copySnippet() {
   try {
@@ -24,9 +32,16 @@ async function copySnippet() {
   }
 }
 
-function onSave() {
-  persistCf();
-  toast('爬取设置已保存', 'success');
+async function onSave() {
+  busy.value = true;
+  try {
+    await saveCf();
+    toast('爬取设置已保存', 'success');
+  } catch (e) {
+    toast(e instanceof ApiError ? e.message : '保存失败', 'error');
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -120,7 +135,7 @@ function onSave() {
       </div>
 
       <div class="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-        <Button @click="onSave">保存设置</Button>
+        <Button :disabled="busy" @click="onSave">{{ busy ? '保存中…' : '保存设置' }}</Button>
       </div>
     </div>
   </div>

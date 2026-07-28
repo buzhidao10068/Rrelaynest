@@ -11,15 +11,17 @@ import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { saveUser, type MockUser, type Role } from '@/stores/users';
+import { saveUser, type AdminUser, type Role } from '@/stores/users';
+import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 
-const props = defineProps<{ open: boolean; editing: MockUser | null }>();
+const props = defineProps<{ open: boolean; editing: AdminUser | null }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>();
 
 const name = ref('');
 const pw = ref('');
 const role = ref<Role>('user');
+const busy = ref(false);
 
 const isEdit = computed(() => props.editing !== null);
 const title = computed(() =>
@@ -52,16 +54,24 @@ watch(
   { immediate: true },
 );
 
-function onSubmit() {
-  const res = saveUser(props.editing?.id ?? null, name.value, pw.value, role.value);
-  if (!res.ok) {
-    toast(res.error || '保存失败', 'error');
-    return;
+async function onSubmit() {
+  const trimmed = name.value.trim();
+  const creating = props.editing === null;
+  // 本地即时校验（后端仍会 400/409 兜底）。
+  if (creating && !trimmed) { toast('用户名必填', 'error'); return; }
+  if (creating && !pw.value) { toast('初始密码必填', 'error'); return; }
+  busy.value = true;
+  try {
+    await saveUser(props.editing?.id ?? null, trimmed, pw.value, role.value);
+    if (creating) toast(`已创建用户 ${trimmed}`, 'success');
+    else toast(`已更新用户${pw.value ? '（密码已重置，旧会话失效）' : ''}`, 'success');
+    emit('saved');
+    emit('close');
+  } catch (e) {
+    toast(e instanceof ApiError ? e.message : '保存失败', 'error');
+  } finally {
+    busy.value = false;
   }
-  if (res.created) toast(`已创建用户 ${name.value.trim()}`, 'success');
-  else toast(`已更新用户${pw.value ? '（密码已重置，旧会话失效）' : ''}`, 'success');
-  emit('saved');
-  emit('close');
 }
 </script>
 
@@ -108,8 +118,8 @@ function onSubmit() {
       </div>
 
       <DialogFooter>
-        <Button variant="outline" @click="emit('close')">取消</Button>
-        <Button @click="onSubmit">{{ isEdit ? '保存' : '创建' }}</Button>
+        <Button variant="outline" :disabled="busy" @click="emit('close')">取消</Button>
+        <Button :disabled="busy" @click="onSubmit">{{ isEdit ? '保存' : '创建' }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

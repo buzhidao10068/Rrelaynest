@@ -59,11 +59,14 @@ async function runUserTick(
   const intervalMin = Math.max(1, Number((await getSetting(db, userId, 'scrape_interval_min')) ?? '30'));
   const lastRun = Number((await getSetting(db, userId, 'last_cron_run_at')) ?? '0');
   const due = now - lastRun >= intervalMin * 60 * 1000;
+  // 定时爬取总开关（前端「启用定时爬取」）：缺省视为开启，保持既有行为；'0' 时跳过爬取分支。
+  // 只 gate 爬取，不影响自动签到（那是每站 checkin_enabled 决定的独立开关）。
+  const autoOn = (await getSetting(db, userId, 'scrape_auto_enabled')) !== '0';
 
   // 该用户的爬取配置（并发/超时/重试），爬取与签到共用（见 [[scraper-backend-concurrency-todo]]）。
   const { config, concurrency } = await readScrapeConfig(db, userId);
 
-  if (due) {
+  if (autoOn && due) {
     // 先占位时间戳，避免多次触发叠加
     await setSetting(db, userId, 'last_cron_run_at', String(now));
     const sites = await db.prepare('SELECT * FROM sites WHERE user_id = ?').bind(userId).all<SiteRow>();

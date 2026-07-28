@@ -1,86 +1,81 @@
-// 关于/版本更新（Phase K）：版本比对 + 检查更新 mock + 自动检查开关。
-// 机制（照搬 mock）：每个部署实例向 GitHub Releases 查最新 tag_name 与本地 APP_VERSION 比对；
-// 有新版仅「通知 + 给对应平台升级步骤」，不做应用内自更新（Workers/Docker 都无权改自己的镜像/部署）。
-// 块7 后端加 /api/update/check 代理 GitHub Releases API；此处 mock。
+// 关于/版本更新（Phase K → 块8 接后端 /api/update/check）：版本比对 + 检查更新 + 自动检查开关。
+// 机制：后端代理 GitHub Releases（version.ts），返回 {current, latest, has_update, upgrade_steps, error?}——
+// 版本比对与平台升级步骤都由后端权威给出（后端知道自己的 appVersion / platform）。前端只展示。
+// 不做应用内自更新，只通知 + 给对应平台升级命令。自动检查开关落每用户 settings(update_auto_check)。
 import { reactive } from 'vue';
+import { api } from '@/api';
 
-export const APP_VERSION = 'v1.0.0';
 export const GITHUB_REPO = 'buzhidao10068/Rrelaynest';
 export const RELEASES_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
+// GitHub releases/latest 的最小字段（与后端 version.ts LatestRelease 对齐）。
 export interface Release {
   tag_name: string;
   published_at: string;
   body: string;
+  html_url: string;
 }
 
-// mock：模拟 GitHub releases/latest 返回；块7 换成真实 fetch。
-export const MOCK_LATEST: Release = {
-  tag_name: 'v1.2.0',
-  published_at: '2026-07-24',
-  body:
-    '- 新增出站代理池（http/https/socks5）\n' +
-    '- 测活拆分为测试连接 + 渠道测试\n' +
-    '- 爬虫设置按平台拆分\n' +
-    '- 依赖安全升级，漏洞清零',
-};
-
-const AUTO_UPDATE_KEY = 'rrelaynest-auto-update';
+// /api/update/check 的返回体（与后端 version.ts UpdateCheckResult 对齐）。
+interface UpdateCheckResult {
+  current: string;
+  latest: Release | null;
+  has_update: boolean;
+  upgrade_steps: string[];
+  error?: string;
+}
 
 interface AboutState {
-  // 检查后填充的最新版本（null=尚未检查）
-  latest: Release | null;
-  autoUpdate: boolean;
+  current: string;          // 后端注入的当前应用版本（'' = 尚未载入）
+  latest: Release | null;   // 检查后填充的最新版本（null = 尚未检查/无结果）
+  hasUpdate: boolean;       // 后端权威：远端 tag 高于本地版本
+  upgradeSteps: string[];   // 后端按平台给的升级命令
+  autoUpdate: boolean;      // 自动检查开关（落 settings.update_auto_check）
   checking: boolean;
-}
-
-function loadAutoUpdate(): boolean {
-  const v = localStorage.getItem(AUTO_UPDATE_KEY);
-  return v === null ? true : v === 'true';
+  error: string | null;     // 检查失败原因（网络/限流）；有值时 UI 提示「检查失败」
 }
 
 export const aboutState = reactive<AboutState>({
+  current: '',
   latest: null,
-  autoUpdate: loadAutoUpdate(),
+  hasUpdate: false,
+  upgradeSteps: [],
+  autoUpdate: true,
   checking: false,
+  error: null,
 });
 
-// 语义版本比较：a>b 返回 1，a<b 返回 -1，相等 0。容错非数字段。
-export function cmpVersion(a: string, b: string): number {
-  const pa = String(a).replace(/^v/i, '').split('.').map((x) => parseInt(x, 10) || 0);
-  const pb = String(b).replace(/^v/i, '').split('.').map((x) => parseInt(x, 10) || 0);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pa[i] || 0) - (pb[i] || 0);
-    if (d !== 0) return d > 0 ? 1 : -1;
-  }
-  return 0;
-}
-
-// 是否有新版（latest.tag_name > APP_VERSION）
+// 是否有新版（后端权威）
 export function hasNewVersion(): boolean {
-  const l = aboutState.latest;
-  return !!(l && l.tag_name && cmpVersion(l.tag_name, APP_VERSION) > 0);
+  return aboutState.hasUpdate && aboutState.latest != null;
 }
 
-// 手动/自动检查更新：演示端转圈一下再填 mock；块7 fetch /api/update/check。
-// 返回 Promise，供 UI 触发 toast。
-export function checkForUpdate(): Promise<Release> {
+// 手动/自动检查更新：GET /api/update/check。后端不抛——网络/限流失败时返回 error 字段。
+// 返回结果供 UI 触发 toast。
+export async function checkForUpdate(): Promise<UpdateCheckResult> {
   aboutState.checking = true;
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      aboutState.latest = MOCK_LATEST;
-      aboutState.checking = false;
-      resolve(MOCK_LATEST);
-    }, 700);
-  });
+  try {
+    const res = await api.get<UpdateCheckResult>('/api/update/check');
+    aboutState.current = res.current;
+    aboutState.latest = res.latest;
+    aboutState.hasUpdate = res.has_update;
+    aboutState.upgradeSteps = res.upgrade_steps;
+    aboutState.error = res.error ?? null;
+    return res;
+  } finally {
+    aboutState.checking = false;
+  }
 }
 
-// 自动检查开启时进入关于页即静默查一次（块7：登录时/后端定时）；此处直接填 mock 结果。
-export function silentCheck(): void {
-  if (aboutState.autoUpdate) aboutState.latest = MOCK_LATEST;
+// 进入关于页：读自动检查开关（settings.update_auto_check，缺省视为开）；开启则静默查一次。
+export async function loadAbout(): Promise<void> {
+  const { settings } = await api.get<{ settings: Record<string, string> }>('/api/settings');
+  aboutState.autoUpdate = settings.update_auto_check !== '0';
+  if (aboutState.autoUpdate) await checkForUpdate();
 }
 
-export function setAutoUpdate(on: boolean): void {
+// 切自动检查开关：写每用户 settings。
+export async function setAutoUpdate(on: boolean): Promise<void> {
+  await api.put('/api/settings', { update_auto_check: on ? '1' : '0' });
   aboutState.autoUpdate = on;
-  localStorage.setItem(AUTO_UPDATE_KEY, on ? 'true' : 'false');
 }

@@ -1,26 +1,26 @@
 <script setup lang="ts">
 // 站点表格主体：表头（可排序/可拖拽调宽）+ 行（签到徽章 / 无 token 警告 / 行内操作 / 拖拽重排）
 // + 分组分区（可折叠、跨组拖拽改分组）。分页条与自定义面板由父组件挂载。
+// 块8：键与操作事件改为按 id；充值按钮与「已签金额」徽章砍掉（余额爬取权威、无客户端记账）。
 import { ref, computed } from 'vue';
 import {
   ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
-  RefreshCw, CalendarCheck, Wallet, Pencil, Trash2,
+  RefreshCw, CalendarCheck, Pencil, Trash2,
   ChevronRight, ChevronDown, Check, Minus, TriangleAlert,
 } from 'lucide-vue-next';
 import {
   sitesState, visibleColumns, pagedSites, groupedSites,
-  toggleSort, badgeAmount, curSign,
+  toggleSort,
   toggleSelect, toggleGroup, toggleGroupSelect,
   setColWidth, reorderRow, moveToGroup,
   ACTION_COL_W, MIN_COL_W, type Site,
 } from '@/stores/sites';
 
 const emit = defineEmits<{
-  (e: 'scrape', name: string): void;
-  (e: 'checkin', name: string): void;
-  (e: 'recharge', name: string): void;
-  (e: 'edit', name: string): void;
-  (e: 'delete', name: string): void;
+  (e: 'scrape', id: number): void;
+  (e: 'checkin', id: number): void;
+  (e: 'edit', id: number): void;
+  (e: 'delete', id: number): void;
   (e: 'openAddr', host: string): void;
 }>();
 
@@ -81,86 +81,85 @@ function endResize() {
   window.removeEventListener('touchend', endResize);
 }
 
-// ---- 批量选择点状态 ----
-function isSelected(name: string): boolean {
-  return sitesState.selected.has(name);
+// ---- 批量选择点状态（按 id）----
+function isSelected(id: number): boolean {
+  return sitesState.selected.has(id);
 }
 function groupSelState(rows: Site[]): 'all' | 'some' | 'none' {
   const total = rows.length;
-  const sel = rows.reduce((a, s) => a + (isSelected(s.name) ? 1 : 0), 0);
+  const sel = rows.reduce((a, s) => a + (isSelected(s.id) ? 1 : 0), 0);
   if (total > 0 && sel === total) return 'all';
   if (sel > 0) return 'some';
   return 'none';
 }
 
 // ---- 行点击（批量模式下点整行 = 选中，点按钮/链接放行）----
-function onRowClick(e: MouseEvent, name: string) {
+function onRowClick(e: MouseEvent, id: number) {
   if (!sitesState.batchMode) return;
   if ((e.target as HTMLElement).closest('button, a')) return;
-  toggleSelect(name);
+  toggleSelect(id);
 }
 
 // ---- 行拖拽重排 ----
-const dragName = ref<string | null>(null);
-const dragOverName = ref<string | null>(null);
+const dragId = ref<number | null>(null);
+const dragOverId = ref<number | null>(null);
 const dragOverDir = ref<'top' | 'bottom'>('bottom');
 const dragOverGroup = ref<string | null>(null);
-// 仅从 6 点手柄按下才允许拖：mousedown 手柄 → 记下该行名使其 draggable；
+// 仅从 6 点手柄按下才允许拖：mousedown 手柄 → 记下该行 id 使其 draggable；
 // 抬起/拖完再清空，避免选字、点按钮误触发拖拽。
-const armedName = ref<string | null>(null);
-function armGrip(name: string) {
-  armedName.value = name;
-  const clear = () => { armedName.value = null; window.removeEventListener('mouseup', clear); };
+const armedId = ref<number | null>(null);
+function armGrip(id: number) {
+  armedId.value = id;
+  const clear = () => { armedId.value = null; window.removeEventListener('mouseup', clear); };
   window.addEventListener('mouseup', clear);
 }
-function onDragStart(e: DragEvent, name: string) {
-  if (armedName.value !== name) { e.preventDefault(); return; }
-  dragName.value = name;
+function onDragStart(e: DragEvent, id: number) {
+  if (armedId.value !== id) { e.preventDefault(); return; }
+  dragId.value = id;
   e.dataTransfer!.effectAllowed = 'move';
-  try { e.dataTransfer!.setData('text/plain', name); } catch { /* noop */ }
+  try { e.dataTransfer!.setData('text/plain', String(id)); } catch { /* noop */ }
 }
 function onDragEnd() {
-  dragName.value = null;
-  dragOverName.value = null;
+  dragId.value = null;
+  dragOverId.value = null;
   dragOverGroup.value = null;
-  armedName.value = null;
+  armedId.value = null;
 }
 function onRowDragOver(e: DragEvent, s: Site) {
-  if (dragName.value === null || s.name === dragName.value) return;
+  if (dragId.value === null || s.id === dragId.value) return;
   e.preventDefault();
   e.dataTransfer!.dropEffect = 'move';
-  const fromIdx = sitesState.list.findIndex((x) => x.name === dragName.value);
-  const overIdx = sitesState.list.findIndex((x) => x.name === s.name);
-  dragOverName.value = s.name;
+  const fromIdx = sitesState.list.findIndex((x) => x.id === dragId.value);
+  const overIdx = sitesState.list.findIndex((x) => x.id === s.id);
+  dragOverId.value = s.id;
   dragOverDir.value = overIdx > fromIdx ? 'bottom' : 'top';
 }
 function onRowDrop(s: Site) {
-  if (dragName.value === null || dragName.value === s.name) return;
+  if (dragId.value === null || dragId.value === s.id) return;
   const intoGroup = sitesState.groupMode ? (s.group || '未分组') : undefined;
-  reorderRow(dragName.value, s.name, intoGroup);
+  void reorderRow(dragId.value, s.id, intoGroup);
   onDragEnd();
 }
 function onGroupDragOver(e: DragEvent, g: string) {
-  if (dragName.value === null) return;
+  if (dragId.value === null) return;
   e.preventDefault();
   e.dataTransfer!.dropEffect = 'move';
   dragOverGroup.value = g;
 }
 function onGroupDrop(g: string) {
-  if (dragName.value === null) return;
-  moveToGroup(dragName.value, g);
+  if (dragId.value === null) return;
+  void moveToGroup(dragId.value, g);
   onDragEnd();
 }
 
-// 行内操作按钮的禁用/提示逻辑（与 mock 一致）
+// 行内操作按钮的禁用/提示逻辑
 function checkinDisabled(s: Site): boolean {
   return !s.hasToken && s.ck === 'off';
 }
 function checkinTitle(s: Site): string {
-  if (!s.hasToken && s.ck !== 'off') return '已配置签到但缺少 Token，点击仍可手动记录金额';
   if (!s.hasToken) return '未设置 Access Token，无法签到';
   if (s.ck === 'off') return '该站未启用签到，请在编辑中开启';
-  return '手动签到';
+  return '立即签到';
 }
 </script>
 
@@ -240,21 +239,21 @@ function checkinTitle(s: Site): string {
           <template v-if="!sitesState.collapsedGroups[grp.group]">
             <tr
               v-for="s in grp.rows"
-              :key="s.name"
-              :draggable="rowDraggable && armedName === s.name ? true : undefined"
+              :key="s.id"
+              :draggable="rowDraggable && armedId === s.id ? true : undefined"
               class="group/row border-b border-border last:border-0 hover:bg-accent/40"
               :class="[
                 sitesState.batchMode ? 'cursor-pointer' : '',
-                isSelected(s.name) ? 'bg-accent/40' : '',
-                dragName === s.name ? 'opacity-40' : '',
-                dragOverName === s.name && dragOverDir === 'top' ? 'border-t-2 border-t-foreground' : '',
-                dragOverName === s.name && dragOverDir === 'bottom' ? 'border-b-2 border-b-foreground' : '',
+                isSelected(s.id) ? 'bg-accent/40' : '',
+                dragId === s.id ? 'opacity-40' : '',
+                dragOverId === s.id && dragOverDir === 'top' ? 'border-t-2 border-t-foreground' : '',
+                dragOverId === s.id && dragOverDir === 'bottom' ? 'border-b-2 border-b-foreground' : '',
               ]"
-              @click="onRowClick($event, s.name)"
-              @dragstart="onDragStart($event, s.name)"
+              @click="onRowClick($event, s.id)"
+              @dragstart="onDragStart($event, s.id)"
               @dragend="onDragEnd"
               @dragover="onRowDragOver($event, s)"
-              @dragleave="dragOverName = null"
+              @dragleave="dragOverId = null"
               @drop="onRowDrop(s)"
             >
               <td
@@ -271,18 +270,18 @@ function checkinTitle(s: Site): string {
                         v-if="rowDraggable"
                         class="row-grip mr-2 inline-flex h-5 w-4 shrink-0 cursor-grab items-center justify-center align-middle text-muted-foreground opacity-0 transition group-hover/row:opacity-100 active:cursor-grabbing"
                         title="按住拖动重排"
-                        @mousedown="armGrip(s.name)"
+                        @mousedown="armGrip(s.id)"
                       >
                         <GripVertical :size="14" />
                       </span>
                       <span
                         v-if="sitesState.batchMode"
                         class="mr-3 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border align-middle transition"
-                        :class="isSelected(s.name)
+                        :class="isSelected(s.id)
                           ? 'border-foreground bg-foreground text-background'
                           : 'border-muted-foreground bg-background'"
                       >
-                        <Check v-if="isSelected(s.name)" :size="12" :stroke-width="3" />
+                        <Check v-if="isSelected(s.id)" :size="12" :stroke-width="3" />
                       </span>
                       {{ s.name }}
                     </span>
@@ -310,11 +309,11 @@ function checkinTitle(s: Site): string {
                   <span
                     v-if="s.ck === 'signed'"
                     class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400"
-                  >● 已签{{ badgeAmount(s) }}</span>
+                  >● 已签</span>
                   <span
-                    v-else-if="s.ck === 'manual'"
+                    v-else-if="s.ck === 'pending'"
                     class="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400"
-                  >● 需手动</span>
+                  >● 待签</span>
                   <span
                     v-else
                     class="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
@@ -330,29 +329,24 @@ function checkinTitle(s: Site): string {
                     :class="s.hasToken ? 'text-muted-foreground hover:bg-accent' : 'cursor-not-allowed text-muted-foreground opacity-50'"
                     :disabled="!s.hasToken"
                     :title="s.hasToken ? '爬取' : '未设置 Access Token，无法爬取'"
-                    @click="emit('scrape', s.name)"
+                    @click="emit('scrape', s.id)"
                   ><RefreshCw :size="15" /></button>
                   <button
                     class="flex h-8 w-8 items-center justify-center rounded-md"
                     :class="checkinDisabled(s) ? 'cursor-not-allowed text-muted-foreground opacity-50' : 'text-muted-foreground hover:bg-accent'"
                     :disabled="checkinDisabled(s)"
                     :title="checkinTitle(s)"
-                    @click="emit('checkin', s.name)"
+                    @click="emit('checkin', s.id)"
                   ><CalendarCheck :size="15" /></button>
                   <button
                     class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
-                    title="充值（记录充值人民币→到账额度）"
-                    @click="emit('recharge', s.name)"
-                  ><Wallet :size="15" /></button>
-                  <button
-                    class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
                     title="编辑"
-                    @click="emit('edit', s.name)"
+                    @click="emit('edit', s.id)"
                   ><Pencil :size="15" /></button>
                   <button
                     class="flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-accent"
                     title="删除"
-                    @click="emit('delete', s.name)"
+                    @click="emit('delete', s.id)"
                   ><Trash2 :size="15" /></button>
                 </div>
               </td>
@@ -365,21 +359,21 @@ function checkinTitle(s: Site): string {
       <tbody v-else>
         <tr
           v-for="s in pagedSites"
-          :key="s.name"
-          :draggable="rowDraggable && armedName === s.name ? true : undefined"
+          :key="s.id"
+          :draggable="rowDraggable && armedId === s.id ? true : undefined"
           class="group/row border-b border-border last:border-0 hover:bg-accent/40"
           :class="[
             sitesState.batchMode ? 'cursor-pointer' : '',
-            isSelected(s.name) ? 'bg-accent/40' : '',
-            dragName === s.name ? 'opacity-40' : '',
-            dragOverName === s.name && dragOverDir === 'top' ? 'border-t-2 border-t-foreground' : '',
-            dragOverName === s.name && dragOverDir === 'bottom' ? 'border-b-2 border-b-foreground' : '',
+            isSelected(s.id) ? 'bg-accent/40' : '',
+            dragId === s.id ? 'opacity-40' : '',
+            dragOverId === s.id && dragOverDir === 'top' ? 'border-t-2 border-t-foreground' : '',
+            dragOverId === s.id && dragOverDir === 'bottom' ? 'border-b-2 border-b-foreground' : '',
           ]"
-          @click="onRowClick($event, s.name)"
-          @dragstart="onDragStart($event, s.name)"
+          @click="onRowClick($event, s.id)"
+          @dragstart="onDragStart($event, s.id)"
           @dragend="onDragEnd"
           @dragover="onRowDragOver($event, s)"
-          @dragleave="dragOverName = null"
+          @dragleave="dragOverId = null"
           @drop="onRowDrop(s)"
         >
           <td
@@ -395,18 +389,18 @@ function checkinTitle(s: Site): string {
                     v-if="rowDraggable"
                     class="row-grip mr-2 inline-flex h-5 w-4 shrink-0 cursor-grab items-center justify-center align-middle text-muted-foreground opacity-0 transition group-hover/row:opacity-100 active:cursor-grabbing"
                     title="按住拖动重排"
-                    @mousedown="armGrip(s.name)"
+                    @mousedown="armGrip(s.id)"
                   >
                     <GripVertical :size="14" />
                   </span>
                   <span
                     v-if="sitesState.batchMode"
                     class="mr-3 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border align-middle transition"
-                    :class="isSelected(s.name)
+                    :class="isSelected(s.id)
                       ? 'border-foreground bg-foreground text-background'
                       : 'border-muted-foreground bg-background'"
                   >
-                    <Check v-if="isSelected(s.name)" :size="12" :stroke-width="3" />
+                    <Check v-if="isSelected(s.id)" :size="12" :stroke-width="3" />
                   </span>
                   {{ s.name }}
                 </span>
@@ -432,11 +426,11 @@ function checkinTitle(s: Site): string {
               <span
                 v-if="s.ck === 'signed'"
                 class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400"
-              >● 已签{{ badgeAmount(s) }}</span>
+              >● 已签</span>
               <span
-                v-else-if="s.ck === 'manual'"
+                v-else-if="s.ck === 'pending'"
                 class="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400"
-              >● 需手动</span>
+              >● 待签</span>
               <span
                 v-else
                 class="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
@@ -451,29 +445,24 @@ function checkinTitle(s: Site): string {
                 :class="s.hasToken ? 'text-muted-foreground hover:bg-accent' : 'cursor-not-allowed text-muted-foreground opacity-50'"
                 :disabled="!s.hasToken"
                 :title="s.hasToken ? '爬取' : '未设置 Access Token，无法爬取'"
-                @click="emit('scrape', s.name)"
+                @click="emit('scrape', s.id)"
               ><RefreshCw :size="15" /></button>
               <button
                 class="flex h-8 w-8 items-center justify-center rounded-md"
                 :class="checkinDisabled(s) ? 'cursor-not-allowed text-muted-foreground opacity-50' : 'text-muted-foreground hover:bg-accent'"
                 :disabled="checkinDisabled(s)"
                 :title="checkinTitle(s)"
-                @click="emit('checkin', s.name)"
+                @click="emit('checkin', s.id)"
               ><CalendarCheck :size="15" /></button>
               <button
                 class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
-                title="充值（记录充值人民币→到账额度）"
-                @click="emit('recharge', s.name)"
-              ><Wallet :size="15" /></button>
-              <button
-                class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
                 title="编辑"
-                @click="emit('edit', s.name)"
+                @click="emit('edit', s.id)"
               ><Pencil :size="15" /></button>
               <button
                 class="flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-accent"
                 title="删除"
-                @click="emit('delete', s.name)"
+                @click="emit('delete', s.id)"
               ><Trash2 :size="15" /></button>
             </div>
           </td>

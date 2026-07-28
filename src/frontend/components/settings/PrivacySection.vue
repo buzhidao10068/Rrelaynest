@@ -2,12 +2,18 @@
 // 协作与隐私分区（仅 admin 可见）：跨用户只读的条款解锁。
 // 默认关闭；须先读条款并勾选同意才能开启。关闭即撤销（对应后端 admin_global_view_ack）。
 // 唯一事实来源：users.globalViewAck。
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { Eye } from 'lucide-vue-next';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { users, setGlobalViewAck } from '@/stores/users';
+import { users, setGlobalViewAck, loadUsers } from '@/stores/users';
+import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
+
+// 进入分区先拉一次用户表 + ack（admin 可能直接进设置页而未经用户管理页）。
+onMounted(() => {
+  loadUsers().catch((e) => toast(e instanceof ApiError ? e.message : '载入解锁状态失败', 'error'));
+});
 
 // 勾选「我已阅读并同意」：解锁后强制勾上且禁用（撤销时先关开关）。
 const agreeLocal = ref(false);
@@ -16,7 +22,7 @@ const agreed = computed({
   set: (v: boolean) => { agreeLocal.value = v; },
 });
 
-// 开关：开启要求已勾选同意；关闭直接撤销。
+// 开关：开启要求已勾选同意；关闭直接撤销。异步写后端 settings，失败提示。
 const ackOn = computed({
   get: () => users.globalViewAck,
   set: (v: boolean) => {
@@ -25,12 +31,16 @@ const ackOn = computed({
         toast('请先阅读条款并勾选「我已阅读并同意」', 'error');
         return;
       }
-      setGlobalViewAck(true);
-      toast('已解锁：可只读查看用户站点', 'success');
+      setGlobalViewAck(true)
+        .then(() => toast('已解锁：可只读查看用户站点', 'success'))
+        .catch((e) => toast(e instanceof ApiError ? e.message : '解锁失败', 'error'));
     } else {
-      setGlobalViewAck(false);
-      agreeLocal.value = false;
-      toast('已撤销：恢复隐藏他人站点', 'success');
+      setGlobalViewAck(false)
+        .then(() => {
+          agreeLocal.value = false;
+          toast('已撤销：恢复隐藏他人站点', 'success');
+        })
+        .catch((e) => toast(e instanceof ApiError ? e.message : '撤销失败', 'error'));
     }
   },
 });

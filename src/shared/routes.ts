@@ -57,6 +57,8 @@ interface SiteInput {
   sort_order?: number | null;
   proxy_id?: number | null; // 绑定代理 id；null=跟随全局，undefined=不改
   probe_text?: string | null; // 单站绑定的测活词；null/''=清除(跟随全局)，undefined=不改
+  group_label?: string | null; // 用户自定义分组标签；null/''=未分组，undefined=不改。见 0004 迁移
+  balance?: number | null; // 手动填写的余额种子；后续爬取会覆盖。undefined=不改
 }
 
 interface ProxyInput {
@@ -156,7 +158,7 @@ export function createApp(deps: AppDeps) {
       .prepare('SELECT username FROM users WHERE id = ?')
       .bind(user.uid)
       .first<{ username: string }>();
-    return c.json({ authenticated: true, username: row?.username ?? '', role: user.role });
+    return c.json({ authenticated: true, id: user.uid, username: row?.username ?? '', role: user.role });
   });
 
   // ---- Workers 首装引导（见 multiuser-plan 第六节，选项 1）----
@@ -211,11 +213,14 @@ export function createApp(deps: AppDeps) {
 
   // 列所有用户（不含 password_hash）。
   app.get('/api/admin/users', requireAdmin, async (c) => {
+    // 附带站点数（相关子查询）：用户卡片展示「N 个站点」，admin 低频路径，成本可接受。
     const rows = await db
       .prepare(
-        'SELECT id, username, role, disabled, session_version, created_at, updated_at FROM users ORDER BY id ASC',
+        `SELECT id, username, role, disabled, session_version, created_at, updated_at,
+                (SELECT COUNT(*) FROM sites WHERE sites.user_id = users.id) AS sites
+         FROM users ORDER BY id ASC`,
       )
-      .all<Omit<UserRow, 'password_hash'>>();
+      .all<Omit<UserRow, 'password_hash'> & { sites: number }>();
     return c.json({ users: rows.results });
   });
 
@@ -464,8 +469,8 @@ export function createApp(deps: AppDeps) {
     const res = await db
       .prepare(
         `INSERT INTO sites
-          (user_id, name, base_url, token_encrypted, rate, currency, checkin_enabled, email, note, sort_order, proxy_id, probe_text, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (user_id, name, base_url, token_encrypted, rate, currency, balance, checkin_enabled, email, note, sort_order, proxy_id, probe_text, group_label, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         uid,
@@ -474,12 +479,14 @@ export function createApp(deps: AppDeps) {
         tokenEnc,
         body.rate ?? null,
         body.currency ?? 'USD',
+        body.balance ?? null,
         body.checkin_enabled ? 1 : 0,
         body.email ?? null,
         body.note ?? null,
         body.sort_order ?? 0,
         body.proxy_id ?? null,
         body.probe_text || null,
+        body.group_label || null,
         now,
         now,
       )
@@ -514,11 +521,18 @@ export function createApp(deps: AppDeps) {
     const probeText =
       body.probe_text === undefined ? existing.probe_text : body.probe_text || null;
 
+    // group_label: undefined=不变, ''=清除(不分组), 非空=用户分组名
+    const groupLabel =
+      body.group_label === undefined ? existing.group_label : body.group_label || null;
+
+    // balance: undefined=不变(保留爬取值), null/数字=显式覆盖(如手动填种子余额)
+    const balance = body.balance === undefined ? existing.balance : body.balance;
+
     await db
       .prepare(
         `UPDATE sites SET
-          name = ?, base_url = ?, token_encrypted = ?, rate = ?, currency = ?,
-          checkin_enabled = ?, checkin_done = ?, email = ?, note = ?, sort_order = ?, proxy_id = ?, probe_text = ?, updated_at = ?
+          name = ?, base_url = ?, token_encrypted = ?, rate = ?, currency = ?, balance = ?,
+          checkin_enabled = ?, checkin_done = ?, email = ?, note = ?, sort_order = ?, proxy_id = ?, probe_text = ?, group_label = ?, updated_at = ?
          WHERE id = ? AND user_id = ?`,
       )
       .bind(
@@ -527,6 +541,7 @@ export function createApp(deps: AppDeps) {
         tokenEnc,
         body.rate ?? existing.rate,
         body.currency ?? existing.currency,
+        balance,
         body.checkin_enabled === undefined
           ? existing.checkin_enabled
           : body.checkin_enabled
@@ -542,6 +557,7 @@ export function createApp(deps: AppDeps) {
         body.sort_order ?? existing.sort_order,
         proxyId,
         probeText,
+        groupLabel,
         Date.now(),
         id,
         uid,

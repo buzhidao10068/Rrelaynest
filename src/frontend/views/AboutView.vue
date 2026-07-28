@@ -1,24 +1,29 @@
 <script setup lang="ts">
-// 关于页（Phase K）：版本信息卡 + 检查更新（mock）+ 更新结果面板（按平台给升级步骤）+ 自动检查开关。
-// 逻辑照搬 mock：不做应用内自更新，只通知 + 给对应平台的升级命令。
+// 关于页（Phase K → 块8 接后端 /api/update/check）：版本信息卡 + 检查更新 + 更新结果面板 + 自动检查开关。
+// 版本比对/升级步骤均由后端权威给出（后端知道自己的 appVersion/platform）；前端只展示。
+// 不做应用内自更新，只通知 + 给对应平台升级命令。
 import { computed, onMounted } from 'vue';
-import { Info, RefreshCw, ExternalLink, Check } from 'lucide-vue-next';
+import { Info, RefreshCw, ExternalLink, Check, AlertTriangle } from 'lucide-vue-next';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { ui } from '@/stores/ui';
 import {
-  aboutState, APP_VERSION, GITHUB_REPO, RELEASES_URL,
-  hasNewVersion, cmpVersion, checkForUpdate, silentCheck, setAutoUpdate,
+  aboutState, RELEASES_URL,
+  hasNewVersion, checkForUpdate, loadAbout, setAutoUpdate,
 } from '@/stores/about';
+import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 
-const isWorkers = computed(() => ui.deployPlatform === 'workers');
+// 当前版本（后端注入，载入前为空）
+const currentVer = computed(() => aboutState.current || '—');
+
+// 升级步骤按平台由后端给（含 wrangler 即 Workers）；结果面板前展示用 ui 平台兜底不再需要。
+const isWorkers = computed(() => aboutState.upgradeSteps.some((s) => s.includes('wrangler')));
 
 // 更新结果三态：无检查结果 / 已是最新 / 有新版
 const latest = computed(() => aboutState.latest);
-const isLatest = computed(() => latest.value != null && !hasNewVersion());
+const isLatest = computed(() => aboutState.current !== '' && latest.value != null && !hasNewVersion());
 const hasNew = computed(() => hasNewVersion());
 
 // 更新日志：body 按行去前缀 → 数组
@@ -30,37 +35,39 @@ const changelog = computed(() =>
     .map((l) => l.replace(/^[-*]\s*/, '')),
 );
 
-// 按平台给升级步骤（都无法应用内自更新，只给命令）
-const upgradeCmds = computed(() =>
-  isWorkers.value
-    ? 'git pull\nnpm ci\nnpm run build\nnpx wrangler deploy'
-    : 'docker compose pull\ndocker compose up -d',
-);
+// 升级步骤：后端权威（按平台）；一行一条命令拼成多行文本供复制。
+const upgradeCmds = computed(() => aboutState.upgradeSteps.join('\n'));
 const upgradeNote = computed(() =>
   isWorkers.value
     ? 'Workers 需重新构建并部署；若已接 GitHub 自动部署，推送 tag 后会自动发布。'
     : '拉取最新镜像并重建容器；数据卷（SQLite/挂载目录）保留不受影响。',
 );
-const relTagUrl = computed(() =>
-  latest.value ? `https://github.com/${GITHUB_REPO}/releases/tag/${latest.value.tag_name}` : RELEASES_URL,
-);
+const relTagUrl = computed(() => latest.value?.html_url || RELEASES_URL);
 
 const autoOn = computed({
   get: () => aboutState.autoUpdate,
   set: (v: boolean) => {
-    setAutoUpdate(v);
-    toast(v ? '已开启自动检查更新' : '已关闭自动检查更新', 'info');
+    setAutoUpdate(v)
+      .then(() => toast(v ? '已开启自动检查更新' : '已关闭自动检查更新', 'info'))
+      .catch((e) => toast(e instanceof ApiError ? e.message : '切换失败', 'error'));
   },
 });
 
 async function onCheck() {
-  const rel = await checkForUpdate();
-  if (cmpVersion(rel.tag_name, APP_VERSION) > 0) toast(`发现新版本 ${rel.tag_name}`, 'info');
-  else toast('当前已是最新版本', 'success');
+  try {
+    const res = await checkForUpdate();
+    if (res.error) toast(`检查更新失败：${res.error}`, 'error');
+    else if (res.has_update) toast(`发现新版本 ${res.latest?.tag_name}`, 'info');
+    else toast('当前已是最新版本', 'success');
+  } catch (e) {
+    toast(e instanceof ApiError ? e.message : '检查更新失败', 'error');
+  }
 }
 
-// 进入关于页：自动检查开启时静默查一次（有新版直接展示面板，不弹 toast）
-onMounted(silentCheck);
+// 进入关于页：载入自动检查开关；开启则静默查一次（有新版直接展示面板，不弹 toast）。
+onMounted(() => {
+  loadAbout().catch((e) => toast(e instanceof ApiError ? e.message : '载入版本信息失败', 'error'));
+});
 </script>
 
 <template>
@@ -89,7 +96,7 @@ onMounted(silentCheck);
         <div class="flex items-center justify-between gap-3 py-1">
           <span class="text-muted-foreground">版本</span>
           <span class="flex items-center gap-2">
-            <span class="font-medium">{{ APP_VERSION }}</span>
+            <span class="font-medium">{{ currentVer }}</span>
             <span
               v-if="hasNew"
               class="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary"
@@ -130,11 +137,23 @@ onMounted(silentCheck);
         </div>
       </div>
 
+      <!-- 检查失败面板：网络/GitHub 限流等 -->
+      <div
+        v-if="aboutState.error"
+        class="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+      >
+        <AlertTriangle :size="18" class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div class="min-w-0">
+          <p class="font-medium text-amber-700 dark:text-amber-300">检查更新失败</p>
+          <p class="mt-1 text-muted-foreground">{{ aboutState.error }}</p>
+        </div>
+      </div>
+
       <!-- 更新结果面板：已是最新 / 有新版 -->
-      <div v-if="isLatest" class="rounded-lg border border-border p-4">
+      <div v-if="!aboutState.error && isLatest" class="rounded-lg border border-border p-4">
         <div class="flex items-center gap-2 text-sm">
           <Check :size="16" class="text-emerald-600 dark:text-emerald-400" />
-          <span>当前已是最新版本 {{ APP_VERSION }}</span>
+          <span>当前已是最新版本 {{ currentVer }}</span>
         </div>
       </div>
 
@@ -142,7 +161,7 @@ onMounted(silentCheck);
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2">
             <span class="inline-flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-sm font-medium text-primary">发现新版本</span>
-            <span class="text-sm font-semibold">{{ APP_VERSION }} → {{ latest.tag_name }}</span>
+            <span class="text-sm font-semibold">{{ currentVer }} → {{ latest.tag_name }}</span>
           </div>
           <span class="text-xs text-muted-foreground">{{ latest.published_at }}</span>
         </div>

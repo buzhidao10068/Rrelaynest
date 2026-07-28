@@ -1,8 +1,10 @@
 <script setup lang="ts">
-// 站点新增/编辑弹窗（Phase E）：连接信息 + 汇率（按一次充值折算）+ 分组自动补全
-// + 出站代理/测活词选择 + 签到设置区（主开关→自动签到/默认金额）。
+// 站点新增/编辑弹窗（块8：接线后端）：连接信息 + 汇率（按一次充值折算 rate）+ 分组自动补全
+// + 出站代理/测活词选择 + 签到主开关（→ checkin_enabled，每日自动签到走后端 scheduler）。
+// 与 mock 差异：模型来自爬取(site_models)只读展示，不再手动获取；默认金额/手动金额记账砍掉；
+// 余额改为可选「种子」（爬取后即被覆盖）。保存走后端 saveSite（异步），成功后 store 已 reload。
 import { ref, computed, watch, nextTick } from 'vue';
-import { ChevronDown, RefreshCw, X } from 'lucide-vue-next';
+import { ChevronDown } from 'lucide-vue-next';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -15,12 +17,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  sitesState, allGroups, saveSite, nameExists, deriveRecharge,
+  allGroups, saveSite, nameExists,
   type Site, type SiteForm,
 } from '@/stores/sites';
 import { probeState } from '@/stores/probes';
 import { proxyState } from '@/stores/proxies';
-import { fetchModels } from '@/composables/useUpstream';
+import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 
 const props = defineProps<{ open: boolean; editing: Site | null }>();
@@ -35,20 +37,16 @@ const rechargeRmb = ref('10');
 const rechargeAmount = ref('1.4');
 const cur = ref('USD');
 const group = ref('');
-const proxy = ref('');
+const proxyId = ref<number | null>(null);
 const probeText = ref('');
 const email = ref('');
 const note = ref('');
 const ckMaster = ref(false);
-const autoOn = ref(false);
-const defAmtOn = ref(false);
-const defAmtRaw = ref('');
 const errorMsg = ref('');
+const busy = ref(false);
 
-// ---- 上游模型 ----
+// 爬取所得模型（只读展示）
 const models = ref<string[]>([]);
-const fetchingModels = ref(false);
-const modelError = ref('');
 
 const isEdit = computed(() => props.editing !== null);
 const title = computed(() => (isEdit.value ? '编辑站点' : '新增站点'));
@@ -83,27 +81,24 @@ watch(
   ([open, site]) => {
     if (!open) return;
     errorMsg.value = '';
+    busy.value = false;
     if (site) {
-      deriveRecharge(site);
+      const rate = parseFloat(site.rate) || 1;
       name.value = site.name;
       url.value = 'https://' + site.url;
       token.value = '';
       balRaw.value = site.balNum != null ? String(site.balNum) : '';
-      rechargeRmb.value = String(site.rechargeRmb ?? 10);
-      rechargeAmount.value = String(site.rechargeAmount ?? 1.4);
+      // rate = 每 1 单位站点货币折多少 RMB。回填成「充 rate 元 = 到账 1」。
+      rechargeRmb.value = String(rate);
+      rechargeAmount.value = '1';
       cur.value = site.cur || 'USD';
       group.value = site.group || '';
-      proxy.value = site.proxy || '';
+      proxyId.value = site.proxyId;
       probeText.value = site.probeText && probeOptions.value.some((w) => w.text === site.probeText) ? site.probeText : '';
       email.value = site.email || '';
       note.value = site.note || '';
       ckMaster.value = site.ck !== 'off';
-      autoOn.value = !!site.autoCheckin;
-      defAmtOn.value = !!site.defAmtEnabled;
-      defAmtRaw.value = site.defAmt != null ? String(site.defAmt) : '';
       models.value = site.models?.slice() ?? [];
-      modelError.value = '';
-      fetchingModels.value = false;
     } else {
       name.value = '';
       url.value = '';
@@ -113,29 +108,16 @@ watch(
       rechargeAmount.value = '1.4';
       cur.value = 'USD';
       group.value = '';
-      proxy.value = '';
+      proxyId.value = null;
       probeText.value = '';
       email.value = '';
       note.value = '';
       ckMaster.value = false;
-      autoOn.value = false;
-      defAmtOn.value = false;
-      defAmtRaw.value = '';
       models.value = [];
-      modelError.value = '';
-      fetchingModels.value = false;
     }
   },
   { immediate: true },
 );
-
-// 签到主开关关闭时收起并复位详情
-watch(ckMaster, (on) => {
-  if (!on) {
-    autoOn.value = false;
-    defAmtOn.value = false;
-  }
-});
 
 // ---- 分组自动补全下拉 ----
 const groupMenuOpen = ref(false);
@@ -155,36 +137,9 @@ function toggleGroupMenu() {
   if (groupMenuOpen.value) nextTick(() => document.getElementById('group-input')?.focus());
 }
 
-// ---- 获取上游模型 ----
-// 用当前地址 + token 真调 {base}/v1/models。编辑态 token 留空则用原 token 无法回显，
-// 提示需重填；假域名/CORS 会失败并显示可读错误（属预期，真绿态需真实站点）。
-async function onFetchModels() {
-  const u = url.value.trim();
-  if (!u) { modelError.value = '请先填写站点地址'; return; }
-  if (!/^https?:\/\//i.test(u)) { modelError.value = '站点地址需以 http:// 或 https:// 开头'; return; }
-  if (isEdit.value && !token.value.trim()) {
-    modelError.value = '编辑态不回显原 token，请在上方重填密钥后再获取';
-    return;
-  }
-  fetchingModels.value = true;
-  modelError.value = '';
-  try {
-    const ids = await fetchModels(u, token.value);
-    models.value = ids;
-    toast(`获取到 ${ids.length} 个模型`, 'success');
-  } catch (e) {
-    modelError.value = e instanceof Error ? e.message : '获取失败';
-    toast('获取模型失败', 'error');
-  } finally {
-    fetchingModels.value = false;
-  }
-}
-function removeModel(id: string) {
-  models.value = models.value.filter((m) => m !== id);
-}
-
 // ---- 提交 ----
-function onSubmit() {
+async function onSubmit() {
+  if (busy.value) return;
   const nm = name.value.trim();
   const u = url.value.trim();
   if (!nm) { errorMsg.value = '请填写站点名称'; return; }
@@ -197,35 +152,36 @@ function onSubmit() {
   if (String(balRaw.value).trim() !== '' && isNaN(parseFloat(String(balRaw.value)))) {
     errorMsg.value = '余额必须为数字，或留空表示未知'; return;
   }
-  if (ckMaster.value && defAmtOn.value) {
-    const d = parseFloat(defAmtRaw.value);
-    if (!(d >= 0)) { errorMsg.value = '默认签到金额必须为不小于 0 的数字'; return; }
-  }
-  const editingName = props.editing ? props.editing.name : null;
-  if (nameExists(nm, editingName)) { errorMsg.value = '站点名称已存在，请换一个'; return; }
+  const editingId = props.editing ? props.editing.id : null;
+  if (nameExists(nm, editingId)) { errorMsg.value = '站点名称已存在，请换一个'; return; }
 
   const form: SiteForm = {
     name: nm, url: u, token: token.value,
     balRaw: String(balRaw.value),
     rechargeRmb: rmb, rechargeAmount: amt,
     cur: cur.value, group: group.value,
-    proxy: proxy.value, probeText: probeText.value,
+    proxyId: proxyId.value, probeText: probeText.value,
     email: email.value, note: note.value,
-    ckMaster: ckMaster.value, autoOn: autoOn.value,
-    defAmtOn: defAmtOn.value, defAmtRaw: String(defAmtRaw.value),
-    models: models.value.slice(),
+    ckMaster: ckMaster.value,
   };
-  const saved = saveSite(form, editingName);
-  toast(editingName === null ? `已创建「${saved}」` : `已保存「${saved}」`, 'success');
-  emit('close');
+  busy.value = true;
+  try {
+    const saved = await saveSite(form, editingId);
+    toast(editingId === null ? `已创建「${saved}」` : `已保存「${saved}」`, 'success');
+    emit('close');
+  } catch (e) {
+    errorMsg.value = e instanceof ApiError ? e.message : '保存失败';
+    toast(errorMsg.value, 'error');
+  } finally {
+    busy.value = false;
+  }
 }
 
-// Reka Select 不接受空字符串 value，用哨兵 __follow__ 表示「跟随全局/直连」，
-// 读写时与内部 '' 互转。
+// Reka Select 不接受空字符串 value，用哨兵表示「跟随全局/直连」，读写时与内部值互转。
 const FOLLOW = '__follow__';
 const proxySel = computed({
-  get: () => (proxy.value === '' ? FOLLOW : proxy.value),
-  set: (v: string) => { proxy.value = v === FOLLOW ? '' : v; },
+  get: () => (proxyId.value == null ? FOLLOW : String(proxyId.value)),
+  set: (v: string) => { proxyId.value = v === FOLLOW ? null : Number(v); },
 });
 const probeSel = computed({
   get: () => (probeText.value === '' ? FOLLOW : probeText.value),
@@ -256,50 +212,31 @@ const probeSel = computed({
           <p class="text-xs text-muted-foreground">{{ tokenHint }}</p>
         </div>
 
-        <!-- 上游模型 -->
+        <!-- 上游模型（爬取所得，只读）-->
         <div class="space-y-1.5">
-          <div class="flex items-center justify-between gap-2">
-            <Label>上游模型</Label>
-            <Button
-              type="button" variant="outline" size="sm"
-              :disabled="fetchingModels"
-              @click="onFetchModels"
-            >
-              <RefreshCw :size="14" :class="fetchingModels && 'animate-spin'" />
-              {{ fetchingModels ? '获取中…' : '获取模型' }}
-            </Button>
-          </div>
-          <p
-            v-if="modelError"
-            class="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-500"
-          >{{ modelError }}</p>
+          <Label>上游模型</Label>
           <div
-            v-else-if="models.length"
+            v-if="models.length"
             class="flex flex-wrap gap-1.5 rounded-md border border-border bg-muted/30 p-2"
           >
             <span
               v-for="m in models"
               :key="m"
-              class="inline-flex items-center gap-1 rounded-md bg-background px-2 py-0.5 font-mono text-xs"
-            >
-              {{ m }}
-              <Button
-                type="button" variant="ghost" size="icon"
-                class="h-4 w-4 text-muted-foreground hover:bg-transparent hover:text-red-500"
-                :title="`移除 ${m}`"
-                @click="removeModel(m)"
-              ><X :size="12" /></Button>
-            </span>
+              class="inline-flex items-center rounded-md bg-background px-2 py-0.5 font-mono text-xs"
+            >{{ m }}</span>
           </div>
+          <p v-else class="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            尚无模型。爬取该站后，上游模型列表会自动显示在此（只读）。
+          </p>
           <p class="text-xs text-muted-foreground">
-            填好地址与密钥后点「获取模型」拉取上游模型列表（浏览器直连 {{ '{base}' }}/v1/models）。测活页「渠道测试」会逐个模型测活。
+            模型来自爬取结果（{{ '{base}' }}/v1/models）。测活页「渠道测试」会逐个模型测活。
           </p>
         </div>
 
         <div class="space-y-1.5">
           <Label>当前余额（站点货币）</Label>
           <Input v-model="balRaw" type="number" step="0.01" placeholder="留空表示未知" />
-          <p class="text-xs text-muted-foreground">可手动填写；爬取或签到后自动更新。</p>
+          <p class="text-xs text-muted-foreground">可手动填写一个种子值；下次爬取会自动覆盖。</p>
         </div>
 
         <!-- 汇率 -->
@@ -364,7 +301,7 @@ const probeSel = computed({
             </SelectTrigger>
             <SelectContent>
               <SelectItem :value="FOLLOW">跟随全局设置</SelectItem>
-              <SelectItem v-for="p in proxyState.list" :key="p.name" :value="p.name">
+              <SelectItem v-for="p in proxyState.list" :key="p.id" :value="String(p.id)">
                 {{ p.name }}（{{ p.type }}）
               </SelectItem>
             </SelectContent>
@@ -402,31 +339,7 @@ const probeSel = computed({
             <Switch v-model="ckMaster" />
             <div>
               <p class="text-sm font-medium">签到</p>
-              <p class="text-xs text-muted-foreground">启用后可自动或手动签到（需站点支持 /api/user/checkin）</p>
-            </div>
-          </div>
-          <div v-if="ckMaster" class="space-y-4 border-t border-border pt-4">
-            <div class="flex items-center gap-4">
-              <Switch v-model="autoOn" />
-              <div>
-                <p class="text-sm font-medium">启用自动签到</p>
-                <p class="text-xs text-muted-foreground">每日跨天自动执行签到，无需手动点击。</p>
-              </div>
-            </div>
-            <div class="space-y-2">
-              <div class="flex items-center gap-4">
-                <Switch v-model="defAmtOn" />
-                <div>
-                  <p class="text-sm font-medium">默认签到增加金额</p>
-                  <p class="text-xs text-muted-foreground">签到时固定到账此金额；关闭后每次手动签到需自行填写。</p>
-                </div>
-              </div>
-              <div v-if="defAmtOn" class="pl-[3.75rem]">
-                <div class="flex items-center gap-2">
-                  <Input v-model="defAmtRaw" type="number" min="0" step="0.01" placeholder="0.00" class="h-9 w-32" />
-                  <span class="text-sm text-muted-foreground">每次签到到账（站点货币）</span>
-                </div>
-              </div>
+              <p class="text-xs text-muted-foreground">启用后每日跨天自动签到（后端定时执行），也可在主页点「签到」立即执行。需站点支持 /api/user/checkin。</p>
             </div>
           </div>
         </div>
@@ -436,8 +349,8 @@ const probeSel = computed({
         </p>
 
         <div class="flex justify-end gap-2">
-          <Button variant="outline" @click="emit('close')">取消</Button>
-          <Button @click="onSubmit">{{ submitLabel }}</Button>
+          <Button variant="outline" :disabled="busy" @click="emit('close')">取消</Button>
+          <Button :disabled="busy" @click="onSubmit">{{ busy ? '保存中…' : submitLabel }}</Button>
         </div>
       </div>
     </DialogContent>

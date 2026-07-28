@@ -2,52 +2,70 @@
 // 用户管理页（Phase J，仅 admin）：邀请制说明 + 跨用户只读解锁提示 + 用户卡片列表。
 // 每卡：头像 + 用户名 + 角色/状态徽章 + 站点数/创建日期 + 查看站点/编辑/停用/删除。
 // 自我保护：id=1（自己）不能停用/删除/降级；查看站点需已解锁 ack（双门控）。
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { Plus, Eye, Pencil, Ban, CircleCheck, Trash2 } from 'lucide-vue-next';
 import AppHeader from '@/components/AppHeader.vue';
 import { Button } from '@/components/ui/button';
 import {
   users, isSelf, toggleUserDisabled, deleteUser, showUserSites,
-  goPrivacySettings, type MockUser,
+  goPrivacySettings, loadUsers, type AdminUser,
 } from '@/stores/users';
+import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 import UserModal from '@/components/users/UserModal.vue';
 
 const modalOpen = ref(false);
-const modalEditing = ref<MockUser | null>(null);
+const modalEditing = ref<AdminUser | null>(null);
+
+function errMsg(e: unknown, fallback: string): string {
+  return e instanceof ApiError ? e.message : fallback;
+}
+
+onMounted(() => {
+  loadUsers().catch((e) => toast(errMsg(e, '载入用户列表失败'), 'error'));
+});
 
 function onCreate() {
   modalEditing.value = null;
   modalOpen.value = true;
 }
-function onEdit(u: MockUser) {
+function onEdit(u: AdminUser) {
   modalEditing.value = u;
   modalOpen.value = true;
 }
-function onView(u: MockUser) {
-  if (!users.globalViewAck) {
-    toast('请先到 设置 → 协作与隐私 解锁条款', 'error');
-    return;
+function onView(u: AdminUser) {
+  const err = showUserSites(u.id);
+  if (err) toast(err, 'error');
+}
+async function onToggle(u: AdminUser) {
+  try {
+    const d = await toggleUserDisabled(u.id);
+    if (d === null) return;
+    toast(d ? `已停用 ${u.username}（其已登录会话立即失效）` : `已启用 ${u.username}`, 'success');
+  } catch (e) {
+    toast(errMsg(e, '操作失败'), 'error');
   }
-  showUserSites(u.id);
 }
-function onToggle(u: MockUser) {
-  const d = toggleUserDisabled(u.id);
-  if (d === null) return;
-  toast(d ? `已停用 ${u.username}（其已登录会话立即失效）` : `已启用 ${u.username}`, 'success');
-}
-function onDelete(u: MockUser) {
+async function onDelete(u: AdminUser) {
   if (!confirm(`确认删除用户「${u.username}」？其所有站点/代理/设置将一并删除，不可恢复。`)) return;
-  if (deleteUser(u.id)) toast(`已删除用户 ${u.username}`, 'success');
+  try {
+    if (await deleteUser(u.id)) toast(`已删除用户 ${u.username}`, 'success');
+  } catch (e) {
+    toast(errMsg(e, '删除失败'), 'error');
+  }
 }
 
-function roleBadgeClass(u: MockUser): string {
+function roleBadgeClass(u: AdminUser): string {
   return u.role === 'admin'
     ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
     : 'bg-muted text-muted-foreground';
 }
-function avatarChar(u: MockUser): string {
+function avatarChar(u: AdminUser): string {
   return (u.username[0] || 'U').toUpperCase();
+}
+// created_at 是毫秒时间戳（后端），转本地日期串展示。
+function createdText(u: AdminUser): string {
+  return u.created_at ? new Date(u.created_at).toLocaleDateString() : '—';
 }
 </script>
 
@@ -111,7 +129,7 @@ function avatarChar(u: MockUser): string {
               <span v-if="isSelf(u.id)" class="text-xs text-muted-foreground">(你)</span>
             </div>
             <p class="mt-0.5 text-xs text-muted-foreground">
-              {{ u.sites }} 个站点 · 创建于 {{ u.created_at }}
+              {{ u.sites }} 个站点 · 创建于 {{ createdText(u) }}
             </p>
           </div>
 

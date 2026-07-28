@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import { Download, Trash2 } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { clearAll, sitesState } from '@/stores/sites';
+import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 import ExportModal from '@/components/site/ExportModal.vue';
 
@@ -17,14 +18,18 @@ function onExport() {
   exportOpen.value = true;
 }
 
-function onClearAll() {
+async function onClearAll() {
   if (!sitesState.list.length) {
     toast('已经没有数据可清空', 'info');
     return;
   }
   if (!confirm('确认清空所有站点及爬取数据？此操作不可恢复！')) return;
-  clearAll();
-  toast('已清空全部数据', 'success');
+  try {
+    await clearAll();
+    toast('已清空全部数据', 'success');
+  } catch (e) {
+    toast(e instanceof ApiError ? e.message : '清空失败', 'error');
+  }
 }
 </script>
 

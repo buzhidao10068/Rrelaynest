@@ -1,16 +1,30 @@
 <script setup lang="ts">
 // 跨用户只读站点页（Phase J，仅 admin + 已解锁 ack）：顶部醒目「只读」横幅 + 站点卡片列表。
 // 无任何写/删/爬取/签到入口；token 已隐藏。数据来自 users.userSites[viewingUserId]。
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { ChevronLeft, Eye } from 'lucide-vue-next';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { users, findUser, showAdminUsers, type UserSite } from '@/stores/users';
+import { users, findUser, showAdminUsers, loadUserSites, type UserSite } from '@/stores/users';
+import { ApiError } from '@/api';
+import { toast } from '@/composables/useToast';
 
 const viewing = computed(() => (users.viewingUserId != null ? findUser(users.viewingUserId) : undefined));
 const list = computed<UserSite[]>(() =>
   users.viewingUserId != null ? (users.userSites[users.viewingUserId] || []) : [],
+);
+
+// viewingUserId 变化即拉取该用户站点（双门控由后端 requireAdmin+ack 把关，403 时提示）。
+watch(
+  () => users.viewingUserId,
+  (uid) => {
+    if (uid == null) return;
+    loadUserSites(uid).catch((e) =>
+      toast(e instanceof ApiError ? e.message : '载入用户站点失败', 'error'),
+    );
+  },
+  { immediate: true },
 );
 
 function back() {

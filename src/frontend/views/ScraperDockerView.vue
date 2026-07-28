@@ -2,6 +2,7 @@
 // 爬虫 · Docker（Phase H）：Node/Docker 部署下的全局爬取设置。
 // 定时=node-cron（间隔可热改、即时生效）；支持 http/https/socks5 代理；并发/超时/重试自由配置，无平台硬限。
 // 唯一事实来源：scraperState.dk；后端并发/超时/重试对接见 [[scraper-backend-concurrency-todo]]。
+import { onMounted, ref } from 'vue';
 import { CheckCircle2, Network, ArrowRight } from 'lucide-vue-next';
 import AppHeader from '@/components/AppHeader.vue';
 import { Button } from '@/components/ui/button';
@@ -11,15 +12,30 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { scraperState, persistDk } from '@/stores/scraper';
+import { scraperState, loadScraperSettings, saveDk } from '@/stores/scraper';
 import { showView } from '@/stores/ui';
 import { toast } from '@/composables/useToast';
+import { ApiError } from '@/api';
 
 const dk = scraperState.dk;
+const busy = ref(false);
 
-function onSave() {
-  persistDk();
-  toast('爬取设置已保存', 'success');
+onMounted(() => {
+  loadScraperSettings().catch((e) => {
+    toast(e instanceof ApiError ? e.message : '载入爬取设置失败', 'error');
+  });
+});
+
+async function onSave() {
+  busy.value = true;
+  try {
+    await saveDk();
+    toast('爬取设置已保存', 'success');
+  } catch (e) {
+    toast(e instanceof ApiError ? e.message : '保存失败', 'error');
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -113,7 +129,7 @@ function onSave() {
       </div>
 
       <div class="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-        <Button @click="onSave">保存设置</Button>
+        <Button :disabled="busy" @click="onSave">{{ busy ? '保存中…' : '保存设置' }}</Button>
       </div>
     </div>
   </div>

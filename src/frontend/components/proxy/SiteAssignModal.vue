@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// 代理页「配置哪些站点使用此代理」弹窗（Phase F）：
-// 默认平铺 / 分组两视图；勾选态本地暂存（切视图不丢），保存时统一落 sites[].proxy。
+// 代理页「配置哪些站点使用此代理」弹窗（块8 已接线后端）：
+// 默认平铺 / 分组两视图；勾选态本地暂存（切视图不丢），保存时按 id 落后端 sites.proxy_id。
 import { ref, computed, watch } from 'vue';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -8,30 +8,32 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { sitesState, allGroups, type Site } from '@/stores/sites';
-import { assignSitesToProxy } from '@/stores/proxies';
+import { assignSitesToProxy, findProxy, type Proxy } from '@/stores/proxies';
 import { toast } from '@/composables/useToast';
 
-const props = defineProps<{ open: boolean; proxyName: string | null }>();
+const props = defineProps<{ open: boolean; proxy: Proxy | null }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 
 type AssignView = 'default' | 'group';
 const view = ref<AssignView>('default');
-// 本次会话的勾选态（siteName → checked）。打开时按 s.proxy===proxyName 初始化。
-const checks = ref<Record<string, boolean>>({});
+const busy = ref(false);
+// 本次会话的勾选态（siteId → checked）。打开时按 s.proxyId===proxy.id 初始化。
+const checks = ref<Record<number, boolean>>({});
 
 watch(
-  () => [props.open, props.proxyName] as const,
-  ([open, name]) => {
-    if (!open || !name) return;
+  () => [props.open, props.proxy] as const,
+  ([open, proxy]) => {
+    if (!open || !proxy) return;
     view.value = 'default';
-    const init: Record<string, boolean> = {};
-    sitesState.list.forEach((s) => { init[s.name] = s.proxy === name; });
+    busy.value = false;
+    const init: Record<number, boolean> = {};
+    sitesState.list.forEach((s) => { init[s.id] = s.proxyId === proxy.id; });
     checks.value = init;
   },
   { immediate: true },
 );
 
-const title = computed(() => `配置使用「${props.proxyName ?? ''}」的站点`);
+const title = computed(() => `配置使用「${props.proxy?.name ?? ''}」的站点`);
 const checkedCount = computed(() => Object.values(checks.value).filter(Boolean).length);
 
 // 分组视图：按 allGroups 归类
@@ -42,28 +44,36 @@ const groups = computed(() =>
   })),
 );
 
-function toggleSite(name: string) {
-  checks.value[name] = !checks.value[name];
+function toggleSite(id: number) {
+  checks.value[id] = !checks.value[id];
 }
 // 组标题：整组已勾则取消全组，否则补勾全组
 function toggleGroup(g: string) {
   const rows = sitesState.list.filter((s) => (s.group || '未分组') === g);
-  const allOn = rows.length > 0 && rows.every((s) => checks.value[s.name]);
-  rows.forEach((s) => { checks.value[s.name] = !allOn; });
+  const allOn = rows.length > 0 && rows.every((s) => checks.value[s.id]);
+  rows.forEach((s) => { checks.value[s.id] = !allOn; });
 }
-// 绑到别的代理时的当前提示
+// 绑到别的代理时的当前提示（显示代理名）
 function otherProxy(s: Site): string {
-  return s.proxy && s.proxy !== props.proxyName ? s.proxy : '';
+  if (s.proxyId == null || s.proxyId === props.proxy?.id) return '';
+  return findProxy(s.proxyId)?.name ?? '';
 }
 
-function onSave() {
-  if (!props.proxyName) { emit('close'); return; }
-  const checkedNames = new Set(
-    Object.entries(checks.value).filter(([, v]) => v).map(([k]) => k),
+async function onSave() {
+  if (!props.proxy || busy.value) { if (!props.proxy) emit('close'); return; }
+  const checkedIds = new Set(
+    Object.entries(checks.value).filter(([, v]) => v).map(([k]) => Number(k)),
   );
-  const cnt = assignSitesToProxy(props.proxyName, checkedNames);
-  toast(`「${props.proxyName}」已配置 ${cnt} 个站点`, 'success');
-  emit('close');
+  busy.value = true;
+  try {
+    const cnt = await assignSitesToProxy(props.proxy.id, checkedIds);
+    toast(`「${props.proxy.name}」已配置 ${cnt} 个站点`, 'success');
+    emit('close');
+  } catch (e) {
+    toast(e instanceof Error ? e.message : '配置站点失败', 'error');
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -100,11 +110,11 @@ function onSave() {
         <div v-else-if="view === 'default'" class="space-y-0.5">
           <div
             v-for="s in sitesState.list"
-            :key="s.name"
+            :key="s.id"
             class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-accent"
-            @click="toggleSite(s.name)"
+            @click="toggleSite(s.id)"
           >
-            <Checkbox :model-value="!!checks[s.name]" class="pointer-events-none" />
+            <Checkbox :model-value="!!checks[s.id]" class="pointer-events-none" />
             <span class="min-w-0 flex-1 truncate text-sm">{{ s.name }}</span>
             <span v-if="otherProxy(s)" class="shrink-0 text-xs text-muted-foreground">
               当前：{{ otherProxy(s) }}
@@ -127,11 +137,11 @@ function onSave() {
             </button>
             <div
               v-for="s in g.sites"
-              :key="s.name"
+              :key="s.id"
               class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-accent"
-              @click="toggleSite(s.name)"
+              @click="toggleSite(s.id)"
             >
-              <Checkbox :model-value="!!checks[s.name]" class="pointer-events-none" />
+              <Checkbox :model-value="!!checks[s.id]" class="pointer-events-none" />
               <span class="min-w-0 flex-1 truncate text-sm">{{ s.name }}</span>
               <span v-if="otherProxy(s)" class="shrink-0 text-xs text-muted-foreground">
                 当前：{{ otherProxy(s) }}
@@ -142,8 +152,8 @@ function onSave() {
       </div>
 
       <DialogFooter>
-        <Button variant="outline" @click="emit('close')">取消</Button>
-        <Button @click="onSave">保存</Button>
+        <Button variant="outline" :disabled="busy" @click="emit('close')">取消</Button>
+        <Button :disabled="busy" @click="onSave">{{ busy ? '保存中…' : '保存' }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

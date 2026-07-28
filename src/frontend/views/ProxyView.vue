@@ -25,7 +25,7 @@ const isWorkers = computed(() => ui.deployPlatform === 'workers');
 const modalOpen = ref(false);
 const modalEditing = ref<Proxy | null>(null);
 const assignOpen = ref(false);
-const assignProxyName = ref<string | null>(null);
+const assignProxy = ref<Proxy | null>(null);
 
 // 进页拉取。失败 toast，不阻塞渲染（列表为空 → 显示空态）。
 onMounted(async () => {
@@ -87,7 +87,7 @@ async function onDelete(p: Proxy) {
   }
 }
 function onAssign(p: Proxy) {
-  assignProxyName.value = p.name;
+  assignProxy.value = p;
   assignOpen.value = true;
 }
 </script>
@@ -200,7 +200,7 @@ function onAssign(p: Proxy) {
               <LayoutGrid :size="14" />
               配置站点
               <span class="ml-0.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold">
-                {{ proxySiteCount(p.name) }}
+                {{ proxySiteCount(p.id) }}
               </span>
             </Button>
             <Button
@@ -218,6 +218,6 @@ function onAssign(p: Proxy) {
     </div>
 
     <ProxyModal :open="modalOpen" :editing="modalEditing" @close="modalOpen = false" />
-    <SiteAssignModal :open="assignOpen" :proxy-name="assignProxyName" @close="assignOpen = false" />
+    <SiteAssignModal :open="assignOpen" :proxy="assignProxy" @close="assignOpen = false" />
   </div>
 </template>

@@ -1,30 +1,24 @@
-// 测活词池（Phase E 起：编辑弹窗的测活词下拉需要它；完整测活页在 Phase G）。
-// text 为唯一键；站点以 site.probeText=某 text 单值绑定。词条列表 + 全局默认词落 localStorage。
+// 测活词池（接后端 /api/probe-words，每用户隔离，见 0003 迁移）。
+// id 为 CRUD 主键；text 仍是站点绑定键（sites.probe_text 单值绑定某 text）。
+// 全局默认词/开关走每用户 settings(probe_global_text / probe_global_enabled)，非本表。
+// 服务端缓存：任何变更后 reload；改名/删除的级联由后端在 batch 内完成。
 import { reactive } from 'vue';
-import { sitesState } from '@/stores/sites';
+import { api } from '@/api';
+import { sitesState, loadSites } from '@/stores/sites';
 
 export interface ProbeWord {
+  id: number;
   text: string;
   enabled: boolean;
 }
 
-const PROBES_KEY = 'rrelaynest-probes';
-const GLOBAL_KEY = 'rrelaynest-probe-global';
-const GLOBAL_ON_KEY = 'rrelaynest-probe-global-on';
-
-const DEFAULT_PROBE_WORDS: ProbeWord[] = [
-  { text: 'hi', enabled: true },
-  { text: '你好', enabled: true },
-  { text: 'ping', enabled: true },
-];
-
-function loadWords(): ProbeWord[] {
-  try {
-    const raw = localStorage.getItem(PROBES_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed) && parsed.length) return parsed;
-  } catch { /* noop */ }
-  return DEFAULT_PROBE_WORDS.slice();
+interface ProbeWordApiRow {
+  id: number;
+  user_id: number;
+  text: string;
+  enabled: number;
+  created_at: number;
+  updated_at: number;
 }
 
 interface ProbeState {
@@ -34,20 +28,32 @@ interface ProbeState {
 }
 
 export const probeState = reactive<ProbeState>({
-  words: loadWords(),
-  globalText: localStorage.getItem(GLOBAL_KEY) || 'hi',
+  words: [],
+  globalText: 'hi',
   // 全局默认词开关：关闭后未单独绑词的站点渠道测试跳过（测试连接不受影响）。默认开。
-  globalEnabled: localStorage.getItem(GLOBAL_ON_KEY) !== '0',
+  globalEnabled: true,
 });
 
-// 全局词必须指向一个启用中的词条，否则回落到第一条启用词，再兜底 hi
+// 全局词必须指向一个启用中的词条，否则回落到第一条启用词，再兜底 hi。
+// 仅本地显示兜底（Reka Select 拒绝空串值）；实际持久化只在 setGlobalProbe 时发生。
 function normalizeGlobal(): void {
   if (!probeState.words.some((w) => w.text === probeState.globalText && w.enabled)) {
     const first = probeState.words.find((w) => w.enabled);
     probeState.globalText = first ? first.text : 'hi';
   }
 }
-normalizeGlobal();
+
+// ---- 载入（GET /api/probe-words + 从 /api/settings 读全局词/开关）----
+export async function loadProbeWords(): Promise<void> {
+  const [{ words }, { settings }] = await Promise.all([
+    api.get<{ words: ProbeWordApiRow[] }>('/api/probe-words'),
+    api.get<{ settings: Record<string, string> }>('/api/settings'),
+  ]);
+  probeState.words = words.map((w) => ({ id: w.id, text: w.text, enabled: !!w.enabled }));
+  probeState.globalText = settings.probe_global_text || 'hi';
+  probeState.globalEnabled = settings.probe_global_enabled !== '0';
+  normalizeGlobal();
+}
 
 export function probeUsable(text: string): boolean {
   return probeState.words.some((w) => w.text === text && w.enabled);
@@ -61,88 +67,75 @@ export function effectiveProbe(siteProbe?: string): string {
   return '';
 }
 
-export function persistProbes(): void {
-  try {
-    localStorage.setItem(PROBES_KEY, JSON.stringify(probeState.words));
-    localStorage.setItem(GLOBAL_KEY, probeState.globalText);
-    localStorage.setItem(GLOBAL_ON_KEY, probeState.globalEnabled ? '1' : '0');
-  } catch { /* noop */ }
-}
-
 // ---- 查询 ----
-export function findProbe(text: string): ProbeWord | undefined {
-  return probeState.words.find((w) => w.text === text);
+export function findProbe(id: number): ProbeWord | undefined {
+  return probeState.words.find((w) => w.id === id);
 }
-// 重名校验（编辑时用 exclude 排除自身）
-export function probeExists(text: string, exclude: string | null): boolean {
-  return probeState.words.some((w) => w.text === text && w.text !== exclude);
+// 重名校验（编辑时用 excludeId 排除自身）。用于弹窗提交前的本地即时反馈；后端仍会 409 兜底。
+export function probeExists(text: string, excludeId: number | null): boolean {
+  return probeState.words.some((w) => w.text === text && w.id !== excludeId);
 }
 // 绑定到某测活词的站点数（词条卡片「配置站点」徽章）
 export function probeSiteCount(text: string): number {
   return sitesState.list.filter((s) => s.probeText === text).length;
 }
 
-// ---- 全局默认词 ----
-export function setGlobalProbe(text: string): void {
-  probeState.globalText = (text || '').trim() || 'hi';
+// ---- 全局默认词（写 /api/settings）----
+export async function setGlobalProbe(text: string): Promise<void> {
+  const t = (text || '').trim() || 'hi';
+  await api.put('/api/settings', { probe_global_text: t });
+  probeState.globalText = t;
 }
 // 全局默认词开关：关闭后未单独绑词的站点渠道测试跳过。
-export function setGlobalEnabled(on: boolean): void {
+export async function setGlobalEnabled(on: boolean): Promise<void> {
+  await api.put('/api/settings', { probe_global_enabled: on ? '1' : '0' });
   probeState.globalEnabled = on;
 }
 
 // ---- CRUD ----
-// 新增/编辑：edit 传原文本（editingText）；新增传 null。改名会级联同步 sites[].probeText 与 globalText。
-export function saveProbe(text: string, editingText: string | null): void {
-  if (editingText != null) {
-    const ex = findProbe(editingText);
-    if (!ex) return;
-    const oldText = ex.text;
-    ex.text = text;
-    if (oldText !== text) {
-      sitesState.list.forEach((s) => { if (s.probeText === oldText) s.probeText = text; });
-      if (probeState.globalText === oldText) probeState.globalText = text;
-    }
+// 新增/编辑：编辑传 id；新增传 null。改名的级联（sites.probe_text / 全局默认词）由后端处理，
+// 故成功后同时 reload 词池、站点列表与全局设置。
+export async function saveProbe(text: string, editingId: number | null): Promise<void> {
+  if (editingId != null) {
+    await api.put(`/api/probe-words/${editingId}`, { text });
   } else {
-    probeState.words.push({ text, enabled: true });
+    await api.post('/api/probe-words', { text });
   }
-  persistProbes();
+  await Promise.all([loadProbeWords(), loadSites()]);
 }
 
-// 切换启用位；停用的若正是全局默认词，则回落第一条启用词，再兜底 hi。返回切换后的 enabled 态。
-export function toggleProbe(text: string): boolean | null {
-  const w = findProbe(text);
+// 切换启用位。停用的若正是全局默认词，后端会清空该 setting；reload 后本地 normalize 兜底显示。
+// 返回切换后的 enabled 态（null=词不存在）。
+export async function toggleProbe(id: number): Promise<boolean | null> {
+  const w = findProbe(id);
   if (!w) return null;
-  w.enabled = !w.enabled;
-  if (!w.enabled && probeState.globalText === text) {
-    const first = probeState.words.find((x) => x.enabled);
-    probeState.globalText = first ? first.text : 'hi';
-  }
-  persistProbes();
-  return w.enabled;
+  const next = !w.enabled;
+  await api.put(`/api/probe-words/${id}`, { enabled: next });
+  await loadProbeWords();
+  return next;
 }
 
-// 删除：清空绑定它的站点（回落跟随全局）+ 若是全局默认词则回落第一条启用词。
-export function deleteProbe(text: string): boolean {
-  const idx = probeState.words.findIndex((w) => w.text === text);
-  if (idx < 0) return false;
-  sitesState.list.forEach((s) => { if (s.probeText === text) s.probeText = ''; });
-  probeState.words.splice(idx, 1);
-  if (probeState.globalText === text) {
-    const first = probeState.words.find((x) => x.enabled);
-    probeState.globalText = first ? first.text : 'hi';
-  }
-  persistProbes();
+// 删除：后端解绑引用它的站点（probe_text 置 NULL 回落全局）+ 若是全局默认词则清空 setting。
+export async function deleteProbe(id: number): Promise<boolean> {
+  if (!findProbe(id)) return false;
+  await api.del(`/api/probe-words/${id}`);
+  await Promise.all([loadProbeWords(), loadSites()]);
   return true;
 }
 
-// ---- 站点 ↔ 测活词绑定（测活页「配置站点」弹窗保存）----
-// checked 站点绑定此词；取消勾选且原本绑的是此词 → 清空（回落跟随全局）。返回绑定数。
-export function assignSitesToProbe(text: string, checkedNames: Set<string>): number {
+// ---- 站点 ↔ 测活词绑定（测活页「配置站点」弹窗保存，按 id）----
+// checkedIds 站点绑定此词；取消勾选且原本绑的是此词 → 清空(probe_text='' 回落全局)。
+// 逐个 PUT /api/sites/:id { probe_text } 后 reload 站点列表。返回绑定数。
+export async function assignSitesToProbe(text: string, checkedIds: Set<number>): Promise<number> {
   let cnt = 0;
-  sitesState.list.forEach((s) => {
-    if (checkedNames.has(s.name)) { s.probeText = text; cnt++; }
-    else if (s.probeText === text) { s.probeText = ''; }
-  });
+  for (const s of sitesState.list) {
+    if (checkedIds.has(s.id)) {
+      if (s.probeText !== text) await api.put(`/api/sites/${s.id}`, { probe_text: text });
+      cnt++;
+    } else if (s.probeText === text) {
+      await api.put(`/api/sites/${s.id}`, { probe_text: '' });
+    }
+  }
+  await loadSites();
   return cnt;
 }

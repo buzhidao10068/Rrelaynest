@@ -145,9 +145,17 @@ CREATE INDEX IF NOT EXISTS idx_probe_words_user ON probe_words(user_id);
 ALTER TABLE sites ADD COLUMN probe_text TEXT;
 `;
 
+// 0004：站点「用户分组」标签。group_label 是用户自定义的站点归类（主力/备用/测试…），
+// 与爬取所得的 site_groups（上游分组倍率，另一个概念）互不相干。空/NULL = 未分组。
+// 只做 DDL；不回填（新列可空，老数据自然为 NULL = 未分组）。见前端 stores/sites.ts。
+const M0004_GROUP_LABEL = `
+ALTER TABLE sites ADD COLUMN group_label TEXT;
+`;
+
 // 顺序即应用序。
 export const MIGRATIONS: Migration[] = [
   { version: '0001_init', sql: M0001_INIT },
   { version: '0002_multiuser', sql: M0002_MULTIUSER },
   { version: '0003_probe', sql: M0003_PROBE },
+  { version: '0004_group_label', sql: M0004_GROUP_LABEL },
 ];

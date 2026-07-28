@@ -59,6 +59,7 @@ export interface SiteRow {
   last_error: string | null;
   proxy_id: number | null; // 绑定的代理 id；NULL=跟随全局代理（全局也未设则直连）
   probe_text: string | null; // 单站绑定的测活词（空/NULL = 跟随全局默认词）；见 0003 迁移
+  group_label: string | null; // 用户自定义分组标签（主力/备用/测试…）；空/NULL = 未分组。见 0004 迁移
   created_at: number;
   updated_at: number;
 }

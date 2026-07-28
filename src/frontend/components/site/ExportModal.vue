@@ -59,7 +59,7 @@ function collectSel(): Site[] {
   return sitesState.list.filter((s) => checks.value[s.name]);
 }
 
-const CK_TEXT: Record<string, string> = { signed: '已签', manual: '需手动', off: '未启用' };
+const CK_TEXT: Record<string, string> = { signed: '已签', pending: '待签', off: '未启用' };
 
 // CSV 转义：含逗号/引号/换行时包引号，内部引号翻倍
 function esc(v: unknown): string {

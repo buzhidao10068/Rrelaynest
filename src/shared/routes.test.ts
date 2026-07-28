@@ -249,3 +249,47 @@ test('/api/update/check 需登录（不在免登录白名单）→ 401', async (
   const res = await app.request('/api/update/check');
   expect(res.status).toBe(401);
 });
+
+test('0004 group_label + balance 在 POST/PUT/GET 间往返', async () => {
+  const { app } = await setupApp();
+  const cookie = await login(app, 'userA');
+
+  // 建站带 group_label + balance 种子
+  const created = await (
+    await app.request(
+      '/api/sites',
+      authed(cookie, {
+        name: 'S1',
+        base_url: 'https://s1.example.com',
+        group_label: '主力',
+        balance: 12.5,
+      }),
+    )
+  ).json();
+  const sid = created.id;
+
+  let list = await (await app.request('/api/sites', authed(cookie))).json();
+  expect(list.sites[0].group_label).toBe('主力');
+  expect(list.sites[0].balance).toBe(12.5);
+
+  // PUT 改分组；不带 balance → 余额保留
+  const put = await app.request(`/api/sites/${sid}`, {
+    ...authed(cookie, { group_label: '备用' }),
+    method: 'PUT',
+  });
+  expect(put.status).toBe(200);
+
+  list = await (await app.request('/api/sites', authed(cookie))).json();
+  expect(list.sites[0].group_label).toBe('备用');
+  expect(list.sites[0].balance).toBe(12.5); // 未传 balance，保留原值
+
+  // PUT 传空串清分组 → NULL（不分组）
+  const clear = await app.request(`/api/sites/${sid}`, {
+    ...authed(cookie, { group_label: '' }),
+    method: 'PUT',
+  });
+  expect(clear.status).toBe(200);
+
+  list = await (await app.request('/api/sites', authed(cookie))).json();
+  expect(list.sites[0].group_label).toBe(null);
+});

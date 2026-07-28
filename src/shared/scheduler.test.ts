@@ -145,6 +145,25 @@ test('8.5-26 A 间隔到点、B 未到点：只有 A 的站被爬', async () => 
   expect(lastError(raw, sB)).toBeNull();
 });
 
+test('定时爬取总开关 scrape_auto_enabled=0：到点也不爬，但自动签到照常', async () => {
+  const { raw, db, aId } = await setup();
+  // 一个开了自动签到、今日未签的站；到点（last_run=0）。关掉爬取总开关。
+  const sA = insertSite(raw, aId, 'a-site', { checkin_enabled: 1, checkin_done: 0 });
+  const now = Date.now();
+  setSetting(raw, aId, 'last_cron_run_at', '0');
+  setSetting(raw, aId, 'scrape_auto_enabled', '0');
+
+  await runScheduledTick(db, SECRETS, now);
+
+  // 爬取被跳过：无 token 的站若被爬会写 last_error，这里仍为 NULL。
+  expect(lastError(raw, sA)).toBeNull();
+  // 自动签到不受总开关影响：checkin_result 被写（无 token → 写失败原因）。
+  const checkin = (raw.prepare('SELECT checkin_result FROM sites WHERE id = ?').get(sA) as {
+    checkin_result: string | null;
+  }).checkin_result;
+  expect(checkin).not.toBeNull();
+});
+
 test('8.5-27 跨天重置只清对应用户的 checkin_done', async () => {
   const { raw, db, aId, bId } = await setup();
   // 两站都 checkin_done=1、checkin_enabled=0（关掉自动签到，隔离观察重置本身）。

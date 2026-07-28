@@ -24,8 +24,8 @@ async function login() {
   try {
     await api.post('/api/login', { username: username.value, password: password.value });
     // 登录成功后回查会话拿角色/用户名（后端权威）。
-    const s = await api.get<{ authenticated: boolean; username?: string; role?: string }>('/api/session');
-    setSession(s.username ?? username.value, s.role === 'admin' ? 'admin' : 'user');
+    const s = await api.get<{ authenticated: boolean; id?: number; username?: string; role?: string }>('/api/session');
+    setSession(s.id ?? null, s.username ?? username.value, s.role === 'admin' ? 'admin' : 'user');
     password.value = '';
     showView('dashboard');
   } catch (e) {

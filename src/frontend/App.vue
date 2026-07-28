@@ -32,11 +32,11 @@ setUnauthorizedHandler(() => {
 // 启动引导：回查 /api/session。已登录则注入角色/用户名并进主页；否则停在登录页。
 onMounted(async () => {
   try {
-    const s = await api.get<{ authenticated: boolean; username?: string; role?: string }>(
+    const s = await api.get<{ authenticated: boolean; id?: number; username?: string; role?: string }>(
       '/api/session',
     );
     if (s.authenticated) {
-      setSession(s.username ?? '', s.role === 'admin' ? 'admin' : 'user');
+      setSession(s.id ?? null, s.username ?? '', s.role === 'admin' ? 'admin' : 'user');
       if (ui.view === 'login') showView('dashboard');
     }
   } catch {
