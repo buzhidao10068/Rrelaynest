@@ -1,13 +1,60 @@
 <script setup lang="ts">
-// 安全分区（mock）：修改密码 + 两步验证 + Passkey + 会话。演示端仅 UI，不落后端。
+// 安全分区：修改密码=真接后端 POST /api/account/password（改完后端会重签发会话 cookie，本设备保持登录，
+// 别处旧会话被 session_version 吊销）。两步验证 / Passkey / 登出所有设备后端未实现，保持占位（notImpl）。
+import { ref, computed } from 'vue';
 import { Lock, Fingerprint, Smartphone } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { api, ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 
 function notImpl(msg: string) {
   toast(msg, 'info');
+}
+
+// ---- 修改密码 ----
+const current = ref('');
+const next = ref('');
+const confirm = ref('');
+const busy = ref(false);
+
+// 前端预校验（后端仍权威兜底）：三项非空、新密码 ≥8 位、两次一致、新旧不同。
+const canSubmit = computed(
+  () =>
+    !busy.value &&
+    current.value.length > 0 &&
+    next.value.length >= 8 &&
+    next.value === confirm.value &&
+    next.value !== current.value,
+);
+
+async function changePassword() {
+  if (busy.value) return;
+  if (next.value.length < 8) {
+    toast('新密码至少 8 位', 'error');
+    return;
+  }
+  if (next.value !== confirm.value) {
+    toast('两次输入的新密码不一致', 'error');
+    return;
+  }
+  if (next.value === current.value) {
+    toast('新密码不能与当前密码相同', 'error');
+    return;
+  }
+  busy.value = true;
+  try {
+    await api.post('/api/account/password', { current: current.value, next: next.value });
+    current.value = '';
+    next.value = '';
+    confirm.value = '';
+    toast('密码已更新，其他设备的登录会话已失效', 'success');
+  } catch (e) {
+    toast(e instanceof ApiError ? e.message : '密码更新失败', 'error');
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -24,19 +71,19 @@ function notImpl(msg: string) {
       <div class="mt-4 space-y-3">
         <div class="flex items-center gap-4">
           <Label class="w-24 shrink-0 text-right text-muted-foreground">当前密码</Label>
-          <Input type="password" placeholder="输入当前密码" class="w-80" />
+          <Input v-model="current" type="password" placeholder="输入当前密码" class="w-80" autocomplete="current-password" />
         </div>
         <div class="flex items-center gap-4">
           <Label class="w-24 shrink-0 text-right text-muted-foreground">新密码</Label>
-          <Input type="password" placeholder="输入新密码" class="w-80" />
+          <Input v-model="next" type="password" placeholder="至少 8 位" class="w-80" autocomplete="new-password" />
         </div>
         <div class="flex items-center gap-4">
           <Label class="w-24 shrink-0 text-right text-muted-foreground">确认新密码</Label>
-          <Input type="password" placeholder="再次输入新密码" class="w-80" />
+          <Input v-model="confirm" type="password" placeholder="再次输入新密码" class="w-80" autocomplete="new-password" @keyup.enter="changePassword" />
         </div>
         <div class="flex items-center gap-4">
           <span class="w-24 shrink-0" />
-          <Button @click="notImpl('演示端未接后端，密码未实际更新')">更新密码</Button>
+          <Button :disabled="!canSubmit" @click="changePassword">{{ busy ? '更新中…' : '更新密码' }}</Button>
         </div>
       </div>
     </div>

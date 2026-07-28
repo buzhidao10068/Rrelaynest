@@ -199,6 +199,44 @@ export function createApp(deps: AppDeps) {
     return c.json(row);
   });
 
+  // 改自己的登录密码：验当前密码 → 换新哈希 → session_version +1（吊销本用户其余会话/设备）。
+  // 因 +1 会作废包含本次请求在内的所有旧 cookie，故立即用新版本重签发当前会话 cookie，
+  // 让「改密者本人」不被登出，同时别处旧 cookie 全部失效（中间件回查 session_version 不匹配即拒）。
+  app.post('/api/account/password', async (c) => {
+    const { uid } = c.get('user');
+    const body = await c.req
+      .json<{ current?: string; next?: string }>()
+      .catch(() => ({}) as { current?: string; next?: string });
+    const current = body.current ?? '';
+    const next = body.next ?? '';
+    if (!current || !next) return c.json({ error: '当前密码与新密码均必填' }, 400);
+    if (next.length < 8) return c.json({ error: '新密码至少 8 位' }, 400);
+
+    const user = await db
+      .prepare('SELECT * FROM users WHERE id = ?')
+      .bind(uid)
+      .first<UserRow>();
+    if (!user) return c.json({ error: '用户不存在' }, 404);
+    if (!(await verifyPassword(current, user.password_hash))) {
+      return c.json({ error: '当前密码错误' }, 400);
+    }
+    if (await verifyPassword(next, user.password_hash)) {
+      return c.json({ error: '新密码不能与当前密码相同' }, 400);
+    }
+
+    const nextHash = await hashPassword(next);
+    const nextVer = user.session_version + 1; // 吊销旧会话（含别处已登录的设备）
+    await db
+      .prepare('UPDATE users SET password_hash = ?, session_version = ?, updated_at = ? WHERE id = ?')
+      .bind(nextHash, nextVer, Date.now(), uid)
+      .run();
+
+    // 用新 session_version 重签发本会话 cookie，避免改密者本人被自己踢下线。
+    const token = await createSession(secrets.SESSION_SECRET, user.id, user.role, nextVer);
+    c.header('Set-Cookie', sessionCookie(token));
+    return c.json({ ok: true });
+  });
+
   // 检查更新：后端代理 GitHub Releases（避免前端直连的 CORS/限流，并隐藏 repo 细节）。
   // 用平台默认 fetch 直连 GitHub（不走站点代理池——代理是给中转站用的，与 GitHub 无关）。
   // 不做应用内自更新：仅返回是否有新版 + 按平台的手动升级步骤（见 memory update-check-backend-todo）。
