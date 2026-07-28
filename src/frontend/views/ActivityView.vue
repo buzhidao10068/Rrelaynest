@@ -114,7 +114,7 @@ onMounted(async () => {
         <div>
           <h3 class="text-base font-semibold">站点连通性检测</h3>
           <p class="mt-1 text-sm text-muted-foreground">
-            测试连接=真调 {base}/v1/models 计时；渠道测试=对该站每个上游模型发一句测活词，逐个判可用（浏览器直连，受 CORS 限制）。
+            测试连接=后端量各站 {base}/api/pricing 响应耗时；渠道测试=对该站每个上游模型发一句测活词，逐个判可用。均由后端经站点绑定代理发起（不受浏览器 CORS 限制）。
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -126,11 +126,11 @@ onMounted(async () => {
             <LayoutGrid :size="16" />
             分组
           </Button>
-          <Button variant="outline" :disabled="running" title="探测各站响应耗时" @click="runConnectivityCheck">
+          <Button variant="outline" :disabled="running" title="探测各站响应耗时" @click="runConnectivityCheck()">
             <Wifi :size="16" />
             测试连接
           </Button>
-          <Button :disabled="running" title="发一句测活词看模型能否正常回复" @click="runModelCheck">
+          <Button :disabled="running" title="发一句测活词看模型能否正常回复" @click="runModelCheck()">
             <MessageSquare :size="16" />
             渠道测试
           </Button>

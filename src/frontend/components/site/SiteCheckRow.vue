@@ -22,19 +22,19 @@ defineProps<{ site: Site }>();
       </div>
       <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
         <span
-          v-if="connResults[site.name]"
+          v-if="connResults[site.id]"
           class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-          :class="connBadgeClass(connResults[site.name].status)"
-        >{{ connBadgeText(connResults[site.name]) }}</span>
+          :class="connBadgeClass(connResults[site.id].status)"
+        >{{ connBadgeText(connResults[site.id]) }}</span>
         <span
           v-else
           class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
         >连接 待检</span>
         <span
-          v-if="modelResults[site.name]"
+          v-if="modelResults[site.id]"
           class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-          :class="modelBadgeClass(modelResults[site.name].status)"
-        >{{ modelBadgeText(modelResults[site.name]) }}</span>
+          :class="modelBadgeClass(modelResults[site.id].status)"
+        >{{ modelBadgeText(modelResults[site.id]) }}</span>
         <span
           v-else
           class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
@@ -44,9 +44,9 @@ defineProps<{ site: Site }>();
         <Button
           variant="ghost" size="sm"
           class="h-7 px-2"
-          :disabled="running || busySites.has(site.name)"
+          :disabled="running || busySites.has(site.id)"
           title="仅测本站连接"
-          @click="runConnectivityCheck(site.name)"
+          @click="runConnectivityCheck(site.id)"
         >
           <Wifi :size="14" />
           测连接
@@ -54,9 +54,9 @@ defineProps<{ site: Site }>();
         <Button
           variant="ghost" size="sm"
           class="h-7 px-2"
-          :disabled="running || busySites.has(site.name)"
+          :disabled="running || busySites.has(site.id)"
           title="仅测本站渠道（逐模型）"
-          @click="runModelCheck(site.name)"
+          @click="runModelCheck(site.id)"
         >
           <MessageSquare :size="14" />
           测渠道
@@ -66,11 +66,11 @@ defineProps<{ site: Site }>();
 
     <!-- 模型明细 chips：可用绿 / 不可用红 / 测试中蓝 -->
     <div
-      v-if="modelResults[site.name]?.models.length"
+      v-if="modelResults[site.id]?.models.length"
       class="mt-2 flex flex-wrap gap-1.5"
     >
       <span
-        v-for="m in modelResults[site.name].models"
+        v-for="m in modelResults[site.id].models"
         :key="m.id"
         class="inline-flex items-center rounded-md px-2 py-0.5 font-mono text-xs font-medium"
         :class="modelChipClass(m.status)"
