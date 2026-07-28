@@ -16,6 +16,7 @@ import type { StartupResult } from './startup.js';
 import { encryptToken } from './crypto.js';
 import { scrapeAndStore, checkinAndStore, readScrapeConfig } from './scrape-runner.js';
 import { mapWithConcurrency } from './concurrency.js';
+import { fetchLatestRelease } from './version.js';
 
 // 中间件在查库校验 session_version/disabled 通过后注入的当前用户上下文。
 // role 以库里最新值为准（不信 cookie 里的 role），供路由做授权判定。
@@ -36,6 +37,10 @@ export interface AppDeps {
   // Workers 的 /api/admin/bootstrap 首访触发；Node 入口在启动时已自行调过。
   // 未注入则 bootstrap 端点返回 501（该部署不支持首访引导，如 Node 已在启动时完成）。
   runStartup?: (db: Database, secrets: AppSecrets) => Promise<StartupResult>;
+  // 当前部署的应用版本（入口从 package.json version 注入）；供 /api/update/check 与 GitHub 比对。
+  appVersion?: string;
+  // 部署平台标识（'workers' | 'node'）；供 /api/update/check 返回对应平台的升级步骤。
+  platform?: string;
 }
 
 interface SiteInput {
@@ -70,6 +75,10 @@ function bootstrapTokenOk(token: string, adminPassword: string): boolean {
 
 export function createApp(deps: AppDeps) {
   const { db, secrets, makeFetch, runStartup: runStartupDep } = deps;
+  const appVersion = deps.appVersion ?? '0.0.0';
+  const platform = deps.platform ?? 'node';
+  // 更新检查目标 repo（与前端 about store 的 GITHUB_REPO 一致）。
+  const UPDATE_REPO = 'buzhidao10068/Rrelaynest';
   const app = new Hono<{ Variables: AppVariables }>();
 
   // 无状态验签 + 有状态查库校验：通过则返回库里最新 {uid, role}，否则 null。
@@ -184,6 +193,14 @@ export function createApp(deps: AppDeps) {
       .first<{ id: number; username: string; role: string }>();
     if (!row) return c.json({ error: '用户不存在' }, 404);
     return c.json(row);
+  });
+
+  // 检查更新：后端代理 GitHub Releases（避免前端直连的 CORS/限流，并隐藏 repo 细节）。
+  // 用平台默认 fetch 直连 GitHub（不走站点代理池——代理是给中转站用的，与 GitHub 无关）。
+  // 不做应用内自更新：仅返回是否有新版 + 按平台的手动升级步骤（见 memory update-check-backend-todo）。
+  app.get('/api/update/check', async (c) => {
+    const result = await fetchLatestRelease(UPDATE_REPO, appVersion, platform);
+    return c.json(result);
   });
 
   // ==== admin-only 用户管理（见 multiuser-plan 4.2）====

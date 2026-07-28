@@ -243,3 +243,9 @@ test('未登录访问数据端点 → 401', async () => {
   const res = await app.request('/api/sites');
   expect(res.status).toBe(401);
 });
+
+test('/api/update/check 需登录（不在免登录白名单）→ 401', async () => {
+  const { app } = await setupApp();
+  const res = await app.request('/api/update/check');
+  expect(res.status).toBe(401);
+});

@@ -8,6 +8,10 @@ import { runStartupMigration, type StartupDeps } from '../shared/startup.js';
 import { runMigrations } from '../shared/migrate.js';
 import { MIGRATIONS } from '../shared/migrations.js';
 import { hashPassword } from '../shared/password.js';
+// 版本从 package.json 构建期内联（Workers 无文件系统，靠 esbuild/wrangler 打包 JSON import）。
+import pkg from '../../package.json';
+
+const APP_VERSION = (pkg as { version?: string }).version ?? '0.0.0';
 
 // 组合根：把迁移原语绑给 startup（startup 自身只留类型 import，见其顶部说明）。
 // Workers 无启动钩子，故不在此处 await；由 /api/admin/bootstrap 首访触发（双闸 + 令牌）。
@@ -38,6 +42,8 @@ export default {
         db: wrapD1(env.DB),
         secrets: secretsOf(env),
         runStartup: (d, s) => runStartupMigration(d, s, startupDeps),
+        appVersion: APP_VERSION,
+        platform: 'workers',
       });
       return app.fetch(request, env, ctx);
     }

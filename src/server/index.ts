@@ -48,11 +48,23 @@ if (boot.migrationsApplied.length) {
 }
 
 // Node 启动时已完成引导；仍注入 runStartup，使 /api/admin/bootstrap 幂等可用（两平台对称）。
+// 应用版本从 package.json 读取，供 /api/update/check 与 GitHub Releases 比对。
+const APP_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf-8')) as { version?: string };
+    return pkg.version ?? '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+})();
+
 const app = createApp({
   db,
   secrets,
   makeFetch: createProxyFetch,
   runStartup: (d, s) => runStartupMigration(d, s, startupDeps),
+  appVersion: APP_VERSION,
+  platform: 'node',
 });
 
 // 前端静态资源：非 /api/* 的请求交给 serveStatic，未命中回落 index.html（SPA）
