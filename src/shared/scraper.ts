@@ -42,17 +42,46 @@ const QUOTA_PER_UNIT = 500000;
 // 类型用与全局 fetch 兼容的签名，保持本文件平台无关（不 import undici）。
 export interface ScrapeOptions {
   fetchImpl?: FetchLike;
+  timeoutMs?: number; // 单次 HTTP 请求超时；<=0 或未设为不限时（保持原行为）
 }
 
 function normalizeBase(baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '');
 }
 
+// 带超时的 fetch：用 AbortController 在 timeoutMs 后中止请求。timeoutMs<=0 时不设超时。
+// 平台无关：AbortController/AbortSignal 在 Workers 与 Node 18+ 均原生可用。
+async function fetchWithTimeout(
+  doFetch: FetchLike,
+  url: string,
+  init: Record<string, unknown>,
+  timeoutMs?: number,
+): Promise<Response> {
+  if (!timeoutMs || timeoutMs <= 0) return doFetch(url, init);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await doFetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    // AbortController 触发时抛 AbortError；转成可读的超时消息，落到 last_error。
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`请求超时（${timeoutMs}ms）@ ${url}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchJson(url: string, token: string, opts?: ScrapeOptions): Promise<unknown> {
-  const doFetch = opts?.fetchImpl ?? fetch;
-  const resp = await doFetch(url, {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-  });
+  // 全局 fetch 的 init 类型比 FetchLike 更严；两者都能吃我们传的普通对象，故收敛为 FetchLike。
+  const doFetch = (opts?.fetchImpl ?? fetch) as FetchLike;
+  const resp = await fetchWithTimeout(
+    doFetch,
+    url,
+    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } },
+    opts?.timeoutMs,
+  );
   if (!resp.ok) {
     throw new Error(`HTTP ${resp.status} ${resp.statusText} @ ${url}`);
   }
@@ -128,13 +157,18 @@ export async function scrapeSite(baseUrl: string, token: string, opts?: ScrapeOp
 // 失败 {success:false, message:'...'}；该端点挂 TurnstileCheck 中间件。
 export async function checkinSite(baseUrl: string, token: string, opts?: ScrapeOptions): Promise<CheckinResult> {
   const base = normalizeBase(baseUrl);
-  const doFetch = opts?.fetchImpl ?? fetch;
+  const doFetch = (opts?.fetchImpl ?? fetch) as FetchLike;
   let resp: Response;
   try {
-    resp = await doFetch(`${base}/api/user/checkin`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-    });
+    resp = await fetchWithTimeout(
+      doFetch,
+      `${base}/api/user/checkin`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      },
+      opts?.timeoutMs,
+    );
   } catch (err) {
     return {
       ok: false,

@@ -14,7 +14,8 @@ import {
 import { verifyPassword, hashPassword } from './password.js';
 import type { StartupResult } from './startup.js';
 import { encryptToken } from './crypto.js';
-import { scrapeAndStore, checkinAndStore } from './scrape-runner.js';
+import { scrapeAndStore, checkinAndStore, readScrapeConfig } from './scrape-runner.js';
+import { mapWithConcurrency } from './concurrency.js';
 
 // 中间件在查库校验 session_version/disabled 通过后注入的当前用户上下文。
 // role 以库里最新值为准（不信 cookie 里的 role），供路由做授权判定。
@@ -548,21 +549,24 @@ export function createApp(deps: AppDeps) {
       .bind(id, uid)
       .first<SiteRow>();
     if (!site) return c.json({ error: '站点不存在' }, 404); // 不属己也 404，避免探测
-    const result = await scrapeAndStore(db, secrets, site, makeFetch);
+    const { config } = await readScrapeConfig(db, uid);
+    const result = await scrapeAndStore(db, secrets, site, makeFetch, config);
     return c.json(result);
   });
 
   // ---- 手动爬取全部站点（仅自己的）----
+  // 应用每用户 scrape 配置：受限并发 + 单站超时 + 失败重试（见 [[scraper-backend-concurrency-todo]]）。
   app.post('/api/scrape-all', async (c) => {
     const { uid } = c.get('user');
     const sites = await db
       .prepare('SELECT * FROM sites WHERE user_id = ?')
       .bind(uid)
       .all<SiteRow>();
-    const results = [];
-    for (const site of sites.results) {
-      results.push(await scrapeAndStore(db, secrets, site, makeFetch));
-    }
+    const { config, concurrency } = await readScrapeConfig(db, uid);
+    // scrapeAndStore 自身吞异常返回 outcome，故 mapper 不抛，可安全用受限并发。
+    const results = await mapWithConcurrency(sites.results, concurrency, (site) =>
+      scrapeAndStore(db, secrets, site, makeFetch, config),
+    );
     return c.json({ results });
   });
 
@@ -575,7 +579,8 @@ export function createApp(deps: AppDeps) {
       .bind(id, uid)
       .first<SiteRow>();
     if (!site) return c.json({ error: '站点不存在' }, 404); // 不属己也 404，避免探测
-    const result = await checkinAndStore(db, secrets, site, makeFetch);
+    const { config } = await readScrapeConfig(db, uid);
+    const result = await checkinAndStore(db, secrets, site, makeFetch, config);
     return c.json(result);
   });
 

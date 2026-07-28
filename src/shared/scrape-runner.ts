@@ -6,6 +6,45 @@ import type { Database } from './db.js';
 import type { SiteRow, AppSecrets, ProxyRow, MakeFetch, FetchLike } from './types.js';
 import { decryptToken } from './crypto.js';
 import { scrapeSite, checkinSite } from './scraper.js';
+import { retryAsync } from './concurrency.js';
+
+// 单站爬取/签到的运行配置：超时 + 重试（并发在批量层控制，见 scrape-all / scheduler）。
+// 来源为每用户 settings（scrape_timeout_sec / scrape_retry），由调用方读出后传入。
+export interface ScrapeConfig {
+  timeoutMs?: number; // 单次 HTTP 请求超时；<=0/未设为不限时
+  retries?: number; // 失败重试次数（额外尝试）；<=0 只跑一次。仅爬取重试，签到不重试（避免重复签到）
+}
+
+// 每用户 settings 的爬取配置默认值（面板未设时用）。
+const DEFAULT_TIMEOUT_SEC = 15;
+const DEFAULT_RETRY = 1;
+const DEFAULT_CONCURRENCY = 5;
+
+// 从每用户 settings 读爬取配置。缺省时回落默认值；非法值被夹到安全范围。
+export async function readScrapeConfig(
+  db: Database,
+  userId: number,
+): Promise<{ config: ScrapeConfig; concurrency: number }> {
+  const rows = await db
+    .prepare(
+      "SELECT key, value FROM settings WHERE user_id = ? AND key IN ('scrape_timeout_sec','scrape_retry','scrape_concurrency')",
+    )
+    .bind(userId)
+    .all<{ key: string; value: string }>();
+  const map: Record<string, string> = {};
+  for (const r of rows.results) map[r.key] = r.value;
+
+  const timeoutSec = clampNum(map.scrape_timeout_sec, DEFAULT_TIMEOUT_SEC, 1, 600);
+  const retries = clampNum(map.scrape_retry, DEFAULT_RETRY, 0, 10);
+  const concurrency = clampNum(map.scrape_concurrency, DEFAULT_CONCURRENCY, 1, 100);
+  return { config: { timeoutMs: timeoutSec * 1000, retries }, concurrency };
+}
+
+function clampNum(raw: string | undefined, fallback: number, min: number, max: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(n)));
+}
 
 // 解析某站点实际该走的代理，返回绑好代理的 fetch（未注入工厂/直连时为 undefined，scraper 回落全局 fetch）。
 // 选取优先级（与前端一致）：站点自绑代理(enabled) > 全局代理(enabled) > 直连。
@@ -107,6 +146,7 @@ export async function scrapeAndStore(
   secrets: AppSecrets,
   site: SiteRow,
   makeFetch?: MakeFetch,
+  config?: ScrapeConfig,
 ): Promise<ScrapeOutcome> {
   const now = Date.now();
   const token = await resolveToken(db, secrets, site, now, 'last_error');
@@ -116,7 +156,11 @@ export async function scrapeAndStore(
 
   try {
     const fetchImpl = await resolveFetch(db, secrets, site, makeFetch);
-    const result = await scrapeSite(site.base_url, token, { fetchImpl });
+    // 网络爬取按配置重试（DB 落库不在重试范围内）。签到不重试（见 checkinAndStore 注释）。
+    const result = await retryAsync(
+      () => scrapeSite(site.base_url, token, { fetchImpl, timeoutMs: config?.timeoutMs }),
+      { retries: config?.retries ?? 0 },
+    );
 
     // 事务批量替换该站点的分组与模型
     const stmts = [
@@ -193,6 +237,7 @@ export async function checkinAndStore(
   secrets: AppSecrets,
   site: SiteRow,
   makeFetch?: MakeFetch,
+  config?: ScrapeConfig,
 ): Promise<CheckinOutcome> {
   const now = Date.now();
   const token = await resolveToken(db, secrets, site, now, 'checkin_result');
@@ -200,9 +245,9 @@ export async function checkinAndStore(
     return { site_id: site.id, name: site.name, ok: false, result: '未配置 access token 或解密失败' };
   }
 
-  // 签到走与爬取相同的代理
+  // 签到走与爬取相同的代理。只应用超时，不重试——签到非幂等，重试可能重复签到或触发风控。
   const fetchImpl = await resolveFetch(db, secrets, site, makeFetch);
-  const outcome = await checkinSite(site.base_url, token, { fetchImpl });
+  const outcome = await checkinSite(site.base_url, token, { fetchImpl, timeoutMs: config?.timeoutMs });
 
   if (outcome.ok) {
     await db

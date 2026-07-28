@@ -5,7 +5,8 @@
 // runScheduledTick 先取所有未停用用户，逐用户按「其」scrape_interval_min / last_cron_run_at
 // 节流、只爬「其」站点；跨天重置只清「其」站点的 checkin_done。停用用户不参与定时（见 8.5-28）。
 import type { Database, AppSecrets, SiteRow, MakeFetch } from './types.js';
-import { scrapeAndStore, checkinAndStore } from './scrape-runner.js';
+import { scrapeAndStore, checkinAndStore, readScrapeConfig } from './scrape-runner.js';
+import { mapWithConcurrency } from './concurrency.js';
 
 // 日界固定用 UTC+8，避免 Workers(UTC) 与 Docker(本地时区) 的跨天判定不一致。
 const TZ_OFFSET_MS = 8 * 60 * 60 * 1000;
@@ -59,13 +60,17 @@ async function runUserTick(
   const lastRun = Number((await getSetting(db, userId, 'last_cron_run_at')) ?? '0');
   const due = now - lastRun >= intervalMin * 60 * 1000;
 
+  // 该用户的爬取配置（并发/超时/重试），爬取与签到共用（见 [[scraper-backend-concurrency-todo]]）。
+  const { config, concurrency } = await readScrapeConfig(db, userId);
+
   if (due) {
     // 先占位时间戳，避免多次触发叠加
     await setSetting(db, userId, 'last_cron_run_at', String(now));
     const sites = await db.prepare('SELECT * FROM sites WHERE user_id = ?').bind(userId).all<SiteRow>();
-    for (const site of sites.results) {
-      await scrapeAndStore(db, secrets, site, makeFetch);
-    }
+    // scrapeAndStore 自身吞异常返回 outcome，mapper 不抛 → 可安全用受限并发。
+    await mapWithConcurrency(sites.results, concurrency, (site) =>
+      scrapeAndStore(db, secrets, site, makeFetch, config),
+    );
   }
 
   // 3) 自动签到：仅对该用户已开启且今日未签的站（独立于爬取节流，每次 tick 都尝试补签）
@@ -73,9 +78,9 @@ async function runUserTick(
     .prepare('SELECT * FROM sites WHERE user_id = ? AND checkin_enabled = 1 AND checkin_done = 0')
     .bind(userId)
     .all<SiteRow>();
-  for (const site of pending.results) {
-    await checkinAndStore(db, secrets, site, makeFetch);
-  }
+  await mapWithConcurrency(pending.results, concurrency, (site) =>
+    checkinAndStore(db, secrets, site, makeFetch, config),
+  );
 }
 
 export async function runScheduledTick(
