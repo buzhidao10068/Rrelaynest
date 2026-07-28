@@ -237,6 +237,24 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true });
   });
 
+  // 登出所有设备：session_version +1 作废本用户全部会话（含当前设备），并清当前 cookie。
+  // 与改密不同——这里**不重签发**，当前设备也一并登出（这正是「登出所有设备」的目的：
+  // 怀疑账号被盗时一键踢掉所有登录）。前端收到 ok 后切回登录页。
+  app.post('/api/account/logout-all', async (c) => {
+    const { uid } = c.get('user');
+    const user = await db
+      .prepare('SELECT session_version FROM users WHERE id = ?')
+      .bind(uid)
+      .first<{ session_version: number }>();
+    if (!user) return c.json({ error: '用户不存在' }, 404);
+    await db
+      .prepare('UPDATE users SET session_version = ?, updated_at = ? WHERE id = ?')
+      .bind(user.session_version + 1, Date.now(), uid)
+      .run();
+    c.header('Set-Cookie', clearCookie());
+    return c.json({ ok: true });
+  });
+
   // 检查更新：后端代理 GitHub Releases（避免前端直连的 CORS/限流，并隐藏 repo 细节）。
   // 用平台默认 fetch 直连 GitHub（不走站点代理池——代理是给中转站用的，与 GitHub 无关）。
   // 不做应用内自更新：仅返回是否有新版 + 按平台的手动升级步骤（见 memory update-check-backend-todo）。

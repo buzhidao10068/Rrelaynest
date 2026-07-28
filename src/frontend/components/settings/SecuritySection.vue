@@ -1,16 +1,37 @@
 <script setup lang="ts">
-// 安全分区：修改密码=真接后端 POST /api/account/password（改完后端会重签发会话 cookie，本设备保持登录，
-// 别处旧会话被 session_version 吊销）。两步验证 / Passkey / 登出所有设备后端未实现，保持占位（notImpl）。
+// 安全分区：修改密码 + 登出所有设备=真接后端（POST /api/account/password、/api/account/logout-all，
+// 均靠 session_version +1 即时吊销旧会话）。改密后端重签发本会话 cookie 保持本设备登录；登出所有设备
+// 则连本设备一起踢下线（切回登录页）。两步验证 / Passkey 后端未实现，保持占位（notImpl）。
 import { ref, computed } from 'vue';
 import { Lock, Fingerprint, Smartphone } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { api, ApiError } from '@/api';
+import { clearSession } from '@/stores/users';
+import { showView } from '@/stores/ui';
 import { toast } from '@/composables/useToast';
 
 function notImpl(msg: string) {
   toast(msg, 'info');
+}
+
+// ---- 登出所有设备 ----
+const loggingOutAll = ref(false);
+async function logoutAll() {
+  if (loggingOutAll.value) return;
+  if (!window.confirm('登出所有设备？包括当前设备，需要重新登录。')) return;
+  loggingOutAll.value = true;
+  try {
+    await api.post('/api/account/logout-all');
+    toast('已登出所有设备，请重新登录', 'success');
+    clearSession();
+    showView('login');
+  } catch (e) {
+    toast(e instanceof ApiError ? e.message : '登出所有设备失败', 'error');
+  } finally {
+    loggingOutAll.value = false;
+  }
 }
 
 // ---- 修改密码 ----
@@ -142,7 +163,7 @@ async function changePassword() {
     <div class="rounded-lg border border-border p-5">
       <p class="text-sm font-medium">会话</p>
       <p class="mt-1 text-xs text-muted-foreground">登录会话有效期 7 天（HttpOnly + Secure Cookie）。</p>
-      <Button variant="outline" size="sm" class="mt-3" @click="notImpl('演示端未接后端')">登出所有设备</Button>
+      <Button variant="outline" size="sm" class="mt-3" :disabled="loggingOutAll" @click="logoutAll">{{ loggingOutAll ? '登出中…' : '登出所有设备' }}</Button>
     </div>
   </div>
 </template>

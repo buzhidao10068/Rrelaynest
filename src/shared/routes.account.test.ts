@@ -184,3 +184,31 @@ test('改密后新密码可登录、旧密码不可', async () => {
   });
   expect(bad.status).toBe(401);
 });
+
+const LOGOUT_ALL = '/api/account/logout-all';
+
+test('登出所有设备：清当前 cookie + 旧 cookie 失效（session_version +1）', async () => {
+  const { app } = await setupApp();
+  const cookie = await login(app, 'alice', 'pw-initial');
+  const res = await app.request(LOGOUT_ALL, authed(cookie, {}));
+  expect(res.status).toBe(200);
+  // 响应清了 cookie（Max-Age=0 / 空值）
+  const setCookie = res.headers.get('Set-Cookie') ?? '';
+  expect(setCookie).toContain('rn_session=;');
+  // 原 cookie 再访问 → 401（session_version 已 +1）
+  const me = await app.request('/api/me', authed(cookie));
+  expect(me.status).toBe(401);
+});
+
+test('登出所有设备不改密码：原密码仍可登录', async () => {
+  const { app } = await setupApp();
+  const cookie = await login(app, 'alice', 'pw-initial');
+  await app.request(LOGOUT_ALL, authed(cookie, {}));
+  // 密码没变，原密码仍能重新登录
+  const ok = await app.request('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'alice', password: 'pw-initial' }),
+  });
+  expect(ok.status).toBe(200);
+});
