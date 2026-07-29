@@ -8,11 +8,28 @@ import type { Database, AppSecrets, SiteRow, MakeFetch } from './types.js';
 import { scrapeAndStore, checkinAndStore, readScrapeConfig } from './scrape-runner.js';
 import { mapWithConcurrency } from './concurrency.js';
 
-// 日界固定用 UTC+8，避免 Workers(UTC) 与 Docker(本地时区) 的跨天判定不一致。
-const TZ_OFFSET_MS = 8 * 60 * 60 * 1000;
+// 跨天判定的默认时区：与前端 settings 默认值一致（避免 Workers UTC 与 Docker 本地时区漂移）。
+// 每用户可覆盖为 IANA 名（settings.reset_timezone，如 'America/New_York'）。
+const DEFAULT_TZ = 'Asia/Shanghai';
 
-function dayIndex(ts: number): number {
-  return Math.floor((ts + TZ_OFFSET_MS) / (24 * 60 * 60 * 1000));
+// 返回该时间戳在指定 IANA 时区下的日期字符串（YYYY-MM-DD）。用作跨天判定键。
+// 无效 tz（如用户手误）静默回落到默认时区，避免调度器为一个坏配置整体崩掉。
+function dayString(ts: number, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(ts));
+  } catch {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: DEFAULT_TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(ts));
+  }
 }
 
 // 每用户设置读写：复合主键 (user_id, key)（见 multiuser-plan 1.3）。
@@ -34,9 +51,11 @@ async function setSetting(db: Database, userId: number, key: string, value: stri
 }
 
 // 跨天则把「该用户」名下站点的 checkin_done 归零，供当天重新自动签到。
+// 时区取该用户 settings.reset_timezone，缺省 Asia/Shanghai（与前端默认一致）。
 async function maybeResetCheckin(db: Database, userId: number, now: number): Promise<void> {
+  const tz = (await getSetting(db, userId, 'reset_timezone')) ?? DEFAULT_TZ;
   const lastReset = Number((await getSetting(db, userId, 'checkin_last_reset_at')) ?? '0');
-  if (dayIndex(now) === dayIndex(lastReset)) return;
+  if (dayString(now, tz) === dayString(lastReset, tz)) return;
   await db
     .prepare('UPDATE sites SET checkin_done = 0 WHERE user_id = ? AND checkin_done = 1')
     .bind(userId)

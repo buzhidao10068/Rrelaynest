@@ -15,6 +15,7 @@ import {
   type Site,
 } from '@/stores/sites';
 import { loadProxies } from '@/stores/proxies';
+import { loadSettings } from '@/stores/settings';
 import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 import SiteToolbar from '@/components/site/SiteToolbar.vue';
@@ -37,7 +38,7 @@ function errMsg(e: unknown, fallback: string): string {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadSites(), loadProxies()]);
+    await Promise.all([loadSites(), loadProxies(), loadSettings()]);
   } catch (e) {
     toast(errMsg(e, '加载站点失败'), 'error');
   }

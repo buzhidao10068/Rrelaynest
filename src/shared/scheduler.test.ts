@@ -183,6 +183,47 @@ test('8.5-27 跨天重置只清对应用户的 checkin_done', async () => {
   expect(checkinDone(raw, sB)).toBe(1); // B 未被重置
 });
 
+test('跨天重置感知 reset_timezone：同一 UTC 时刻，Shanghai 用户跨天而 NY 用户未跨', async () => {
+  const { raw, db, aId, bId } = await setup();
+  // A=Shanghai(UTC+8) / B=New_York(EST UTC-5)。now=2025-01-01 22:00Z。
+  //   Shanghai: 2025-01-02 06:00 → 日=2025-01-02
+  //   NY: 2025-01-01 17:00 → 日=2025-01-01
+  // 上次重置 = now-12h = 2025-01-01 10:00Z。
+  //   Shanghai 上次=2025-01-01 18:00(日 01-01) ≠ 现在(日 01-02) → 应重置。
+  //   NY 上次=2025-01-01 05:00(日 01-01) == 现在(日 01-01) → 不重置。
+  const now = Date.UTC(2025, 0, 1, 22, 0, 0);
+  const lastReset = now - 12 * 60 * 60 * 1000;
+  const sA = insertSite(raw, aId, 'a-site', { checkin_enabled: 0, checkin_done: 1 });
+  const sB = insertSite(raw, bId, 'b-site', { checkin_enabled: 0, checkin_done: 1 });
+  setSetting(raw, aId, 'reset_timezone', 'Asia/Shanghai');
+  setSetting(raw, bId, 'reset_timezone', 'America/New_York');
+  setSetting(raw, aId, 'checkin_last_reset_at', String(lastReset));
+  setSetting(raw, bId, 'checkin_last_reset_at', String(lastReset));
+  // 都刚跑过，隔离爬取分支只看重置。
+  setSetting(raw, aId, 'last_cron_run_at', String(now));
+  setSetting(raw, bId, 'last_cron_run_at', String(now));
+
+  await runScheduledTick(db, SECRETS, now);
+
+  expect(checkinDone(raw, sA)).toBe(0); // Shanghai 跨天 → 重置
+  expect(checkinDone(raw, sB)).toBe(1); // NY 未跨天 → 保留
+});
+
+test('无效时区静默回落默认(Asia/Shanghai)：不因坏配置崩溃', async () => {
+  const { raw, db, aId } = await setup();
+  const sA = insertSite(raw, aId, 'a-site', { checkin_enabled: 0, checkin_done: 1 });
+  const now = Date.UTC(2025, 0, 1, 22, 0, 0); // Shanghai: 01-02 06:00
+  const lastReset = now - 12 * 60 * 60 * 1000; // Shanghai: 01-01 18:00
+  setSetting(raw, aId, 'reset_timezone', 'Not/A_Real_TZ');
+  setSetting(raw, aId, 'checkin_last_reset_at', String(lastReset));
+  setSetting(raw, aId, 'last_cron_run_at', String(now));
+
+  await runScheduledTick(db, SECRETS, now);
+
+  // 回落到 Shanghai → 跨天 → 应重置。
+  expect(checkinDone(raw, sA)).toBe(0);
+});
+
 test('8.5-28 停用用户不参与定时：不爬其站、不签其到', async () => {
   const { raw, db, aId, bId } = await setup();
   // B 停用；两用户都「到点」。

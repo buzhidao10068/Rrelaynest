@@ -22,6 +22,7 @@ import {
 } from '@/stores/sites';
 import { probeState } from '@/stores/probes';
 import { proxyState } from '@/stores/proxies';
+import { settingsState } from '@/stores/settings';
 import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 
@@ -112,7 +113,8 @@ watch(
       probeText.value = '';
       email.value = '';
       note.value = '';
-      ckMaster.value = false;
+      // 新建默认签到态取「新增站点默认开启签到」设置（settings.checkinDefaultOn）。
+      ckMaster.value = settingsState.checkinDefaultOn;
       models.value = [];
     }
   },

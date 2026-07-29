@@ -7,7 +7,7 @@ import {
 } from 'lucide-vue-next';
 import AppHeader from '@/components/AppHeader.vue';
 import { users } from '@/stores/users';
-import { settingsState } from '@/stores/settings';
+import { settingsState, loadSettings } from '@/stores/settings';
 import GeneralSection from '@/components/settings/GeneralSection.vue';
 import SecuritySection from '@/components/settings/SecuritySection.vue';
 import CheckinSection from '@/components/settings/CheckinSection.vue';
@@ -47,7 +47,11 @@ function consumePending() {
   }
   settingsState.pendingSection = null;
 }
-onMounted(consumePending);
+onMounted(() => {
+  consumePending();
+  // 从后端加载杂项设置（checkinDefaultOn / timezone）；失败静默（api 层已 toast）。
+  void loadSettings().catch(() => { /* noop */ });
+});
 watch(() => settingsState.pendingSection, (p) => { if (p) consumePending(); });
 
 // 角色切到非 admin 且正停在 privacy 分区 → 回退通用偏好（模拟后端 403 兜底）
