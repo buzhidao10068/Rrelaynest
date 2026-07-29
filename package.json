@@ -26,6 +26,9 @@
     "socks": "^2.8.9",
     "undici": "^8.9.0"
   },
+  "overrides": {
+    "brace-expansion": "^2.1.3"
+  },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260724.1",
     "@types/node": "^22.10.2",
