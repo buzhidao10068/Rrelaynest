@@ -1,11 +1,14 @@
 <script setup lang="ts">
-// 安全分区：修改密码 + 两步验证(TOTP) + 登出所有设备，全部真接后端。
+// 安全分区：修改密码 + 两步验证(TOTP) + Passkey + 登出所有设备，全部真接后端。
 // - 改密 / 登出所有设备：靠 session_version +1 即时吊销旧会话（见 [[frontend-wiring-block8]]）。
 // - 两步验证：状态读 /api/me 的 totp_enabled；启用走 TotpEnrollDialog（setup→enable），
 //     停用需验当前密码（POST /api/account/totp/disable）。见 shared/routes.ts、shared/totp.ts。
-// - Passkey：后端尚未实现（仅评估了可行性），故不展示，避免假数据误导。
+// - Passkey：列 /api/account/passkeys；添加走 register/options→浏览器 create→register/verify；
+//     删除 DELETE /api/account/passkeys/:id。见 shared/routes.ts 的 /api/account/passkey/*。
 import { ref, computed, onMounted } from 'vue';
-import { Lock } from 'lucide-vue-next';
+import { Lock, Fingerprint, Trash2 } from 'lucide-vue-next';
+import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
+import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -37,6 +40,76 @@ onMounted(loadMfaStatus);
 function onEnrollClose(enabled: boolean) {
   enrollOpen.value = false;
   if (enabled) totpEnabled.value = true;
+}
+
+// ---- Passkey 管理 ----
+interface PasskeyRow {
+  id: number;
+  name: string | null;
+  created_at: number;
+  last_used_at: number | null;
+}
+const passkeySupported = ref(false);
+const passkeys = ref<PasskeyRow[]>([]);
+const passkeysLoaded = ref(false);
+const addingPasskey = ref(false);
+
+async function loadPasskeys() {
+  try {
+    const r = await api.get<{ passkeys: PasskeyRow[] }>('/api/account/passkeys');
+    passkeys.value = r.passkeys ?? [];
+    passkeysLoaded.value = true;
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 401)) passkeysLoaded.value = true;
+  }
+}
+onMounted(() => {
+  passkeySupported.value = browserSupportsWebAuthn();
+  if (passkeySupported.value) loadPasskeys();
+});
+
+// 添加 Passkey：① 取注册 options + 挑战票 → ② 浏览器唤起认证器创建凭证 →
+// ③ 凭票 + 断言 + 可选名称走 register/verify 落库。成功后刷新列表。
+async function addPasskey() {
+  if (addingPasskey.value) return;
+  addingPasskey.value = true;
+  try {
+    const { options, ticket } = await api.post<{
+      options: PublicKeyCredentialCreationOptionsJSON;
+      ticket: string;
+    }>('/api/account/passkey/register/options');
+    const response = await startRegistration({ optionsJSON: options });
+    // 设备名：取平台默认（可留空，后端存 NULL）。这里用简单的时间戳可读名兜底，用户可后续管理。
+    const name = defaultPasskeyName();
+    await api.post('/api/account/passkey/register/verify', { ticket, response, name });
+    toast('Passkey 添加成功', 'success');
+    await loadPasskeys();
+  } catch (e) {
+    if (e instanceof Error && (e.name === 'NotAllowedError' || e.name === 'AbortError')) return;
+    if (!(e instanceof ApiError && e.status === 401)) {
+      toast(e instanceof Error ? e.message : '添加 Passkey 失败', 'error');
+    }
+  } finally {
+    addingPasskey.value = false;
+  }
+}
+
+// 缺省设备名：用当前日期，便于用户区分（如「Passkey · 2026/7/29」）。
+function defaultPasskeyName(): string {
+  return `Passkey · ${new Date().toLocaleDateString()}`;
+}
+
+async function removePasskey(id: number) {
+  if (!window.confirm('删除这个 Passkey？删除后该设备将无法再用它登录。')) return;
+  try {
+    await api.del(`/api/account/passkeys/${id}`);
+    passkeys.value = passkeys.value.filter((p) => p.id !== id);
+    toast('Passkey 已删除', 'success');
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 401)) {
+      toast(e instanceof Error ? e.message : '删除失败', 'error');
+    }
+  }
 }
 
 // ---- 停用两步验证（需验当前密码）----
@@ -132,7 +205,7 @@ async function changePassword() {
   <div class="space-y-6">
     <div>
       <h3 class="text-base font-semibold">安全</h3>
-      <p class="mt-1 text-sm text-muted-foreground">登录密码、两步验证与会话。</p>
+      <p class="mt-1 text-sm text-muted-foreground">登录密码、两步验证、Passkey 与会话。</p>
     </div>
 
     <!-- 修改密码 -->
@@ -182,6 +255,63 @@ async function changePassword() {
         <Button v-if="totpLoaded && !totpEnabled" class="shrink-0" @click="enrollOpen = true">启用</Button>
         <Button v-else-if="totpLoaded && totpEnabled" variant="outline" class="shrink-0" @click="disableOpen = true">关闭</Button>
       </div>
+    </div>
+
+    <!-- Passkey（无密码登录）-->
+    <div class="rounded-lg border border-border p-5">
+      <div class="flex items-start gap-3">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+          <Fingerprint :size="18" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium">Passkey（无密码登录）</p>
+          <p class="mt-1 text-xs text-muted-foreground">
+            用设备的指纹 / 面容 / PIN 或安全密钥登录，无需输入密码。可注册多枚（多设备）。
+          </p>
+        </div>
+        <Button
+          v-if="passkeySupported"
+          class="shrink-0"
+          :disabled="addingPasskey"
+          @click="addPasskey"
+        >{{ addingPasskey ? '添加中…' : '添加 Passkey' }}</Button>
+      </div>
+
+      <!-- 浏览器不支持 -->
+      <p v-if="!passkeySupported" class="mt-3 text-xs text-amber-600 dark:text-amber-400">
+        当前浏览器不支持 WebAuthn / Passkey，无法添加。
+      </p>
+
+      <!-- 已注册列表 -->
+      <ul v-else-if="passkeys.length" class="mt-4 space-y-2">
+        <li
+          v-for="pk in passkeys"
+          :key="pk.id"
+          class="flex items-center gap-3 rounded-md border border-border px-3 py-2"
+        >
+          <Fingerprint :size="16" class="shrink-0 text-muted-foreground" />
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm">{{ pk.name || `Passkey #${pk.id}` }}</p>
+            <p class="text-xs text-muted-foreground">
+              添加于 {{ new Date(pk.created_at).toLocaleString() }}
+              <template v-if="pk.last_used_at"> · 最近使用 {{ new Date(pk.last_used_at).toLocaleString() }}</template>
+            </p>
+          </div>
+          <button
+            type="button"
+            class="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-500"
+            title="删除"
+            @click="removePasskey(pk.id)"
+          >
+            <Trash2 :size="15" />
+          </button>
+        </li>
+      </ul>
+
+      <!-- 支持但尚无凭证 -->
+      <p v-else-if="passkeysLoaded" class="mt-3 text-xs text-muted-foreground">
+        还没有 Passkey。点击「添加 Passkey」用本设备注册一枚。
+      </p>
     </div>
 
     <!-- 会话 -->

@@ -2,8 +2,10 @@
 // 登录页。真实端：POST /api/login {username, password}。
 // 开了两步验证的用户：第一步不发会话，改返 { mfaRequired, ticket }；前端切到第二步，
 // 凭 ticket + 6 位 TOTP 码（或备份码）走 POST /api/login/totp 换会话。见 shared/routes.ts。
-import { ref, nextTick } from 'vue';
-import { ShieldCheck, KeyRound } from 'lucide-vue-next';
+import { ref, nextTick, onMounted } from 'vue';
+import { ShieldCheck, KeyRound, Fingerprint } from 'lucide-vue-next';
+import { startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/browser';
+import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 import { showView } from '@/stores/ui';
 import { setSession } from '@/stores/users';
 import { api } from '@/api';
@@ -15,6 +17,13 @@ import { Label } from '@/components/ui/label';
 const username = ref('');
 const password = ref('');
 const busy = ref(false);
+
+// Passkey（无密码登录）：仅在浏览器支持 WebAuthn 时展示入口。
+const passkeySupported = ref(false);
+const passkeyBusy = ref(false);
+onMounted(() => {
+  passkeySupported.value = browserSupportsWebAuthn();
+});
 
 // 两步验证第二步状态
 const mfaTicket = ref<string | null>(null); // 非空 = 进入第二步
@@ -82,6 +91,30 @@ function cancelMfa() {
   mfaCode.value = '';
   password.value = '';
 }
+
+// 无密码登录（Passkey）：① 取认证 options + 挑战票 → ② 浏览器唤起认证器签名 →
+// ③ 凭票 + 断言走 /api/login/passkey/verify 换会话。Passkey 已含用户验证（强因子），
+// 登录成功即免第二步 TOTP。见 shared/routes.ts 的 /api/login/passkey/*。
+async function loginPasskey() {
+  if (passkeyBusy.value) return;
+  passkeyBusy.value = true;
+  try {
+    const { options, ticket } = await api.post<{
+      options: PublicKeyCredentialRequestOptionsJSON;
+      ticket: string;
+    }>('/api/login/passkey/options');
+    // 唤起认证器（用户取消会 throw，归类为「已取消」而非报错）。
+    const response = await startAuthentication({ optionsJSON: options });
+    await api.post('/api/login/passkey/verify', { ticket, response });
+    await finishLogin();
+  } catch (e) {
+    // 用户主动取消（NotAllowedError / AbortError）不弹错误提示。
+    if (e instanceof Error && (e.name === 'NotAllowedError' || e.name === 'AbortError')) return;
+    toast(e instanceof Error ? e.message : 'Passkey 登录失败', 'error');
+  } finally {
+    passkeyBusy.value = false;
+  }
+}
 </script>
 
 <template>
@@ -119,6 +152,24 @@ function cancelMfa() {
         <Button class="w-full" :disabled="busy" @click="login">
           {{ busy ? '登录中…' : '登录' }}
         </Button>
+
+        <!-- 无密码登录（Passkey）：仅在浏览器支持 WebAuthn 时展示 -->
+        <template v-if="passkeySupported">
+          <div class="flex items-center gap-3">
+            <span class="h-px flex-1 bg-border" />
+            <span class="text-xs text-muted-foreground">或</span>
+            <span class="h-px flex-1 bg-border" />
+          </div>
+          <Button
+            variant="outline"
+            class="w-full gap-2"
+            :disabled="passkeyBusy"
+            @click="loginPasskey"
+          >
+            <Fingerprint :size="16" />
+            {{ passkeyBusy ? '验证中…' : '使用 Passkey 登录' }}
+          </Button>
+        </template>
       </template>
 
       <!-- 第二步：两步验证码（或备份码） -->
