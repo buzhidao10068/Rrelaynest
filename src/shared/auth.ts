@@ -96,6 +96,53 @@ export async function verifySession(
   return { uid, role, ver };
 }
 
+// ---- 两步验证（2FA）登录握手票 ----
+// 密码验过、但该用户开了 TOTP 时，第一步不发会话，改发这张短时票（默认 5 分钟）。
+// 第二步 /api/login/totp 拿票 + 验证码，验票通过才签发正式会话。
+// 票绑定 uid + 签发时的 session_version 快照：两步之间若改密/停用（ver 变），票即失效。
+// kind:'mfa' 标记 + 缺 role 字段 → 与会话 token 结构不同，二者无法互相冒用（verifySession 要求 role 为 string）。
+const MFA_TICKET_TTL_MS = 5 * 60 * 1000; // 5 分钟
+
+export interface MfaTicketClaims {
+  uid: number;
+  ver: number; // 签发时的 users.session_version 快照
+}
+
+export async function createMfaTicket(
+  sessionSecret: string,
+  uid: number,
+  ver: number,
+): Promise<string> {
+  const claims = { kind: 'mfa', uid, ver, exp: Date.now() + MFA_TICKET_TTL_MS };
+  const payload = b64urlEncode(enc.encode(JSON.stringify(claims)));
+  const sig = b64urlEncode(await hmac(sessionSecret, payload));
+  return `${payload}.${sig}`;
+}
+
+// 验票：验签 + 未过期 + kind==='mfa'。通过返回 {uid, ver}（还需回查库比对 ver / disabled）。
+export async function verifyMfaTicket(
+  sessionSecret: string,
+  token: string | undefined,
+): Promise<MfaTicketClaims | null> {
+  if (!token) return null;
+  const [payload, sig] = token.split('.');
+  if (!payload || !sig) return null;
+  const expected = b64urlEncode(await hmac(sessionSecret, payload));
+  if (!timingSafeEqual(sig, expected)) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(b64urlDecode(payload)));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const { kind, uid, ver, exp } = parsed as Record<string, unknown>;
+  if (kind !== 'mfa') return null; // 拒绝把会话 token 当票用
+  if (typeof uid !== 'number' || typeof ver !== 'number') return null;
+  if (typeof exp !== 'number' || !Number.isFinite(exp) || Date.now() >= exp) return null;
+  return { uid, ver };
+}
+
 // 会话 cookie 属性：HttpOnly + Secure + SameSite=Lax（见 design 安全章节）。
 // Secure 需 HTTPS；Docker 本地 http 调试时浏览器不回传，需置于 TLS 反代之后。
 export function sessionCookie(token: string): string {

@@ -10,8 +10,15 @@ import {
   readSessionCookie,
   verifySession,
   timingSafeEqual,
+  createMfaTicket,
+  verifyMfaTicket,
 } from './auth.js';
 import { verifyPassword, hashPassword } from './password.js';
+import {
+  randomBase32Secret,
+  buildOtpauthUri,
+  verifyTotp,
+} from './totp.js';
 import type { StartupResult } from './startup.js';
 import { encryptToken, decryptToken } from './crypto.js';
 import { scrapeAndStore, checkinAndStore, readScrapeConfig, resolveFetch } from './scrape-runner.js';
@@ -100,12 +107,59 @@ export function createApp(deps: AppDeps) {
     return { uid: row.id, role: row.role };
   }
 
+  // 备份码规范化：去空白/连字符、大写。存储与校验必须用同一规范形，否则 XXXX-XXXX 存、
+  // XXXXXXXX 验会对不上。
+  function normalizeBackupCode(code: string): string {
+    return code.replace(/[\s-]/g, '').toUpperCase();
+  }
+
+  // 备份码哈希：备份码是高熵随机串（randomBackupCode 生成），无需 PBKDF2 的慢哈希抗爆破，
+  // 用 SHA-256 单向哈希即可（快、够用），存 hex。登录热路径要按 hash 查表，慢哈希不划算。
+  // 入参先规范化——保证「存」与「验」哈希同一形态。
+  async function hashBackupCode(code: string): Promise<string> {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalizeBackupCode(code)));
+    return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  // 消费一枚未用过的备份码：匹配则标记 used_at 并返回 true（用后即焚），否则 false。
+  async function consumeBackupCode(userId: number, code: string): Promise<boolean> {
+    const normalized = normalizeBackupCode(code);
+    if (!/^[A-Z0-9]{8,}$/.test(normalized)) return false;
+    const hash = await hashBackupCode(normalized);
+    const row = await db
+      .prepare('SELECT id FROM totp_backup_codes WHERE user_id = ? AND code_hash = ? AND used_at IS NULL')
+      .bind(userId, hash)
+      .first<{ id: number }>();
+    if (!row) return false;
+    await db.prepare('UPDATE totp_backup_codes SET used_at = ? WHERE id = ?').bind(Date.now(), row.id).run();
+    return true;
+  }
+
+  // 生成一组一次性备份码（明文返回一次给用户抄写；库里只存哈希）。格式 XXXX-XXXX（去易混字符）。
+  function randomBackupCode(): string {
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // 去掉易混的 I/L/O/0/1
+    const raw = crypto.getRandomValues(new Uint8Array(8));
+    let s = '';
+    for (let i = 0; i < 8; i++) {
+      s += alphabet[raw[i] % alphabet.length];
+      if (i === 3) s += '-';
+    }
+    return s;
+  }
+
   // ---- 鉴权中间件：/api/login 和 /api/session 之外都要登录 ----
   app.use('/api/*', async (c, next) => {
     const path = new URL(c.req.url).pathname;
     // /api/admin/bootstrap 免登录：首装时还没有 admin 可登录（先有鸡还是先有蛋）。
     // 它靠 bootstrap 令牌 + 双闸自我把关（见 multiuser-plan 第六节），不构成持续攻击面。
-    if (path === '/api/login' || path === '/api/session' || path === '/api/admin/bootstrap') {
+    // /api/login/totp 是两步验证第二步：此刻还没有会话（第一步只发了 MFA 握手票），故免登录。
+    // 它自身靠握手票（HMAC 短时 + 回查 session_version）+ TOTP 码把关，不构成开放攻击面。
+    if (
+      path === '/api/login' ||
+      path === '/api/login/totp' ||
+      path === '/api/session' ||
+      path === '/api/admin/bootstrap'
+    ) {
       return next();
     }
     const user = await authenticate(c.req.raw);
@@ -135,12 +189,47 @@ export function createApp(deps: AppDeps) {
       .first<UserRow>();
     if (!user) return fail();
     if (!(await verifyPassword(password, user.password_hash))) return fail();
+    // 开了两步验证：密码对了也不发会话，改发短时票据（HMAC，绑 uid+session_version 快照，
+    // ~5 分钟），前端凭票走 /api/login/totp 交验证码换会话。见 shared/auth.ts createMfaTicket。
+    if (user.totp_enabled) {
+      const ticket = await createMfaTicket(secrets.SESSION_SECRET, user.id, user.session_version);
+      return c.json({ mfaRequired: true, ticket });
+    }
     const token = await createSession(
       secrets.SESSION_SECRET,
       user.id,
       user.role,
       user.session_version,
     );
+    c.header('Set-Cookie', sessionCookie(token));
+    return c.json({ ok: true });
+  });
+
+  // 两步验证第二步：凭 /api/login 返回的票据 + 6 位 TOTP 码（或备份码）换会话。
+  // 免登录白名单（此刻还没有会话）。票据验签+未过期+session_version 未变（改密/停用会作废挂起的票）。
+  app.post('/api/login/totp', async (c) => {
+    const { ticket, code } = await c.req
+      .json<{ ticket?: string; code?: string }>()
+      .catch(() => ({ ticket: undefined, code: undefined }));
+    const fail = () => c.json({ error: '验证码错误或已过期，请重新登录' }, 401);
+    if (!ticket || !code) return fail();
+    const claims = await verifyMfaTicket(secrets.SESSION_SECRET, ticket);
+    if (!claims) return fail();
+    const user = await db
+      .prepare('SELECT * FROM users WHERE id = ? AND disabled = 0')
+      .bind(claims.uid)
+      .first<UserRow>();
+    // 票据签发后用户被停用/改密/关掉 2FA → 票作废，需重新登录。
+    if (!user || user.session_version !== claims.ver || !user.totp_enabled || !user.totp_secret_encrypted) {
+      return fail();
+    }
+    const secret = await decryptToken(secrets.ENCRYPTION_KEY, user.totp_secret_encrypted);
+    const trimmed = code.trim();
+    // 先试 TOTP 码；不匹配再试一次性备份码（用后即焚）。
+    let ok = await verifyTotp(secret, trimmed);
+    if (!ok) ok = await consumeBackupCode(user.id, trimmed);
+    if (!ok) return fail();
+    const token = await createSession(secrets.SESSION_SECRET, user.id, user.role, user.session_version);
     c.header('Set-Cookie', sessionCookie(token));
     return c.json({ ok: true });
   });
@@ -192,11 +281,11 @@ export function createApp(deps: AppDeps) {
   app.get('/api/me', async (c) => {
     const { uid } = c.get('user');
     const row = await db
-      .prepare('SELECT id, username, role FROM users WHERE id = ?')
+      .prepare('SELECT id, username, role, totp_enabled FROM users WHERE id = ?')
       .bind(uid)
-      .first<{ id: number; username: string; role: string }>();
+      .first<{ id: number; username: string; role: string; totp_enabled: number }>();
     if (!row) return c.json({ error: '用户不存在' }, 404);
-    return c.json(row);
+    return c.json({ ...row, totp_enabled: row.totp_enabled === 1 });
   });
 
   // 改自己的登录密码：验当前密码 → 换新哈希 → session_version +1（吊销本用户其余会话/设备）。
@@ -252,6 +341,90 @@ export function createApp(deps: AppDeps) {
       .bind(user.session_version + 1, Date.now(), uid)
       .run();
     c.header('Set-Cookie', clearCookie());
+    return c.json({ ok: true });
+  });
+
+  // ---- 两步验证（TOTP）自服务 ----
+  // 三步启用：setup（生成密钥，未启用）→ enable（验一次码才真启用，返备份码）→ 已启用。
+  // disable 需验当前密码，清密钥+备份码并关开关。密钥以 AES-GCM 密文存库（crypto.ts）。
+  // 启用/停用 2FA 均视为安全变更 → session_version +1 吊销别处会话，重签发本会话保本设备登录。
+
+  // 生成新密钥（尚未启用）：返回 base32 密钥 + otpauth URI 供前端渲染二维码。
+  // 每次调用都换新密钥（覆盖未确认的旧密钥），避免半途放弃后残留可用密钥。
+  app.post('/api/account/totp/setup', async (c) => {
+    const { uid } = c.get('user');
+    const user = await db
+      .prepare('SELECT username, totp_enabled FROM users WHERE id = ?')
+      .bind(uid)
+      .first<{ username: string; totp_enabled: number }>();
+    if (!user) return c.json({ error: '用户不存在' }, 404);
+    if (user.totp_enabled) return c.json({ error: '两步验证已启用，请先停用再重新设置' }, 400);
+    const secret = randomBase32Secret();
+    const encrypted = await encryptToken(secrets.ENCRYPTION_KEY, secret);
+    // 存下密钥但保持 totp_enabled=0：验过一次码（enable）才算真启用。
+    await db
+      .prepare('UPDATE users SET totp_secret_encrypted = ?, updated_at = ? WHERE id = ?')
+      .bind(encrypted, Date.now(), uid)
+      .run();
+    const otpauthUri = buildOtpauthUri({ secret, account: user.username, issuer: 'Rrelaynest' });
+    return c.json({ secret, otpauthUri });
+  });
+
+  // 确认启用：验一次当前码，通过才置 totp_enabled=1 并生成一次性备份码（仅此次明文返回）。
+  app.post('/api/account/totp/enable', async (c) => {
+    const { uid } = c.get('user');
+    const { code } = await c.req.json<{ code?: string }>().catch(() => ({ code: undefined }));
+    if (!code) return c.json({ error: '请输入验证码' }, 400);
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(uid).first<UserRow>();
+    if (!user) return c.json({ error: '用户不存在' }, 404);
+    if (user.totp_enabled) return c.json({ error: '两步验证已启用' }, 400);
+    if (!user.totp_secret_encrypted) return c.json({ error: '请先调用 setup 生成密钥' }, 400);
+    const secret = await decryptToken(secrets.ENCRYPTION_KEY, user.totp_secret_encrypted);
+    if (!(await verifyTotp(secret, code.trim()))) return c.json({ error: '验证码错误，请重试' }, 400);
+    // 生成 10 个一次性备份码（明文仅此次返回；库里只存 SHA-256 哈希）。
+    const backupCodes = Array.from({ length: 10 }, () => randomBackupCode());
+    const now = Date.now();
+    await db.prepare('DELETE FROM totp_backup_codes WHERE user_id = ?').bind(uid).run();
+    for (const bc of backupCodes) {
+      await db
+        .prepare('INSERT INTO totp_backup_codes (user_id, code_hash, created_at) VALUES (?, ?, ?)')
+        .bind(uid, await hashBackupCode(bc), now)
+        .run();
+    }
+    // 启用视为安全变更：+1 吊销别处会话，重签发本会话保本设备登录。
+    const nextVer = user.session_version + 1;
+    await db
+      .prepare('UPDATE users SET totp_enabled = 1, session_version = ?, updated_at = ? WHERE id = ?')
+      .bind(nextVer, now, uid)
+      .run();
+    const token = await createSession(secrets.SESSION_SECRET, user.id, user.role, nextVer);
+    c.header('Set-Cookie', sessionCookie(token));
+    return c.json({ ok: true, backupCodes });
+  });
+
+  // 停用：验当前密码（不是验证码——防丢验证器时无法关闭），清密钥+备份码并关开关。
+  app.post('/api/account/totp/disable', async (c) => {
+    const { uid } = c.get('user');
+    const { password } = await c.req
+      .json<{ password?: string }>()
+      .catch(() => ({ password: undefined }));
+    if (!password) return c.json({ error: '请输入当前密码' }, 400);
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(uid).first<UserRow>();
+    if (!user) return c.json({ error: '用户不存在' }, 404);
+    if (!(await verifyPassword(password, user.password_hash))) {
+      return c.json({ error: '当前密码错误' }, 400);
+    }
+    const now = Date.now();
+    await db.prepare('DELETE FROM totp_backup_codes WHERE user_id = ?').bind(uid).run();
+    const nextVer = user.session_version + 1;
+    await db
+      .prepare(
+        'UPDATE users SET totp_enabled = 0, totp_secret_encrypted = NULL, session_version = ?, updated_at = ? WHERE id = ?',
+      )
+      .bind(nextVer, now, uid)
+      .run();
+    const token = await createSession(secrets.SESSION_SECRET, user.id, user.role, nextVer);
+    c.header('Set-Cookie', sessionCookie(token));
     return c.json({ ok: true });
   });
 

@@ -95,7 +95,7 @@ test('新装库：跑全部迁移后 users/user_id/settings 复合主键就位',
   const { db, raw } = memDb();
   const res = await runMigrations(db, MIGRATIONS);
 
-  assert.deepEqual(res.applied, ['0001_init', '0002_multiuser', '0003_probe', '0004_group_label']);
+  assert.deepEqual(res.applied, ['0001_init', '0002_multiuser', '0003_probe', '0004_group_label', '0005_totp']);
 
   // users 表存在且有 session_version。
   assert.ok(tableExists(raw, 'users'));
@@ -119,13 +119,13 @@ test('新装库：跑全部迁移后 users/user_id/settings 复合主键就位',
       version: string;
     }[]
   ).map((r) => r.version);
-  assert.deepEqual(versions, ['0001_init', '0002_multiuser', '0003_probe', '0004_group_label']);
+  assert.deepEqual(versions, ['0001_init', '0002_multiuser', '0003_probe', '0004_group_label', '0005_totp']);
 });
 
 test('8.6-30 重复迁移幂等：再跑一次不重复应用、不报错', async () => {
   const { db } = memDb();
   const first = await runMigrations(db, MIGRATIONS);
-  assert.deepEqual(first.applied, ['0001_init', '0002_multiuser', '0003_probe', '0004_group_label']);
+  assert.deepEqual(first.applied, ['0001_init', '0002_multiuser', '0003_probe', '0004_group_label', '0005_totp']);
 
   const second = await runMigrations(db, MIGRATIONS);
   assert.deepEqual(second.applied, []); // 已应用，全部跳过
@@ -160,7 +160,7 @@ test('8.6-29 改造前的库：存量 sites/proxies/settings 迁移后保留、s
 
   // 现在应用剩余迁移（0001 已应用会跳过，剩 0002 + 0003 + 0004）。
   const res = await runMigrations(db, MIGRATIONS);
-  assert.deepEqual(res.applied, ['0002_multiuser', '0003_probe', '0004_group_label']);
+  assert.deepEqual(res.applied, ['0002_multiuser', '0003_probe', '0004_group_label', '0005_totp']);
 
   // 存量站点/代理仍在，且新 user_id 列为 NULL（待 step4 入口回填给默认 admin）。
   const site = raw.prepare(`SELECT id, name, user_id FROM sites`).get() as {

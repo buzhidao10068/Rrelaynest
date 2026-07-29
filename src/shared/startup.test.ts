@@ -79,7 +79,7 @@ test('全新库：seed 默认 admin，密码取自 ADMIN_PASSWORD 且已哈希',
   const res = await runStartupMigration(db, SECRETS, DEPS);
 
   assert.equal(res.seededAdmin, true);
-  assert.deepEqual(res.migrationsApplied, ['0001_init', '0002_multiuser', '0003_probe', '0004_group_label']);
+  assert.deepEqual(res.migrationsApplied, ['0001_init', '0002_multiuser', '0003_probe', '0004_group_label', '0005_totp']);
 
   const admin = raw
     .prepare("SELECT username, role, password_hash FROM users WHERE role = 'admin'")

@@ -34,6 +34,10 @@ export interface UserRow {
   role: string; // 'admin' | 'user'
   disabled: number; // 0/1
   session_version: number;
+  // 两步验证（TOTP，见 migrations 0005 / shared/totp.ts）：
+  // totp_secret_encrypted 为 AES-GCM 密文（NULL=未设置）；totp_enabled 仅在验过一次码后置 1。
+  totp_secret_encrypted: string | null;
+  totp_enabled: number; // 0/1
   created_at: number;
   updated_at: number;
 }
