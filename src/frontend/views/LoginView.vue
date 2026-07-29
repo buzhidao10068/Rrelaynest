@@ -1,7 +1,9 @@
 <script setup lang="ts">
-// 登录页。真实端：POST /api/login {username, password}，成功后写会话并进主页。
-import { ref } from 'vue';
-import { ShieldCheck } from 'lucide-vue-next';
+// 登录页。真实端：POST /api/login {username, password}。
+// 开了两步验证的用户：第一步不发会话，改返 { mfaRequired, ticket }；前端切到第二步，
+// 凭 ticket + 6 位 TOTP 码（或备份码）走 POST /api/login/totp 换会话。见 shared/routes.ts。
+import { ref, nextTick } from 'vue';
+import { ShieldCheck, KeyRound } from 'lucide-vue-next';
 import { showView } from '@/stores/ui';
 import { setSession } from '@/stores/users';
 import { api } from '@/api';
@@ -14,6 +16,21 @@ const username = ref('');
 const password = ref('');
 const busy = ref(false);
 
+// 两步验证第二步状态
+const mfaTicket = ref<string | null>(null); // 非空 = 进入第二步
+const mfaCode = ref('');
+const codeInput = ref<InstanceType<typeof Input> | null>(null);
+
+// 会话就绪后回查角色/用户名并进主页（两条登录路径共用）。
+async function finishLogin() {
+  const s = await api.get<{ authenticated: boolean; id?: number; username?: string; role?: string }>('/api/session');
+  setSession(s.id ?? null, s.username ?? username.value, s.role === 'admin' ? 'admin' : 'user');
+  password.value = '';
+  mfaCode.value = '';
+  mfaTicket.value = null;
+  showView('dashboard');
+}
+
 async function login() {
   if (busy.value) return;
   if (!username.value || !password.value) {
@@ -22,17 +39,48 @@ async function login() {
   }
   busy.value = true;
   try {
-    await api.post('/api/login', { username: username.value, password: password.value });
-    // 登录成功后回查会话拿角色/用户名（后端权威）。
-    const s = await api.get<{ authenticated: boolean; id?: number; username?: string; role?: string }>('/api/session');
-    setSession(s.id ?? null, s.username ?? username.value, s.role === 'admin' ? 'admin' : 'user');
-    password.value = '';
-    showView('dashboard');
+    const r = await api.post<{ ok?: boolean; mfaRequired?: boolean; ticket?: string }>('/api/login', {
+      username: username.value,
+      password: password.value,
+    });
+    if (r?.mfaRequired && r.ticket) {
+      // 进入第二步：保留 ticket，聚焦验证码输入框。
+      mfaTicket.value = r.ticket;
+      await nextTick();
+      codeInput.value?.$el?.focus?.();
+      return;
+    }
+    await finishLogin();
   } catch (e) {
     toast(e instanceof Error ? e.message : '登录失败', 'error');
   } finally {
     busy.value = false;
   }
+}
+
+async function submitMfa() {
+  if (busy.value || !mfaTicket.value) return;
+  const code = mfaCode.value.trim();
+  if (!code) {
+    toast('请输入验证码', 'error');
+    return;
+  }
+  busy.value = true;
+  try {
+    await api.post('/api/login/totp', { ticket: mfaTicket.value, code });
+    await finishLogin();
+  } catch (e) {
+    toast(e instanceof Error ? e.message : '验证失败', 'error');
+  } finally {
+    busy.value = false;
+  }
+}
+
+// 放弃第二步、回到密码步（如输错账号或想换账号登录）。
+function cancelMfa() {
+  mfaTicket.value = null;
+  mfaCode.value = '';
+  password.value = '';
 }
 </script>
 
@@ -46,29 +94,66 @@ async function login() {
         <h1 class="text-2xl font-semibold tracking-tight">Rrelaynest</h1>
         <p class="text-sm text-muted-foreground">管理面板登录</p>
       </div>
-      <div class="space-y-2">
-        <Label>用户名</Label>
-        <Input
-          v-model="username"
-          type="text"
-          placeholder="请输入用户名"
-          autocomplete="username"
-          @keydown.enter="login"
-        />
-      </div>
-      <div class="space-y-2">
-        <Label>密码</Label>
-        <Input
-          v-model="password"
-          type="password"
-          placeholder="请输入密码"
-          autocomplete="current-password"
-          @keydown.enter="login"
-        />
-      </div>
-      <Button class="w-full" :disabled="busy" @click="login">
-        {{ busy ? '登录中…' : '登录' }}
-      </Button>
+      <!-- 第一步：用户名 + 密码 -->
+      <template v-if="!mfaTicket">
+        <div class="space-y-2">
+          <Label>用户名</Label>
+          <Input
+            v-model="username"
+            type="text"
+            placeholder="请输入用户名"
+            autocomplete="username"
+            @keydown.enter="login"
+          />
+        </div>
+        <div class="space-y-2">
+          <Label>密码</Label>
+          <Input
+            v-model="password"
+            type="password"
+            placeholder="请输入密码"
+            autocomplete="current-password"
+            @keydown.enter="login"
+          />
+        </div>
+        <Button class="w-full" :disabled="busy" @click="login">
+          {{ busy ? '登录中…' : '登录' }}
+        </Button>
+      </template>
+
+      <!-- 第二步：两步验证码（或备份码） -->
+      <template v-else>
+        <div class="flex flex-col items-center gap-1 text-center">
+          <KeyRound :size="20" class="text-muted-foreground" />
+          <p class="text-sm font-medium">两步验证</p>
+          <p class="text-xs text-muted-foreground">
+            打开验证器 App 输入 6 位动态码；也可输入一个备份码。
+          </p>
+        </div>
+        <div class="space-y-2">
+          <Label>验证码</Label>
+          <Input
+            ref="codeInput"
+            v-model="mfaCode"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            placeholder="6 位验证码或备份码"
+            @keydown.enter="submitMfa"
+          />
+        </div>
+        <Button class="w-full" :disabled="busy" @click="submitMfa">
+          {{ busy ? '验证中…' : '验证并登录' }}
+        </Button>
+        <button
+          type="button"
+          class="w-full text-center text-xs text-muted-foreground hover:underline"
+          @click="cancelMfa"
+        >
+          返回上一步
+        </button>
+      </template>
+
       <p class="text-center text-xs text-muted-foreground">
         仅限授权用户访问 · Rrelaynest 中转站管理系统
       </p>

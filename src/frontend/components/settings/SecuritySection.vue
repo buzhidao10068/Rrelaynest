@@ -1,9 +1,14 @@
 <script setup lang="ts">
-// 安全分区：修改密码 + 登出所有设备=真接后端（POST /api/account/password、/api/account/logout-all，
-// 均靠 session_version +1 即时吊销旧会话）。改密后端重签发本会话 cookie 保持本设备登录；登出所有设备
-// 则连本设备一起踢下线（切回登录页）。两步验证 / Passkey 后端未实现，保持占位（notImpl）。
-import { ref, computed } from 'vue';
-import { Lock, Fingerprint, Smartphone } from 'lucide-vue-next';
+// 安全分区：修改密码 + 两步验证(TOTP) + 登出所有设备，全部真接后端。
+// - 改密 / 登出所有设备：靠 session_version +1 即时吊销旧会话（见 [[frontend-wiring-block8]]）。
+// - 两步验证：状态读 /api/me 的 totp_enabled；启用走 TotpEnrollDialog（setup→enable），
+//     停用需验当前密码（POST /api/account/totp/disable）。见 shared/routes.ts、shared/totp.ts。
+// - Passkey：后端尚未实现（仅评估了可行性），故不展示，避免假数据误导。
+import { ref, computed, onMounted } from 'vue';
+import { Lock } from 'lucide-vue-next';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -11,9 +16,53 @@ import { api, ApiError } from '@/api';
 import { clearSession } from '@/stores/users';
 import { showView } from '@/stores/ui';
 import { toast } from '@/composables/useToast';
+import TotpEnrollDialog from './TotpEnrollDialog.vue';
 
-function notImpl(msg: string) {
-  toast(msg, 'info');
+// ---- 两步验证状态 ----
+const totpEnabled = ref(false);
+const totpLoaded = ref(false);
+const enrollOpen = ref(false);
+
+async function loadMfaStatus() {
+  try {
+    const me = await api.get<{ totp_enabled?: boolean }>('/api/me');
+    totpEnabled.value = !!me.totp_enabled;
+    totpLoaded.value = true;
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 401)) totpLoaded.value = true;
+  }
+}
+onMounted(loadMfaStatus);
+
+function onEnrollClose(enabled: boolean) {
+  enrollOpen.value = false;
+  if (enabled) totpEnabled.value = true;
+}
+
+// ---- 停用两步验证（需验当前密码）----
+const disableOpen = ref(false);
+const disablePassword = ref('');
+const disabling = ref(false);
+async function confirmDisable() {
+  if (disabling.value) return;
+  if (!disablePassword.value) {
+    toast('请输入当前密码', 'error');
+    return;
+  }
+  disabling.value = true;
+  try {
+    await api.post('/api/account/totp/disable', { password: disablePassword.value });
+    totpEnabled.value = false;
+    disableOpen.value = false;
+    disablePassword.value = '';
+    toast('两步验证已关闭', 'success');
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 401)) {
+      toast(e instanceof Error ? e.message : '关闭失败', 'error');
+    }
+  } finally {
+    disabling.value = false;
+  }
 }
 
 // ---- 登出所有设备 ----
@@ -83,7 +132,7 @@ async function changePassword() {
   <div class="space-y-6">
     <div>
       <h3 class="text-base font-semibold">安全</h3>
-      <p class="mt-1 text-sm text-muted-foreground">登录密码、两步验证与登录方式。</p>
+      <p class="mt-1 text-sm text-muted-foreground">登录密码、两步验证与会话。</p>
     </div>
 
     <!-- 修改密码 -->
@@ -118,44 +167,20 @@ async function changePassword() {
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             <p class="text-sm font-medium">两步验证 (2FA)</p>
-            <span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">未启用</span>
+            <span
+              v-if="totpLoaded"
+              class="rounded-full px-2 py-0.5 text-xs font-medium"
+              :class="totpEnabled
+                ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'"
+            >{{ totpEnabled ? '已启用' : '未启用' }}</span>
           </div>
           <p class="mt-1 text-xs text-muted-foreground">
             使用 TOTP 验证器 App（如 Google Authenticator / 1Password）生成动态验证码，登录时二次校验。
           </p>
         </div>
-        <Button class="shrink-0" @click="notImpl('演示端未接后端')">启用</Button>
-      </div>
-    </div>
-
-    <!-- Passkey -->
-    <div class="rounded-lg border border-border p-5">
-      <div class="flex items-start gap-3">
-        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <Fingerprint :size="18" />
-        </span>
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <p class="text-sm font-medium">Passkey</p>
-            <span class="rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">1 个已注册</span>
-          </div>
-          <p class="mt-1 text-xs text-muted-foreground">
-            用指纹 / 面容 / 硬件密钥（WebAuthn）免密登录，更安全便捷。
-          </p>
-        </div>
-        <Button variant="outline" class="shrink-0" @click="notImpl('演示端未接后端')">添加 Passkey</Button>
-      </div>
-      <div class="mt-4 space-y-2 border-t border-border pt-4">
-        <div class="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-accent">
-          <span class="flex items-center gap-2">
-            <Smartphone :size="15" />
-            MacBook Pro · Touch ID
-          </span>
-          <span class="flex items-center gap-3">
-            <span class="text-xs text-muted-foreground">3 天前</span>
-            <button class="text-xs font-medium text-red-500 hover:underline" @click="notImpl('演示端未接后端')">移除</button>
-          </span>
-        </div>
+        <Button v-if="totpLoaded && !totpEnabled" class="shrink-0" @click="enrollOpen = true">启用</Button>
+        <Button v-else-if="totpLoaded && totpEnabled" variant="outline" class="shrink-0" @click="disableOpen = true">关闭</Button>
       </div>
     </div>
 
@@ -165,5 +190,26 @@ async function changePassword() {
       <p class="mt-1 text-xs text-muted-foreground">登录会话有效期 7 天（HttpOnly + Secure Cookie）。</p>
       <Button variant="outline" size="sm" class="mt-3" :disabled="loggingOutAll" @click="logoutAll">{{ loggingOutAll ? '登出中…' : '登出所有设备' }}</Button>
     </div>
+
+    <!-- 注册向导 -->
+    <TotpEnrollDialog :open="enrollOpen" @close="onEnrollClose" />
+
+    <!-- 停用确认（验当前密码）-->
+    <Dialog :open="disableOpen" @update:open="(v) => { if (!v) { disableOpen = false; disablePassword = ''; } }">
+      <DialogContent class="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>关闭两步验证</DialogTitle>
+          <DialogDescription>关闭后登录将只需密码。请输入当前密码确认。</DialogDescription>
+        </DialogHeader>
+        <div class="space-y-1.5">
+          <Label>当前密码</Label>
+          <Input v-model="disablePassword" type="password" autocomplete="current-password" placeholder="输入当前密码" @keyup.enter="confirmDisable" />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" @click="disableOpen = false; disablePassword = '';">取消</Button>
+          <Button :disabled="disabling" @click="confirmDisable">{{ disabling ? '关闭中…' : '确认关闭' }}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
