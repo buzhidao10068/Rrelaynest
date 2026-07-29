@@ -172,6 +172,27 @@ CREATE TABLE IF NOT EXISTS totp_backup_codes (
 CREATE INDEX IF NOT EXISTS idx_totp_backup_user ON totp_backup_codes(user_id);
 `;
 
+// 0006：Passkey / WebAuthn 凭证。无密码登录 + 已登录用户可绑多枚凭证。
+// credential_id（base64url，浏览器返回的凭证 ID）全局唯一——无密码登录时靠它反查 user_id。
+// public_key 存 base64url(COSE 公钥字节)；counter 每次认证后更新（防克隆重放）。
+// transports 为 JSON 数组（['internal','usb'…]，认证时给浏览器提示）；name 是用户可读标签。
+// 只做 DDL；不回填（新表，老用户自然为「无 Passkey」）。见 shared/routes.ts Passkey 端点。
+const M0006_WEBAUTHN = `
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id TEXT    NOT NULL UNIQUE,
+  public_key    TEXT    NOT NULL,
+  counter       INTEGER NOT NULL DEFAULT 0,
+  transports    TEXT,
+  name          TEXT,
+  created_at    INTEGER NOT NULL,
+  last_used_at  INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_webauthn_user ON webauthn_credentials(user_id);
+`;
+
 // 顺序即应用序。
 export const MIGRATIONS: Migration[] = [
   { version: '0001_init', sql: M0001_INIT },
@@ -179,4 +200,5 @@ export const MIGRATIONS: Migration[] = [
   { version: '0003_probe', sql: M0003_PROBE },
   { version: '0004_group_label', sql: M0004_GROUP_LABEL },
   { version: '0005_totp', sql: M0005_TOTP },
+  { version: '0006_webauthn', sql: M0006_WEBAUTHN },
 ];

@@ -80,6 +80,21 @@ export interface ProbeWordRow {
   updated_at: number;
 }
 
+// Passkey / WebAuthn 凭证行（见 0006 迁移 / shared/routes.ts）。每用户可多枚（多设备）。
+// credential_id 全局唯一（浏览器返回的凭证 ID，base64url）；public_key 为 COSE 公钥字节的
+// base64url；counter 每次认证后更新（防克隆重放）；transports 是 JSON 数组字符串（可空）。
+export interface WebauthnCredentialRow {
+  id: number;
+  user_id: number;
+  credential_id: string; // base64url
+  public_key: string; // base64url(COSE public key bytes)
+  counter: number;
+  transports: string | null; // JSON 数组，如 '["internal","hybrid"]'
+  name: string | null; // 用户可读标签
+  created_at: number;
+  last_used_at: number | null;
+}
+
 // 解密后的代理配置：供 dispatcher 工厂构造出站分派器。password 为明文（调用方解密后传入）。
 export interface ProxyConfig {
   type: string; // http / https / socks5

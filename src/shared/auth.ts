@@ -143,6 +143,67 @@ export async function verifyMfaTicket(
   return { uid, ver };
 }
 
+// ---- WebAuthn / Passkey 挑战短时票 ----
+// WebAuthn 两步握手：服务端 generate*Options 产随机 challenge → 浏览器操作认证器 →
+// 服务端 verify*Response 比对 challenge。challenge 需跨两请求留存，但 Workers isolate
+// 不能靠进程内存 → 把 challenge 装进这张 HMAC 短时签名票（默认 5 分钟）发前端，验证时
+// 验签+取回，服务端零状态。kind 区分用途：'reg'（已登录用户加 Passkey，绑 uid）/
+// 'auth'（无密码登录，此刻还不知是谁，故不绑 uid，challenge 自身足够）。
+// kind 隔离 + 与会话/ MFA 票结构不同（缺 role、kind 值不同）→ 无法互相冒用。
+const CHALLENGE_TICKET_TTL_MS = 5 * 60 * 1000; // 5 分钟
+
+export type ChallengeKind = 'reg' | 'auth';
+
+export interface ChallengeTicketClaims {
+  challenge: string; // base64url，generate*Options 返回的 options.challenge
+  uid?: number; // 仅 'reg' 绑定（加 Passkey 的当前用户）；'auth' 无
+}
+
+export async function createChallengeTicket(
+  sessionSecret: string,
+  kind: ChallengeKind,
+  challenge: string,
+  uid?: number,
+): Promise<string> {
+  const claims: Record<string, unknown> = {
+    ck: kind, // ck = challenge-kind，避免与 mfa 票的 kind 混淆语义
+    challenge,
+    exp: Date.now() + CHALLENGE_TICKET_TTL_MS,
+  };
+  if (typeof uid === 'number') claims.uid = uid;
+  const payload = b64urlEncode(enc.encode(JSON.stringify(claims)));
+  const sig = b64urlEncode(await hmac(sessionSecret, payload));
+  return `${payload}.${sig}`;
+}
+
+// 验票：验签 + 未过期 + ck===期望 kind。通过返回 {challenge, uid?}，否则 null。
+// 传入 expectKind 强制用途隔离：注册票不能拿去当认证票用（反之亦然）。
+export async function verifyChallengeTicket(
+  sessionSecret: string,
+  token: string | undefined,
+  expectKind: ChallengeKind,
+): Promise<ChallengeTicketClaims | null> {
+  if (!token) return null;
+  const [payload, sig] = token.split('.');
+  if (!payload || !sig) return null;
+  const expected = b64urlEncode(await hmac(sessionSecret, payload));
+  if (!timingSafeEqual(sig, expected)) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(b64urlDecode(payload)));
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null;
+  const { ck, challenge, uid, exp } = parsed as Record<string, unknown>;
+  if (ck !== expectKind) return null; // 用途隔离：拒绝跨 kind 使用
+  if (typeof challenge !== 'string' || !challenge) return null;
+  if (typeof exp !== 'number' || !Number.isFinite(exp) || Date.now() >= exp) return null;
+  const out: ChallengeTicketClaims = { challenge };
+  if (typeof uid === 'number') out.uid = uid;
+  return out;
+}
+
 // 会话 cookie 属性：HttpOnly + Secure + SameSite=Lax（见 design 安全章节）。
 // Secure 需 HTTPS；Docker 本地 http 调试时浏览器不回传，需置于 TLS 反代之后。
 export function sessionCookie(token: string): string {

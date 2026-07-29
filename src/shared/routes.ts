@@ -2,7 +2,7 @@
 // 跨平台：不直接依赖 Workers 的 Env，改由入口注入 Database + AppSecrets。
 import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
-import type { AppSecrets, Database, SiteRow, GroupRow, ModelRow, ProxyRow, UserRow, ProbeWordRow, MakeFetch } from './types.js';
+import type { AppSecrets, Database, SiteRow, GroupRow, ModelRow, ProxyRow, UserRow, ProbeWordRow, WebauthnCredentialRow, MakeFetch } from './types.js';
 import {
   createSession,
   sessionCookie,
@@ -12,7 +12,20 @@ import {
   timingSafeEqual,
   createMfaTicket,
   verifyMfaTicket,
+  createChallengeTicket,
+  verifyChallengeTicket,
 } from './auth.js';
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+} from '@simplewebauthn/server';
+import type {
+  RegistrationResponseJSON,
+  AuthenticationResponseJSON,
+  AuthenticatorTransportFuture,
+} from '@simplewebauthn/server';
 import { verifyPassword, hashPassword } from './password.js';
 import {
   randomBase32Secret,
@@ -154,9 +167,12 @@ export function createApp(deps: AppDeps) {
     // 它靠 bootstrap 令牌 + 双闸自我把关（见 multiuser-plan 第六节），不构成持续攻击面。
     // /api/login/totp 是两步验证第二步：此刻还没有会话（第一步只发了 MFA 握手票），故免登录。
     // 它自身靠握手票（HMAC 短时 + 回查 session_version）+ TOTP 码把关，不构成开放攻击面。
+    // /api/login/passkey/* 是无密码登录：此刻还没有会话，靠挑战票（HMAC 短时）+ 认证器签名把关。
     if (
       path === '/api/login' ||
       path === '/api/login/totp' ||
+      path === '/api/login/passkey/options' ||
+      path === '/api/login/passkey/verify' ||
       path === '/api/session' ||
       path === '/api/admin/bootstrap'
     ) {
@@ -424,6 +440,213 @@ export function createApp(deps: AppDeps) {
       .bind(nextVer, now, uid)
       .run();
     const token = await createSession(secrets.SESSION_SECRET, user.id, user.role, nextVer);
+    c.header('Set-Cookie', sessionCookie(token));
+    return c.json({ ok: true });
+  });
+
+  // ---- Passkey / WebAuthn（无密码登录）----
+  // COSE 公钥字节 ↔ base64url 存储互转（自产自用，只需保证 round-trip；WebAuthn 惯用 url-safe）。
+  function b64urlFromBytes(bytes: Uint8Array): string {
+    let s = '';
+    for (const b of bytes) s += String.fromCharCode(b);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  // 返回类型显式 Uint8Array<ArrayBuffer>：SimpleWebAuthn 的 WebAuthnCredential.publicKey
+  // 要求非共享 ArrayBuffer 背衬，故用 new ArrayBuffer(...) 显式分配（默认 new Uint8Array(n)
+  // 会被推成 ArrayBufferLike，含 SharedArrayBuffer，与库类型不兼容）。
+  function bytesFromB64url(s: string): Uint8Array<ArrayBuffer> {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    const out = new Uint8Array(new ArrayBuffer(bin.length));
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  // 零配置：rpID / expectedOrigin 从请求 URL 推导（两平台通用，与 Secure cookie 同一运维前提）。
+  // rpID = host（不含端口，WebAuthn 规范 RP ID 是域名）；origin = protocol//host[:port]（完整源）。
+  // localhost 开发与生产域名各自成立；经反代时需确保 Host 头正确（文档已有同前提）。
+  function rpFromRequest(req: Request): { rpID: string; origin: string } {
+    const url = new URL(req.url);
+    return { rpID: url.hostname, origin: url.origin };
+  }
+
+  const RP_NAME = 'Rrelaynest';
+
+  // 把 uid 编成 WebAuthn userID 字节（userHandle）。用十进制字符串字节即可，稳定且可逆。
+  function uidToUserId(uid: number): Uint8Array<ArrayBuffer> {
+    const s = String(uid);
+    const out = new Uint8Array(new ArrayBuffer(s.length));
+    for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i); // uid 为十进制数字，全 ASCII
+    return out;
+  }
+
+  // 注册第一步（已登录用户加 Passkey）：生成 options（含随机 challenge）+ 排除已注册凭证，
+  // challenge 装进注册票（绑 uid）返回。前端拿 options 调 navigator.credentials.create。
+  app.post('/api/account/passkey/register/options', async (c) => {
+    const { uid } = c.get('user');
+    const { rpID } = rpFromRequest(c.req.raw);
+    const user = await db
+      .prepare('SELECT username FROM users WHERE id = ?')
+      .bind(uid)
+      .first<{ username: string }>();
+    if (!user) return c.json({ error: '用户不存在' }, 404);
+    const existing = await db
+      .prepare('SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?')
+      .bind(uid)
+      .all<{ credential_id: string; transports: string | null }>();
+    const excludeCredentials = existing.results.map((r) => ({
+      id: r.credential_id,
+      transports: r.transports ? (JSON.parse(r.transports) as AuthenticatorTransportFuture[]) : undefined,
+    }));
+    const options = await generateRegistrationOptions({
+      rpName: RP_NAME,
+      rpID,
+      userName: user.username,
+      userID: uidToUserId(uid),
+      excludeCredentials,
+      // 无密码登录要求 discoverable credential（resident key）：认证时不带 allowCredentials，
+      // 靠 userHandle 反查用户。preferred 兼顾不支持 resident key 的旧认证器。
+      authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
+    });
+    const ticket = await createChallengeTicket(secrets.SESSION_SECRET, 'reg', options.challenge, uid);
+    return c.json({ options, ticket });
+  });
+
+  // 注册第二步：验挑战票（绑本 uid）+ verifyRegistrationResponse 比对 challenge/origin/rpID，
+  // 通过则存凭证行（credential_id/public_key/counter/transports/name）。
+  app.post('/api/account/passkey/register/verify', async (c) => {
+    const { uid } = c.get('user');
+    const { rpID, origin } = rpFromRequest(c.req.raw);
+    const body = await c.req
+      .json<{ ticket?: string; response?: RegistrationResponseJSON; name?: string }>()
+      .catch(() => ({}) as { ticket?: string; response?: RegistrationResponseJSON; name?: string });
+    if (!body.ticket || !body.response) return c.json({ error: '缺少票据或响应' }, 400);
+    const claims = await verifyChallengeTicket(secrets.SESSION_SECRET, body.ticket, 'reg');
+    if (!claims || claims.uid !== uid) return c.json({ error: '挑战已过期，请重试' }, 400);
+    let verification;
+    try {
+      verification = await verifyRegistrationResponse({
+        response: body.response,
+        expectedChallenge: claims.challenge,
+        expectedOrigin: origin,
+        expectedRPID: rpID,
+      });
+    } catch {
+      return c.json({ error: '凭证验证失败' }, 400);
+    }
+    if (!verification.verified || !verification.registrationInfo) {
+      return c.json({ error: '凭证验证失败' }, 400);
+    }
+    const { credential } = verification.registrationInfo;
+    const publicKeyB64 = b64urlFromBytes(credential.publicKey);
+    const transports = body.response.response.transports
+      ? JSON.stringify(body.response.response.transports)
+      : credential.transports
+        ? JSON.stringify(credential.transports)
+        : null;
+    const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 64) : null;
+    try {
+      await db
+        .prepare(
+          `INSERT INTO webauthn_credentials
+             (user_id, credential_id, public_key, counter, transports, name, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(uid, credential.id, publicKeyB64, credential.counter, transports, name, Date.now())
+        .run();
+    } catch {
+      // credential_id UNIQUE 冲突（同一凭证重复注册）等 → 幂等视为已存在。
+      return c.json({ error: '该 Passkey 已注册' }, 409);
+    }
+    return c.json({ ok: true });
+  });
+
+  // 列当前用户的 Passkey（不含 public_key）。
+  app.get('/api/account/passkeys', async (c) => {
+    const { uid } = c.get('user');
+    const rows = await db
+      .prepare(
+        'SELECT id, name, created_at, last_used_at FROM webauthn_credentials WHERE user_id = ? ORDER BY id ASC',
+      )
+      .bind(uid)
+      .all<{ id: number; name: string | null; created_at: number; last_used_at: number | null }>();
+    return c.json({ passkeys: rows.results });
+  });
+
+  // 删自己的一枚 Passkey（校验归属：WHERE user_id 防越权删他人）。
+  app.delete('/api/account/passkeys/:id', async (c) => {
+    const { uid } = c.get('user');
+    const id = Number(c.req.param('id'));
+    if (!Number.isInteger(id)) return c.json({ error: '无效 id' }, 400);
+    // 先确认属己（RunResult 不暴露 changes，故用 SELECT 判定存在性+归属）。
+    const owned = await db
+      .prepare('SELECT id FROM webauthn_credentials WHERE id = ? AND user_id = ?')
+      .bind(id, uid)
+      .first<{ id: number }>();
+    if (!owned) return c.json({ error: 'Passkey 不存在' }, 404);
+    await db
+      .prepare('DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?')
+      .bind(id, uid)
+      .run();
+    return c.json({ ok: true });
+  });
+
+  // 无密码登录第一步：生成认证 options（discoverable，不带 allowCredentials → 浏览器让用户选），
+  // challenge 装认证票（不绑 uid，此刻还不知是谁）返回。免登录白名单。
+  app.post('/api/login/passkey/options', async (c) => {
+    const { rpID } = rpFromRequest(c.req.raw);
+    const options = await generateAuthenticationOptions({ rpID, userVerification: 'preferred' });
+    const ticket = await createChallengeTicket(secrets.SESSION_SECRET, 'auth', options.challenge);
+    return c.json({ options, ticket });
+  });
+
+  // 无密码登录第二步：验挑战票 → 用 response.id 查凭证及其 user_id →
+  // verifyAuthenticationResponse 比对 → 通过则更新 counter/last_used_at + 查用户（未停用）→ 发会话。
+  // Passkey 已含用户验证（强因子），登录成功即免第二步 TOTP（与密码登录路径并行、各自独立发会话）。
+  app.post('/api/login/passkey/verify', async (c) => {
+    const { rpID, origin } = rpFromRequest(c.req.raw);
+    const fail = () => c.json({ error: '登录失败或已过期，请重试' }, 401);
+    const body = await c.req
+      .json<{ ticket?: string; response?: AuthenticationResponseJSON }>()
+      .catch(() => ({}) as { ticket?: string; response?: AuthenticationResponseJSON });
+    if (!body.ticket || !body.response) return fail();
+    const claims = await verifyChallengeTicket(secrets.SESSION_SECRET, body.ticket, 'auth');
+    if (!claims) return fail();
+    const cred = await db
+      .prepare('SELECT * FROM webauthn_credentials WHERE credential_id = ?')
+      .bind(body.response.id)
+      .first<WebauthnCredentialRow>();
+    if (!cred) return fail();
+    const user = await db
+      .prepare('SELECT * FROM users WHERE id = ? AND disabled = 0')
+      .bind(cred.user_id)
+      .first<UserRow>();
+    if (!user) return fail();
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: body.response,
+        expectedChallenge: claims.challenge,
+        expectedOrigin: origin,
+        expectedRPID: rpID,
+        credential: {
+          id: cred.credential_id,
+          publicKey: bytesFromB64url(cred.public_key),
+          counter: cred.counter,
+          transports: cred.transports ? (JSON.parse(cred.transports) as AuthenticatorTransportFuture[]) : undefined,
+        },
+      });
+    } catch {
+      return fail();
+    }
+    if (!verification.verified) return fail();
+    // 更新计数器（防克隆重放）+ 最近使用时间。
+    await db
+      .prepare('UPDATE webauthn_credentials SET counter = ?, last_used_at = ? WHERE id = ?')
+      .bind(verification.authenticationInfo.newCounter, Date.now(), cred.id)
+      .run();
+    const token = await createSession(secrets.SESSION_SECRET, user.id, user.role, user.session_version);
     c.header('Set-Cookie', sessionCookie(token));
     return c.json({ ok: true });
   });
