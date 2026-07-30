@@ -103,14 +103,30 @@ docker compose up -d --build
 
 ## 部署二：Cloudflare Workers + D1
 
-Serverless，平台自带 HTTPS（无需自己配反代）。有两种方式，都不需要本地终端，任选其一：
+Serverless，平台自带 HTTPS（无需自己配反代）。有三种方式，都不需要本地终端，任选其一：
 
-- **方式 A — GitHub Actions**：密钥填在 **GitHub** 仓库，网页点 Run 部署。CI 会自动替你注入 D1 ID 并触发建表。
-- **方式 B — Cloudflare 连接 Git**：密钥填在 **Cloudflare** 面板，推送即自动部署，连 GitHub Actions 都不用碰。代价是 D1 ID 要自己填进配置、建表要自己手动触发一次。
+- **方式 C — 一键部署按钮（最省事，推荐）**：点下面的按钮，Cloudflare 自动帮你克隆仓库、创建 D1、填好数据库 ID、引导你填三个密钥、构建部署。建表也自动完成（首次访问触发），点完就能登录。
+- **方式 A — GitHub Actions**：密钥填在 **GitHub** 仓库，网页点 Run 部署。CI 自动注入 D1 ID 并触发建表。适合想让部署走 GitHub、自己掌控 CI 的人。
+- **方式 B — Cloudflare 连接 Git**：密钥填在 **Cloudflare** 面板，推送即自动部署，连 GitHub Actions 都不用碰。需自己把 D1 ID 填进配置一次。
 
-两种方式都要先做下面的「通用准备」。
+> 三种方式的建表（跑迁移 + seed 首个 admin）都由 **首次访问自动完成**——Worker 收到第一个 `/api/*` 请求时会幂等地跑一次引导，无需再手动 curl。
 
-### 通用准备（两种方式都要做）
+### 方式 C — 一键部署按钮（推荐）
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/buzhidao10068/Rrelaynest)
+
+1. 点上面的 **Deploy to Cloudflare** 按钮，用 GitHub 账户授权登录 Cloudflare
+2. 在设置页里：仓库名 / Worker 名 / D1 数据库名可保持默认，Cloudflare 会**自动创建 D1 并把新数据库 ID 写回配置**
+3. 按提示**填入三个密钥**的值（`ADMIN_PASSWORD` / `SESSION_SECRET` / `ENCRYPTION_KEY`，取值见下方「通用准备第 3 步」；`ADMIN_PASSWORD` 务必改掉示例默认值）
+4. 点部署，完成后打开分配的 `*.workers.dev` 地址，用 `admin` + 你填的初始密码登录，进设置页尽快改密
+
+> **升级**：方式 C 会把仓库克隆到你的 GitHub 账户。之后同步上游改动并推送，Cloudflare 会自动重新构建部署（与方式 B 的升级方式相同）。
+
+---
+
+方式 A / B 需要先做下面的「通用准备」（方式 C 全自动，可跳过）。
+
+### 通用准备（方式 A / B 都要做）
 
 **1. Fork 本仓库**
 
@@ -133,7 +149,7 @@ Serverless，平台自带 HTTPS（无需自己配反代）。有两种方式，�
 
 ---
 
-### 方式 A — GitHub Actions（推荐，最省心）
+### 方式 A — GitHub Actions
 
 **A1. 再获取 API Token 和 Account ID**
 
@@ -161,6 +177,8 @@ Serverless，平台自带 HTTPS（无需自己配反代）。有两种方式，�
 工作流会自动：构建前端 → 注入 D1 ID 与三个密钥 → 部署 Worker → **调一次 `/api/admin/bootstrap` 完成建表 + seed 首个 admin**（幂等，重复运行不会重复 seed）。
 
 跑完后展开最后一步日志，能看到访问地址（形如 `https://rrelaynest.<你的子域>.workers.dev`）。用 `admin` + 初始密码登录，进设置页尽快改密。
+
+> 建表首次访问就会自动完成（三种方式通用），工作流里那步 bootstrap 只是让 CI 日志能直接看到引导结果，冗余但无害。
 
 **A4. 升级**：这条工作流**只手动触发**（不会因为推代码或同步就自动跑）。升级步骤：在 Fork 仓库点 **Sync fork** 同步上游 → ⚠️ **然后必须回 Actions 页手动点一次 Run workflow**，部署才会真正更新。（光点 Sync fork 不会自动部署——网页同步是快进合并，不产生触发工作流的 push 事件。）新增迁移会在部署后的 bootstrap 调用中幂等应用。
 
@@ -197,18 +215,18 @@ database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"   # ← 换成你自己的 D1 I
 
 > 若在 B2 已点 Save and Deploy 部署过一次，配置完密钥后需再触发一次部署让密钥生效（改仓库推一下，或在面板点 Retry/Redeploy）。
 
-**B4. 手动触发一次建表 + seed admin**
+**B4. 首次访问，完成建表 + seed admin**
 
-Workers 无启动钩子，部署完成后 D1 还是空库，需手动调一次引导端点（带 `Authorization` Header 的 POST，**浏览器地址栏访问不了**，用 Postman / Hoppscotch 等能自定义 Header 的工具，或有终端就用 curl）：
+部署完成后 D1 还是空库，但**无需手动做任何事**：用浏览器打开一次 Worker 地址（形如 `https://rrelaynest.<你的子域>.workers.dev`），首个请求会自动建表 + seed 首个 admin（幂等）。稍等一两秒刷新，即可用 `admin` + 初始密码登录，进设置页尽快改密。
 
-```bash
-curl -X POST https://你的-worker-域名/api/admin/bootstrap \
-  -H "Authorization: Bearer 你设的_ADMIN_PASSWORD"
-```
+> 若想显式确认，也可调引导端点（带 `Authorization` Header 的 POST，浏览器地址栏访问不了，用 Postman / Hoppscotch 或 curl）：
+> ```bash
+> curl -X POST https://你的-worker-域名/api/admin/bootstrap \
+>   -H "Authorization: Bearer 你设的_ADMIN_PASSWORD"
+> ```
+> 成功返回 `{"ok":true,...}`，`alreadyInitialized:true` 表示首次访问已引导过。
 
-成功返回 `{"ok":true,"alreadyInitialized":false,...}`。该端点**幂等**，重复调用只返回 `alreadyInitialized:true`。之后即可用 `admin` + 初始密码登录。
-
-**B5. 升级**：在 Fork 仓库点 **Sync fork** 同步上游并推到 `main`，Cloudflare 会自动重新构建部署。新增迁移会在下一次 bootstrap 调用或正常请求路径中按需应用（幂等）。
+**B5. 升级**：在 Fork 仓库点 **Sync fork** 同步上游并推到 `main`，Cloudflare 会自动重新构建部署。新增迁移会在下一次访问时自动应用（幂等）。
 
 ---
 
