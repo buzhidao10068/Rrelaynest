@@ -253,3 +253,9 @@ npm run typecheck      # tsc（客户端 + 服务端两套配置）
 | `DIST_DIR` | 否 | `dist` | Node 前端静态资源目录 |
 
 > Node 部署需 **Node 22+**（依赖内置 `node:sqlite`）。Docker 镜像已锁 Node 24。
+
+---
+
+## 许可证
+
+[MIT](LICENSE)。可自由使用、修改、商用与二次分发，保留版权与许可声明即可。
