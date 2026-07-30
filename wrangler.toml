@@ -18,6 +18,8 @@ not_found_handling = "single-page-application"
 crons = ["*/5 * * * *"]
 
 # D1 数据库绑定
+# database_id 是占位符：GitHub Actions 部署时会用仓库 Secret D1_DATABASE_ID 自动替换；
+# 本地 wrangler 部署则需手动填入自己 D1 的真实 ID。
 [[d1_databases]]
 binding = "DB"
 database_name = "rrelaynest-db"

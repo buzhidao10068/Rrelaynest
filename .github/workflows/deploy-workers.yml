@@ -1,0 +1,78 @@
+name: 部署到 Cloudflare Workers
+
+# 触发方式：
+#   - 手动：仓库 Actions 页面点 "Run workflow"（首次部署用这个）
+#   - 自动：push 到 main（Fork 后同步上游 / 自己改动都会重新部署）
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# 避免并发部署互相踩踏；新的一次会取消进行中的旧的
+concurrency:
+  group: deploy-workers
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 构建前端（产出 dist/，Workers 静态资源）
+        run: npm run build
+
+      # 把 D1 数据库 ID 注入 wrangler.toml（仓库里存的是占位符，不含真实 ID）。
+      # 用 | 作分隔符，避免 ID 中出现 / 时 sed 报错。
+      - name: 注入 D1 database_id
+        run: |
+          if [ -z "${{ secrets.D1_DATABASE_ID }}" ]; then
+            echo "::error::缺少 Secret D1_DATABASE_ID，请先创建 D1 数据库并把 ID 填进仓库 Secrets"
+            exit 1
+          fi
+          sed -i "s|REPLACE_WITH_YOUR_D1_DATABASE_ID|${{ secrets.D1_DATABASE_ID }}|" wrangler.toml
+
+      - name: 部署 Worker（同时注入三个密钥）
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          # secrets 输入按 wrangler secret put 注入；每个名字须在下面 env 里有对应值
+          secrets: |
+            ADMIN_PASSWORD
+            SESSION_SECRET
+            ENCRYPTION_KEY
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+
+      # 首次引导：建表（跑全部迁移）+ seed 首个 admin。幂等——重复运行只会返回 alreadyInitialized。
+      # Bearer 令牌就是 ADMIN_PASSWORD；GitHub 会自动在日志里 mask 掉它。
+      - name: 首次引导（建表 + seed admin，幂等）
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "拿不到部署 URL，请稍后手动 curl /api/admin/bootstrap"
+            exit 0
+          fi
+          echo "引导地址：$DEPLOY_URL/api/admin/bootstrap"
+          curl -sS -X POST "$DEPLOY_URL/api/admin/bootstrap" \
+            -H "Authorization: Bearer $ADMIN_PASSWORD" \
+            --retry 5 --retry-delay 3 --retry-all-errors \
+            && echo "" \
+            && echo "引导完成，可用 admin + 初始密码登录：$DEPLOY_URL"
