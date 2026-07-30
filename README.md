@@ -180,6 +180,8 @@ database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"   # ← 换成你自己的 D1 I
 
 （GitHub 网页上直接点开文件 → 铅笔图标编辑 → Commit changes 即可，不用本地终端。）
 
+> `database_id` 只是数据库的标识符、**不是密钥**，直接提交进仓库没有安全问题——别人没有你的 API Token 照样动不了你的库，所以它不需要（也无法）放进 Cloudflare 的「变量和密钥」面板：那里放的是运行时密钥，而 `database_id` 是部署时就要读的绑定配置。三个真正的密钥才填进面板（见 B3）。
+
 **B2. 在 Cloudflare 导入仓库**
 
 1. Cloudflare 控制台 **Workers & Pages → Create → 选 Import a repository** 旁的 **Get started**
