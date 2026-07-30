@@ -120,7 +120,9 @@ Serverless，平台自带 HTTPS（无需自己配反代）。有三种方式，�
 3. 按提示**填入三个密钥**的值（`ADMIN_PASSWORD` / `SESSION_SECRET` / `ENCRYPTION_KEY`，取值见下方「通用准备第 3 步」；`ADMIN_PASSWORD` 务必改掉示例默认值）
 4. 点部署，完成后打开分配的 `*.workers.dev` 地址，用 `admin` + 你填的初始密码登录，进设置页尽快改密
 
-> **升级**：方式 C 会把仓库克隆到你的 GitHub 账户。之后同步上游改动并推送，Cloudflare 会自动重新构建部署（与方式 B 的升级方式相同）。
+> **升级**：方式 C 在你 GitHub 账户下建的是**独立克隆仓库（不是 Fork）**，所以**没有「Sync fork」一键同步按钮**。想拿本项目后续更新，需手动操作：给你的仓库加一个 upstream 远程（`git remote add upstream <本仓库地址>`），再 `git fetch upstream && git merge upstream/main` 并推送，Cloudflare 会自动重新构建部署。
+>
+> 如果你更看重**一键同步上游更新**，用**方式 A / B**（它们基于 Fork，GitHub 上有「Sync fork」按钮可一键拉取上游代码）。方式 C 胜在首次部署最省事，但后续更新反而更麻烦。
 
 ---
 
