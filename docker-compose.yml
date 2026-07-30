@@ -1,0 +1,18 @@
+# Rrelaynest —— 单容器部署（A 方案：应用只监听明文端口，TLS 交给外部反代）
+#
+# ⚠️ 会话/登录 cookie 带 Secure 标记，浏览器仅在 HTTPS（或 http://localhost）下回传。
+#    直接用 http://域名 暴露会导致「登录成功即失效」。生产务必置于反向代理
+#    （Nginx / Caddy / Cloudflare Tunnel）之后并启用 HTTPS。详见 README。
+services:
+  app:
+    build: .
+    image: rrelaynest
+    restart: unless-stopped
+    # 仅在需要直连调试时映射到宿主；生产建议只让反代访问，可改为 expose。
+    ports:
+      - "3100:3100"
+    env_file:
+      - .env
+    volumes:
+      # sqlite 落盘持久化：容器内 /app/data 映射到宿主 ./data
+      - ./data:/app/data

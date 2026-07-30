@@ -9,7 +9,7 @@
     "dev:worker": "wrangler dev --port 7738",
     "build": "vite build",
     "deploy": "npm run build && wrangler deploy",
-    "start:node": "node --enable-source-maps dist-server/index.js",
+    "start:node": "node --enable-source-maps dist-server/server/index.js",
     "build:server": "tsc -p tsconfig.server.json",
     "db:init": "wrangler d1 execute rrelaynest-db --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute rrelaynest-db --remote --file=./schema.sql",
