@@ -1,12 +1,11 @@
 name: 部署到 Cloudflare Workers
 
-# 触发方式：
-#   - 手动：仓库 Actions 页面点 "Run workflow"（首次部署用这个）
-#   - 自动：push 到 main（Fork 后同步上游 / 自己改动都会重新部署）
+# 触发方式：仅手动。
+#   在仓库 Actions 页面选本工作流 → Run workflow 才会部署。
+#   （刻意不加 push 触发：改代码/文档不会自动跑；Fork 后「Sync fork」同步上游
+#    也不会自动部署——同步完需自己回 Actions 手动 Run 一次。）
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 # 避免并发部署互相踩踏；新的一次会取消进行中的旧的
 concurrency:

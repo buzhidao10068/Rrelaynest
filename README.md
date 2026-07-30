@@ -162,7 +162,7 @@ Serverless，平台自带 HTTPS（无需自己配反代）。有两种方式，�
 
 跑完后展开最后一步日志，能看到访问地址（形如 `https://rrelaynest.<你的子域>.workers.dev`）。用 `admin` + 初始密码登录，进设置页尽快改密。
 
-**A4. 升级**：在 Fork 仓库点 **Sync fork** 同步上游 → 推到 `main` 自动重新部署；也可随时回 Actions 手动 Run。新增迁移会在部署后的 bootstrap 调用中幂等应用。
+**A4. 升级**：这条工作流**只手动触发**（不会因为推代码或同步就自动跑）。升级步骤：在 Fork 仓库点 **Sync fork** 同步上游 → ⚠️ **然后必须回 Actions 页手动点一次 Run workflow**，部署才会真正更新。（光点 Sync fork 不会自动部署——网页同步是快进合并，不产生触发工作流的 push 事件。）新增迁移会在部署后的 bootstrap 调用中幂等应用。
 
 ---
 
