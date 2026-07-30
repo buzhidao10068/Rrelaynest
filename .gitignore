@@ -6,6 +6,9 @@ dist-server/
 # 本地密钥（勿提交）
 .dev.vars
 *.local
+.env
+.env.*
+!.env.example
 
 # Docker / SQLite 本地数据
 data/
