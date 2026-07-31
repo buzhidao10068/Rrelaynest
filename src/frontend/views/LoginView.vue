@@ -8,6 +8,7 @@ import { startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/br
 import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 import { showView } from '@/stores/ui';
 import { setSession } from '@/stores/users';
+import { loadDisclaimer } from '@/stores/disclaimer';
 import { api } from '@/api';
 import { toast } from '@/composables/useToast';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ async function finishLogin() {
   password.value = '';
   mfaCode.value = '';
   mfaTicket.value = null;
+  await loadDisclaimer(); // 进主面板前先读免责同意态，未同意则 App 直接渲染门禁（无闪现）
   showView('dashboard');
 }
 

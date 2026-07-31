@@ -4,6 +4,7 @@
 import { reactive } from 'vue';
 import { ui, showView } from '@/stores/ui';
 import { settingsState } from '@/stores/settings';
+import { resetDisclaimerState } from '@/stores/disclaimer';
 import { api } from '@/api';
 
 export type Role = 'admin' | 'user';
@@ -75,6 +76,7 @@ export function clearSession(): void {
   users.viewingUserId = null;
   users.users = [];
   users.userSites = {};
+  resetDisclaimerState(); // 换账号不串号：清免责同意内存态，下次登录按新账号重读
 }
 
 // 自我保护：目标 id 是否是当前登录的自己。

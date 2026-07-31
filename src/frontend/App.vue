@@ -4,11 +4,13 @@
 import { onMounted } from 'vue';
 import { ui, showView } from '@/stores/ui';
 import { setSession, clearSession } from '@/stores/users';
+import { disclaimerState, loadDisclaimer } from '@/stores/disclaimer';
 import { api, setUnauthorizedHandler } from '@/api';
 import { useTheme } from '@/composables/useTheme';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import AppSidebar from '@/components/AppSidebar.vue';
 import ToastHost from '@/components/ToastHost.vue';
+import DisclaimerGate from '@/components/DisclaimerGate.vue';
 import LoginView from '@/views/LoginView.vue';
 import DashboardView from '@/views/DashboardView.vue';
 import ProxyView from '@/views/ProxyView.vue';
@@ -37,6 +39,7 @@ onMounted(async () => {
     );
     if (s.authenticated) {
       setSession(s.id ?? null, s.username ?? '', s.role === 'admin' ? 'admin' : 'user');
+      await loadDisclaimer(); // 认证后、进主面板前读免责同意态（未同意则渲染门禁）
       if (ui.view === 'login') showView('dashboard');
     }
   } catch {
@@ -48,20 +51,25 @@ onMounted(async () => {
 <template>
   <LoginView v-if="ui.view === 'login'" />
 
-  <SidebarProvider v-else :default-open="true">
-    <AppSidebar />
-    <SidebarInset>
-      <DashboardView v-if="ui.view === 'dashboard'" />
-      <ProxyView v-else-if="ui.view === 'proxy'" />
-      <ActivityView v-else-if="ui.view === 'activity'" />
-      <ScraperCfView v-else-if="ui.view === 'scraperCf'" />
-      <ScraperDockerView v-else-if="ui.view === 'scraperDocker'" />
-      <SettingsView v-else-if="ui.view === 'settings'" />
-      <UsersView v-else-if="ui.view === 'users'" />
-      <UserSitesView v-else-if="ui.view === 'userSites'" />
-      <AboutView v-else-if="ui.view === 'about'" />
-    </SidebarInset>
-  </SidebarProvider>
+  <!-- 已登录：进主面板前须先过免责声明门禁（per-user，未同意则全屏拦截；加载中留白避免闪现） -->
+  <template v-else>
+    <DisclaimerGate v-if="disclaimerState.loaded && !disclaimerState.accepted" />
+
+    <SidebarProvider v-else-if="disclaimerState.loaded" :default-open="true">
+      <AppSidebar />
+      <SidebarInset>
+        <DashboardView v-if="ui.view === 'dashboard'" />
+        <ProxyView v-else-if="ui.view === 'proxy'" />
+        <ActivityView v-else-if="ui.view === 'activity'" />
+        <ScraperCfView v-else-if="ui.view === 'scraperCf'" />
+        <ScraperDockerView v-else-if="ui.view === 'scraperDocker'" />
+        <SettingsView v-else-if="ui.view === 'settings'" />
+        <UsersView v-else-if="ui.view === 'users'" />
+        <UserSitesView v-else-if="ui.view === 'userSites'" />
+        <AboutView v-else-if="ui.view === 'about'" />
+      </SidebarInset>
+    </SidebarProvider>
+  </template>
 
   <ToastHost />
 </template>
