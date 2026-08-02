@@ -12,6 +12,7 @@
 // 视图态（列宽/分页/紧凑/批量/分组折叠/拖拽）全部保留在前端。
 import { reactive, computed } from 'vue';
 import { api } from '@/api';
+import { t } from '@/i18n';
 
 // signed=今日已签 / pending=启用签到但今日未签 / off=未启用
 export type CheckinState = 'signed' | 'pending' | 'off';
@@ -58,7 +59,7 @@ export function curSign(cur?: string): string {
 
 export interface Column {
   key: string;
-  label: string;
+  labelKey: string;
   sortable: boolean;
   visible: boolean;
   always?: boolean;
@@ -93,15 +94,15 @@ interface SiteApiRow {
 
 // 相对时间：对齐 mock 文案（刚刚 / X 分钟前 / X 小时前 / X 天前 / 未爬取）。
 function relTime(ts: number | null): { text: string; min: number } {
-  if (!ts) return { text: '未爬取', min: Infinity };
+  if (!ts) return { text: t('sites.neverScraped'), min: Infinity };
   const diffMs = Date.now() - ts;
   const min = Math.max(0, Math.floor(diffMs / 60000));
-  if (min < 1) return { text: '刚刚', min: 0 };
-  if (min < 60) return { text: `${min} 分钟前`, min };
+  if (min < 1) return { text: t('sites.justNow'), min: 0 };
+  if (min < 60) return { text: t('sites.minutesAgo', { n: min }), min };
   const hr = Math.floor(min / 60);
-  if (hr < 24) return { text: `${hr} 小时前`, min };
+  if (hr < 24) return { text: t('sites.hoursAgo', { n: hr }), min };
   const day = Math.floor(hr / 24);
-  return { text: `${day} 天前`, min };
+  return { text: t('sites.daysAgo', { n: day }), min };
 }
 
 function mapRow(r: SiteApiRow): Site {
@@ -183,13 +184,13 @@ export const sitesState = reactive<SitesState>({
   loading: false,
   loaded: false,
   columns: [
-    { key: 'name',    label: '站点名称', sortable: true,  visible: true, always: true, width: 180, defW: 180 },
-    { key: 'url',     label: '地址',     sortable: false, visible: true, width: 200, defW: 200 },
-    { key: 'bal',     label: '余额',     sortable: true,  visible: true, width: 110, defW: 110 },
-    { key: 'rmb',     label: '折算RMB',  sortable: false, visible: true, width: 110, defW: 110 },
-    { key: 'rate',    label: '汇率',     sortable: false, visible: true, width: 90,  defW: 90  },
-    { key: 'ck',      label: '签到状态', sortable: true,  visible: true, width: 150, defW: 150 },
-    { key: 'scraped', label: '上次爬取', sortable: true,  visible: true, width: 130, defW: 130 },
+    { key: 'name',    labelKey: 'sites.colName',    sortable: true,  visible: true, always: true, width: 180, defW: 180 },
+    { key: 'url',     labelKey: 'sites.colUrl',     sortable: false, visible: true, width: 200, defW: 200 },
+    { key: 'bal',     labelKey: 'sites.colBalance', sortable: true,  visible: true, width: 110, defW: 110 },
+    { key: 'rmb',     labelKey: 'sites.colRmb',     sortable: false, visible: true, width: 110, defW: 110 },
+    { key: 'rate',    labelKey: 'sites.colRate',    sortable: false, visible: true, width: 90,  defW: 90  },
+    { key: 'ck',      labelKey: 'sites.colCheckin', sortable: true,  visible: true, width: 150, defW: 150 },
+    { key: 'scraped', labelKey: 'sites.colScraped', sortable: true,  visible: true, width: 130, defW: 130 },
   ],
   sortKey: null,
   sortDir: null,

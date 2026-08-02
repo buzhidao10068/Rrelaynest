@@ -3,6 +3,7 @@
 // + 新增/编辑弹窗 + 配置站点弹窗（过渡：仍绑 mock 站点）。
 // 事实来源：后端 /api/proxies + settings.global_proxy_id（proxyState 是其前端缓存）。
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Plus, Pencil, LayoutGrid, Trash2, AlertTriangle } from 'lucide-vue-next';
 import AppHeader from '@/components/AppHeader.vue';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,8 @@ import { toast } from '@/composables/useToast';
 import ProxyModal from '@/components/proxy/ProxyModal.vue';
 import SiteAssignModal from '@/components/proxy/SiteAssignModal.vue';
 
+const { t } = useI18n({ useScope: 'global' });
+
 const isWorkers = computed(() => ui.deployPlatform === 'workers');
 
 // 弹窗状态
@@ -32,7 +35,7 @@ onMounted(async () => {
   try {
     await loadProxies();
   } catch (e) {
-    toast(e instanceof Error ? e.message : '加载代理失败', 'error');
+    toast(e instanceof Error ? e.message : t('proxy.loadFailed'), 'error');
   }
 });
 
@@ -45,11 +48,11 @@ const globalSel = computed({
     try {
       await setGlobalProxy(id);
       const p = id == null ? undefined : findProxy(id);
-      if (id == null) toast('全局设为直连；未单独绑定代理的站点将直连', 'info');
-      else if (p && !p.enabled) toast(`「${p.name}」已设为全局，但它当前被停用`, 'info');
-      else if (p) toast(`全局代理已设为「${p.name}」`, 'success');
+      if (id == null) toast(t('proxy.globalSetDirect'), 'info');
+      else if (p && !p.enabled) toast(t('proxy.globalSetButDisabled', { name: p.name }), 'info');
+      else if (p) toast(t('proxy.globalSetTo', { name: p.name }), 'success');
     } catch (e) {
-      toast(e instanceof Error ? e.message : '设置全局代理失败', 'error');
+      toast(e instanceof Error ? e.message : t('proxy.setGlobalFailed'), 'error');
     }
   },
 });
@@ -58,7 +61,7 @@ function typeBadgeClass(t: Proxy['type']): string {
   return PROXY_TYPE_STYLE[t];
 }
 function authLabel(p: Proxy): string {
-  return p.user ? `需认证 · ${p.user}` : '无认证';
+  return p.user ? t('proxy.authRequired', { user: p.user }) : t('proxy.noAuth');
 }
 
 function onCreate() {
@@ -72,18 +75,18 @@ function onEdit(p: Proxy) {
 async function onToggle(p: Proxy) {
   try {
     const en = await toggleProxyEnabled(p.id);
-    toast(`「${p.name}」${en ? '已启用' : '已停用'}`, en ? 'success' : 'info');
+    toast(en ? t('proxy.enabledToast', { name: p.name }) : t('proxy.disabledToast', { name: p.name }), en ? 'success' : 'info');
   } catch (e) {
-    toast(e instanceof Error ? e.message : '操作失败', 'error');
+    toast(e instanceof Error ? e.message : t('common.failed'), 'error');
   }
 }
 async function onDelete(p: Proxy) {
-  if (!confirm(`确定删除代理「${p.name}」？绑定它的站点将回落跟随全局。`)) return;
+  if (!confirm(t('proxy.deleteConfirm', { name: p.name }))) return;
   try {
     await deleteProxy(p.id);
-    toast(`已删除「${p.name}」`, 'success');
+    toast(t('proxy.deletedToast', { name: p.name }), 'success');
   } catch (e) {
-    toast(e instanceof Error ? e.message : '删除失败', 'error');
+    toast(e instanceof Error ? e.message : t('proxy.deleteFailed'), 'error');
   }
 }
 function onAssign(p: Proxy) {
@@ -94,7 +97,7 @@ function onAssign(p: Proxy) {
 
 <template>
   <div class="min-h-screen bg-background">
-    <AppHeader title="代理 · Docker" />
+    <AppHeader :title="t('proxy.title')" />
 
     <div class="mx-auto max-w-[900px] space-y-6 p-4 sm:p-6">
       <!-- 平台提示条：仅 Workers 部署显示（代理不可用，强制直连） -->
@@ -104,9 +107,9 @@ function onAssign(p: Proxy) {
       >
         <AlertTriangle :size="18" class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
         <div class="min-w-0">
-          <p class="font-medium text-amber-700 dark:text-amber-300">当前部署为 Cloudflare Workers，代理功能不可用</p>
+          <p class="font-medium text-amber-700 dark:text-amber-300">{{ t('proxy.workersWarnTitle') }}</p>
           <p class="mt-1 text-muted-foreground">
-            Workers 运行时无法连接自建代理，所有站点将强制直连。代理配置仅在 Node/Docker 部署下生效。你仍可在此查看/编辑配置，但不会实际生效。
+            {{ t('proxy.workersWarnDesc') }}
           </p>
         </div>
       </div>
@@ -114,31 +117,31 @@ function onAssign(p: Proxy) {
       <!-- 标题 + 新增 -->
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 class="text-base font-semibold">代理池</h3>
+          <h3 class="text-base font-semibold">{{ t('proxy.poolTitle') }}</h3>
           <p class="mt-1 text-sm text-muted-foreground">
-            管理多个出站代理。为站点单独绑定代理，或在下方选一个作全局出网；未绑定的站点走全局，全局设为直连则不经代理。
+            {{ t('proxy.poolDesc') }}
           </p>
         </div>
         <Button class="shrink-0" @click="onCreate">
           <Plus :size="16" />
-          新增代理
+          {{ t('proxy.addProxy') }}
         </Button>
       </div>
 
       <!-- 全局代理 -->
       <div class="flex flex-wrap items-center gap-4 rounded-lg border border-border p-4">
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium">全局代理</p>
-          <p class="text-xs text-muted-foreground">未单独绑定代理的站点默认走这里；选「直连」则不经代理。</p>
+          <p class="text-sm font-medium">{{ t('proxy.global') }}</p>
+          <p class="text-xs text-muted-foreground">{{ t('proxy.globalDesc') }}</p>
         </div>
         <Select v-model="globalSel">
           <SelectTrigger class="w-full shrink-0 sm:w-64">
-            <SelectValue placeholder="直连（不使用代理）" />
+            <SelectValue :placeholder="t('proxy.direct')" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem :value="DIRECT">直连（不使用代理）</SelectItem>
+            <SelectItem :value="DIRECT">{{ t('proxy.direct') }}</SelectItem>
             <SelectItem v-for="p in proxyState.list" :key="p.id" :value="String(p.id)">
-              {{ p.name }} · {{ p.type.toUpperCase() }} {{ p.host }}:{{ p.port }}{{ p.enabled ? '' : '（已停用）' }}
+              {{ p.name }} · {{ p.type.toUpperCase() }} {{ p.host }}:{{ p.port }}{{ p.enabled ? '' : t('proxy.suffixDisabled') }}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -150,7 +153,7 @@ function onAssign(p: Proxy) {
           v-if="!proxyState.list.length"
           class="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground"
         >
-          暂无代理，点击右上角「新增代理」添加。
+          {{ t('proxy.empty') }}
         </div>
 
         <div
@@ -169,15 +172,15 @@ function onAssign(p: Proxy) {
                 <span
                   v-if="p.enabled"
                   class="inline-flex items-center rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400"
-                >● 已启用</span>
+                >{{ t('proxy.badgeEnabled') }}</span>
                 <span
                   v-else
                   class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                >○ 已停用</span>
+                >{{ t('proxy.badgeDisabled') }}</span>
                 <span
                   v-if="p.id === proxyState.globalProxyId"
                   class="inline-flex items-center rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400"
-                >全局</span>
+                >{{ t('proxy.badgeGlobal') }}</span>
               </div>
               <p class="mt-1 truncate font-mono text-xs text-muted-foreground">{{ p.host }}:{{ p.port }}</p>
               <p class="mt-0.5 text-xs text-muted-foreground">{{ authLabel(p) }}</p>
@@ -185,7 +188,7 @@ function onAssign(p: Proxy) {
             <div class="flex shrink-0 items-center gap-2">
               <Switch
                 :model-value="p.enabled"
-                :title="p.enabled ? '停用此代理' : '启用此代理'"
+                :title="p.enabled ? t('proxy.disableThis') : t('proxy.enableThis')"
                 @update:model-value="onToggle(p)"
               />
             </div>
@@ -194,11 +197,11 @@ function onAssign(p: Proxy) {
           <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
             <Button variant="outline" size="sm" @click="onEdit(p)">
               <Pencil :size="14" />
-              编辑
+              {{ t('common.edit') }}
             </Button>
-            <Button variant="outline" size="sm" title="配置哪些站点使用此代理" @click="onAssign(p)">
+            <Button variant="outline" size="sm" :title="t('proxy.assignTitle')" @click="onAssign(p)">
               <LayoutGrid :size="14" />
-              配置站点
+              {{ t('proxy.assignSites') }}
               <span class="ml-0.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold">
                 {{ proxySiteCount(p.id) }}
               </span>
@@ -210,7 +213,7 @@ function onAssign(p: Proxy) {
               @click="onDelete(p)"
             >
               <Trash2 :size="14" />
-              删除
+              {{ t('common.delete') }}
             </Button>
           </div>
         </div>

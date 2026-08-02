@@ -25,9 +25,12 @@ import { proxyState } from '@/stores/proxies';
 import { settingsState } from '@/stores/settings';
 import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{ open: boolean; editing: Site | null }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 // ---- 表单字段 ----
 const name = ref('');
@@ -50,16 +53,14 @@ const busy = ref(false);
 const models = ref<string[]>([]);
 
 const isEdit = computed(() => props.editing !== null);
-const title = computed(() => (isEdit.value ? '编辑站点' : '新增站点'));
-const desc = computed(() => (isEdit.value ? '修改中转站的连接信息与签到设置' : '添加一个新的 new-api 中转站'));
-const submitLabel = computed(() => (isEdit.value ? '保存' : '创建'));
+const title = computed(() => (isEdit.value ? t('siteEditor.titleEdit') : t('siteEditor.titleAdd')));
+const desc = computed(() => (isEdit.value ? t('siteEditor.descEdit') : t('siteEditor.descAdd')));
+const submitLabel = computed(() => (isEdit.value ? t('common.save') : t('siteEditor.create')));
 const tokenHint = computed(() =>
-  isEdit.value
-    ? '留空则保留原 token（加密存储，不回显）'
-    : '选填。留空可先建档，主页会用红色三角提示该站尚未启用爬取。',
+  isEdit.value ? t('siteEditor.tokenHintEdit') : t('siteEditor.tokenHintAdd'),
 );
 const tokenPlaceholder = computed(() =>
-  isEdit.value ? '留空则保留原 token' : '选填，不填则该站无法爬取/签到，主页会有提示',
+  isEdit.value ? t('siteEditor.tokenPhEdit') : t('siteEditor.tokenPhAdd'),
 );
 
 // 汇率提示：到账币种 + 折算比率
@@ -67,8 +68,8 @@ const ratioHint = computed(() => {
   const c = cur.value.trim() || 'USD';
   const rmb = parseFloat(rechargeRmb.value);
   const amt = parseFloat(rechargeAmount.value);
-  let txt = '到账 ' + c;
-  if (rmb > 0 && amt > 0) txt += `（1 ${c} ≈ ¥${(rmb / amt).toFixed(2)}）`;
+  let txt = t('siteEditor.field.received', { cur: c });
+  if (rmb > 0 && amt > 0) txt += t('siteEditor.field.ratioSuffix', { cur: c, rate: (rmb / amt).toFixed(2) });
   return txt;
 });
 
@@ -144,18 +145,18 @@ async function onSubmit() {
   if (busy.value) return;
   const nm = name.value.trim();
   const u = url.value.trim();
-  if (!nm) { errorMsg.value = '请填写站点名称'; return; }
-  if (!u) { errorMsg.value = '请填写站点地址'; return; }
-  if (!/^https?:\/\//i.test(u)) { errorMsg.value = '站点地址需以 http:// 或 https:// 开头'; return; }
+  if (!nm) { errorMsg.value = t('siteEditor.errNameRequired'); return; }
+  if (!u) { errorMsg.value = t('siteEditor.errUrlRequired'); return; }
+  if (!/^https?:\/\//i.test(u)) { errorMsg.value = t('siteEditor.errUrlScheme'); return; }
   const rmb = parseFloat(rechargeRmb.value);
   const amt = parseFloat(rechargeAmount.value);
-  if (!(rmb > 0)) { errorMsg.value = '充值金额（人民币）必须为正数'; return; }
-  if (!(amt > 0)) { errorMsg.value = '到账额度（站点货币）必须为正数'; return; }
+  if (!(rmb > 0)) { errorMsg.value = t('siteEditor.errRechargePositive'); return; }
+  if (!(amt > 0)) { errorMsg.value = t('siteEditor.errAmountPositive'); return; }
   if (String(balRaw.value).trim() !== '' && isNaN(parseFloat(String(balRaw.value)))) {
-    errorMsg.value = '余额必须为数字，或留空表示未知'; return;
+    errorMsg.value = t('siteEditor.errBalNumber'); return;
   }
   const editingId = props.editing ? props.editing.id : null;
-  if (nameExists(nm, editingId)) { errorMsg.value = '站点名称已存在，请换一个'; return; }
+  if (nameExists(nm, editingId)) { errorMsg.value = t('siteEditor.errNameExists'); return; }
 
   const form: SiteForm = {
     name: nm, url: u, token: token.value,
@@ -169,10 +170,10 @@ async function onSubmit() {
   busy.value = true;
   try {
     const saved = await saveSite(form, editingId);
-    toast(editingId === null ? `已创建「${saved}」` : `已保存「${saved}」`, 'success');
+    toast(editingId === null ? t('siteEditor.toastCreated', { name: saved }) : t('siteEditor.toastSaved', { name: saved }), 'success');
     emit('close');
   } catch (e) {
-    errorMsg.value = e instanceof ApiError ? e.message : '保存失败';
+    errorMsg.value = e instanceof ApiError ? e.message : t('siteEditor.saveFailed');
     toast(errorMsg.value, 'error');
   } finally {
     busy.value = false;
@@ -201,11 +202,11 @@ const probeSel = computed({
 
       <div class="space-y-5">
         <div class="space-y-1.5">
-          <Label>站点名称</Label>
+          <Label>{{ t('siteEditor.field.name') }}</Label>
           <Input v-model="name" />
         </div>
         <div class="space-y-1.5">
-          <Label>站点地址</Label>
+          <Label>{{ t('siteEditor.field.url') }}</Label>
           <Input v-model="url" placeholder="https://..." />
         </div>
         <div class="space-y-1.5">
@@ -216,7 +217,7 @@ const probeSel = computed({
 
         <!-- 上游模型（爬取所得，只读）-->
         <div class="space-y-1.5">
-          <Label>上游模型</Label>
+          <Label>{{ t('siteEditor.field.upstreamModels') }}</Label>
           <div
             v-if="models.length"
             class="flex flex-wrap gap-1.5 rounded-md border border-border bg-muted/30 p-2"
@@ -228,45 +229,45 @@ const probeSel = computed({
             >{{ m }}</span>
           </div>
           <p v-else class="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-            尚无模型。爬取该站后，上游模型列表会自动显示在此（只读）。
+            {{ t('siteEditor.field.noModels') }}
           </p>
           <p class="text-xs text-muted-foreground">
-            模型来自爬取结果（{{ '{base}' }}/v1/models）。测活页「渠道测试」会逐个模型测活。
+            {{ t('siteEditor.field.modelsFrom', { path: '{base}/v1/models' }) }}
           </p>
         </div>
 
         <div class="space-y-1.5">
-          <Label>当前余额（站点货币）</Label>
-          <Input v-model="balRaw" type="number" step="0.01" placeholder="留空表示未知" />
-          <p class="text-xs text-muted-foreground">可手动填写一个种子值；下次爬取会自动覆盖。</p>
+          <Label>{{ t('siteEditor.field.balance') }}</Label>
+          <Input v-model="balRaw" type="number" step="0.01" :placeholder="t('siteEditor.field.balancePlaceholder')" />
+          <p class="text-xs text-muted-foreground">{{ t('siteEditor.field.balanceHint') }}</p>
         </div>
 
         <!-- 汇率 -->
         <div class="space-y-1.5">
-          <Label>汇率（按一次充值折算）</Label>
+          <Label>{{ t('siteEditor.field.rate') }}</Label>
           <div class="flex flex-wrap items-center gap-2 text-sm">
-            <span class="text-muted-foreground">充值</span>
+            <span class="text-muted-foreground">{{ t('siteEditor.field.recharge') }}</span>
             <Input v-model="rechargeRmb" type="number" min="0" step="0.01" class="w-24" />
-            <span class="text-muted-foreground">元 =</span>
+            <span class="text-muted-foreground">{{ t('siteEditor.field.yuanEq') }}</span>
             <Input v-model="rechargeAmount" type="number" min="0" step="0.0001" class="w-24" />
             <span class="text-muted-foreground">{{ ratioHint }}</span>
           </div>
-          <p class="text-xs text-muted-foreground">填写你实际充值时看到的两个数字，如「充 10 元到账 1.4 美元」。人民币站点填 1 = 1 即可。</p>
+          <p class="text-xs text-muted-foreground">{{ t('siteEditor.field.rateHint') }}</p>
         </div>
         <div class="space-y-1.5">
-          <Label>货币</Label>
+          <Label>{{ t('siteEditor.field.currency') }}</Label>
           <Input v-model="cur" />
         </div>
 
         <!-- 分组自动补全 -->
         <div class="space-y-1.5">
-          <Label>分组</Label>
+          <Label>{{ t('siteEditor.field.group') }}</Label>
           <div class="relative">
             <Input
               id="group-input"
               v-model="group"
               autocomplete="off"
-              placeholder="不填=不分组；可选已有组或输入新组名新建"
+              :placeholder="t('siteEditor.field.groupPlaceholder')"
               class="pr-9"
               @focus="groupMenuOpen = true"
             />
@@ -291,48 +292,48 @@ const probeSel = computed({
               >{{ g }}</Button>
             </div>
           </div>
-          <p class="text-xs text-muted-foreground">选择已有分组，或输入新名称创建；留空表示不分组。</p>
+          <p class="text-xs text-muted-foreground">{{ t('siteEditor.field.groupHint') }}</p>
         </div>
 
         <!-- 出站代理 -->
         <div class="space-y-1.5">
-          <Label>出站代理</Label>
+          <Label>{{ t('siteEditor.field.proxy') }}</Label>
           <Select v-model="proxySel">
             <SelectTrigger>
-              <SelectValue placeholder="跟随全局设置" />
+              <SelectValue :placeholder="t('siteEditor.field.followGlobal')" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem :value="FOLLOW">跟随全局设置</SelectItem>
+              <SelectItem :value="FOLLOW">{{ t('siteEditor.field.followGlobal') }}</SelectItem>
               <SelectItem v-for="p in proxyState.list" :key="p.id" :value="String(p.id)">
                 {{ p.name }}（{{ p.type }}）
               </SelectItem>
             </SelectContent>
           </Select>
-          <p class="text-xs text-muted-foreground">留空=跟随全局设置；指定后此站单独经该代理出网。在「代理」页可管理代理列表。</p>
+          <p class="text-xs text-muted-foreground">{{ t('siteEditor.field.proxyHint') }}</p>
         </div>
 
         <div class="space-y-1.5">
-          <Label>注册邮箱</Label>
+          <Label>{{ t('siteEditor.field.email') }}</Label>
           <Input v-model="email" />
         </div>
         <div class="space-y-1.5">
-          <Label>备注</Label>
+          <Label>{{ t('siteEditor.field.note') }}</Label>
           <Textarea v-model="note" rows="2" />
         </div>
 
         <!-- 测活词 -->
         <div class="space-y-1.5">
-          <Label>测活词</Label>
+          <Label>{{ t('siteEditor.field.probeWord') }}</Label>
           <Select v-model="probeSel">
             <SelectTrigger>
-              <SelectValue :placeholder="`跟随全局（${globalProbe}）`" />
+              <SelectValue :placeholder="t('siteEditor.field.followGlobalWord', { word: globalProbe })" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem :value="FOLLOW">跟随全局（{{ globalProbe }}）</SelectItem>
+              <SelectItem :value="FOLLOW">{{ t('siteEditor.field.followGlobalWord', { word: globalProbe }) }}</SelectItem>
               <SelectItem v-for="w in probeOptions" :key="w.text" :value="w.text">{{ w.text }}</SelectItem>
             </SelectContent>
           </Select>
-          <p class="text-xs text-muted-foreground">测活页「渠道测试」发给本站模型的话，模型正常回复即判存活；留空则跟随全局默认词。词条在「测活」页管理。</p>
+          <p class="text-xs text-muted-foreground">{{ t('siteEditor.field.probeWordHint') }}</p>
         </div>
 
         <!-- 签到设置区 -->
@@ -340,8 +341,8 @@ const probeSel = computed({
           <div class="flex items-center gap-4">
             <Switch v-model="ckMaster" />
             <div>
-              <p class="text-sm font-medium">签到</p>
-              <p class="text-xs text-muted-foreground">启用后每日跨天自动签到（后端定时执行），也可在主页点「签到」立即执行。需站点支持 /api/user/checkin。</p>
+              <p class="text-sm font-medium">{{ t('siteEditor.field.checkin') }}</p>
+              <p class="text-xs text-muted-foreground">{{ t('siteEditor.field.checkinHint') }}</p>
             </div>
           </div>
         </div>
@@ -351,8 +352,8 @@ const probeSel = computed({
         </p>
 
         <div class="flex justify-end gap-2">
-          <Button variant="outline" :disabled="busy" @click="emit('close')">取消</Button>
-          <Button :disabled="busy" @click="onSubmit">{{ busy ? '保存中…' : submitLabel }}</Button>
+          <Button variant="outline" :disabled="busy" @click="emit('close')">{{ t('common.cancel') }}</Button>
+          <Button :disabled="busy" @click="onSubmit">{{ busy ? t('common.saving') : submitLabel }}</Button>
         </div>
       </div>
     </DialogContent>

@@ -5,6 +5,7 @@ import { ref, computed, watch, onMounted, type Component } from 'vue';
 import {
   Settings2, ShieldCheck, CalendarCheck, History, Database, Eye,
 } from 'lucide-vue-next';
+import { useI18n } from 'vue-i18n';
 import AppHeader from '@/components/AppHeader.vue';
 import { users } from '@/stores/users';
 import { settingsState, loadSettings } from '@/stores/settings';
@@ -19,19 +20,21 @@ type SectionKey = 'general' | 'security' | 'checkin' | 'records' | 'data' | 'pri
 
 interface NavItem {
   key: SectionKey;
-  label: string;
+  labelKey: string;
   icon: Component;
   comp: Component;
   adminOnly?: boolean;
 }
 
+const { t } = useI18n({ useScope: 'global' });
+
 const navItems: NavItem[] = [
-  { key: 'general', label: '通用偏好', icon: Settings2, comp: GeneralSection },
-  { key: 'security', label: '安全', icon: ShieldCheck, comp: SecuritySection },
-  { key: 'checkin', label: '签到', icon: CalendarCheck, comp: CheckinSection },
-  { key: 'records', label: '记录', icon: History, comp: RecordsSection },
-  { key: 'data', label: '数据与关于', icon: Database, comp: DataSection },
-  { key: 'privacy', label: '协作与隐私', icon: Eye, comp: PrivacySection, adminOnly: true },
+  { key: 'general', labelKey: 'settings.nav.general', icon: Settings2, comp: GeneralSection },
+  { key: 'security', labelKey: 'settings.nav.security', icon: ShieldCheck, comp: SecuritySection },
+  { key: 'checkin', labelKey: 'settings.nav.checkin', icon: CalendarCheck, comp: CheckinSection },
+  { key: 'records', labelKey: 'settings.nav.records', icon: History, comp: RecordsSection },
+  { key: 'data', labelKey: 'settings.nav.data', icon: Database, comp: DataSection },
+  { key: 'privacy', labelKey: 'settings.nav.privacy', icon: Eye, comp: PrivacySection, adminOnly: true },
 ];
 
 const isAdmin = computed(() => users.currentRole === 'admin');
@@ -66,7 +69,7 @@ const activeComp = computed<Component>(
 
 <template>
   <div class="min-h-screen bg-background">
-    <AppHeader title="设置" />
+    <AppHeader :title="t('settings.title')" />
 
     <div class="mx-auto flex max-w-[1100px] flex-col gap-6 p-4 sm:p-6 md:flex-row">
       <!-- 左分区导航：窄屏横向滚动，宽屏固定左列 -->
@@ -81,7 +84,7 @@ const activeComp = computed<Component>(
           @click="active = it.key"
         >
           <component :is="it.icon" :size="16" class="shrink-0" />
-          {{ it.label }}
+          {{ t(it.labelKey) }}
         </button>
       </nav>
 

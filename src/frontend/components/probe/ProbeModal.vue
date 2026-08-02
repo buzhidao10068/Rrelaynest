@@ -11,6 +11,9 @@ import { Button } from '@/components/ui/button';
 import { saveProbe, probeExists, findProbe } from '@/stores/probes';
 import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
+import { useI18n } from 'vue-i18n';
+
+const { t: $t } = useI18n({ useScope: 'global' });
 
 // editing = 被编辑词条的 id（新增时 null）
 const props = defineProps<{ open: boolean; editing: number | null }>();
@@ -21,7 +24,7 @@ const errorMsg = ref('');
 const busy = ref(false);
 
 const isEdit = computed(() => props.editing !== null);
-const title = computed(() => (isEdit.value ? '编辑测活词' : '新增测活词'));
+const title = computed(() => (isEdit.value ? $t('probe.editTitle') : $t('probe.addTitle')));
 
 watch(
   () => [props.open, props.editing] as const,
@@ -38,17 +41,17 @@ watch(
 
 async function onSubmit() {
   const t = text.value.trim();
-  if (!t) { errorMsg.value = '请填写测活词内容'; return; }
+  if (!t) { errorMsg.value = $t('probe.textRequired'); return; }
   const editingId = props.editing;
   // 本地即时反馈；后端仍会 409 兜底。
-  if (probeExists(t, editingId)) { errorMsg.value = '已存在相同的测活词'; return; }
+  if (probeExists(t, editingId)) { errorMsg.value = $t('probe.duplicate'); return; }
   busy.value = true;
   try {
     await saveProbe(t, editingId);
-    toast(editingId === null ? `已新增「${t}」` : `已保存「${t}」`, 'success');
+    toast(editingId === null ? $t('probe.added', { text: t }) : $t('probe.saved', { text: t }), 'success');
     emit('close');
   } catch (e) {
-    errorMsg.value = e instanceof ApiError ? e.message : '保存失败';
+    errorMsg.value = e instanceof ApiError ? e.message : $t('probe.saveFailed');
   } finally {
     busy.value = false;
   }
@@ -60,14 +63,14 @@ async function onSubmit() {
     <DialogContent class="max-w-[420px]">
       <DialogHeader>
         <DialogTitle>{{ title }}</DialogTitle>
-        <DialogDescription>渠道测试时发给模型的话，模型正常回复即判为存活。</DialogDescription>
+        <DialogDescription>{{ $t('probe.modalDesc') }}</DialogDescription>
       </DialogHeader>
 
       <div class="space-y-5">
         <div class="space-y-1.5">
-          <Label>测活词</Label>
-          <Input id="probe-text" v-model="text" :disabled="busy" placeholder="如：hi" @keyup.enter="onSubmit" />
-          <p class="text-xs text-muted-foreground">发给模型的一句话，如「hi」「你好」「ping」。</p>
+          <Label>{{ $t('probe.probeWord') }}</Label>
+          <Input id="probe-text" v-model="text" :disabled="busy" :placeholder="$t('probe.textPlaceholder')" @keyup.enter="onSubmit" />
+          <p class="text-xs text-muted-foreground">{{ $t('probe.textHint') }}</p>
         </div>
 
         <p v-if="errorMsg" class="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-500">
@@ -75,8 +78,8 @@ async function onSubmit() {
         </p>
 
         <div class="flex justify-end gap-2">
-          <Button variant="outline" :disabled="busy" @click="emit('close')">取消</Button>
-          <Button :disabled="busy" @click="onSubmit">{{ busy ? '保存中…' : '保存' }}</Button>
+          <Button variant="outline" :disabled="busy" @click="emit('close')">{{ $t('common.cancel') }}</Button>
+          <Button :disabled="busy" @click="onSubmit">{{ busy ? $t('common.saving') : $t('common.save') }}</Button>
         </div>
       </div>
     </DialogContent>

@@ -21,6 +21,9 @@ import { toast } from '@/composables/useToast';
 import ProbeModal from '@/components/probe/ProbeModal.vue';
 import ProbeAssignModal from '@/components/probe/ProbeAssignModal.vue';
 import SiteCheckRow from '@/components/site/SiteCheckRow.vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 
 // ---- 分组视图 ----
 const groupMode = ref(false);
@@ -46,8 +49,8 @@ const globalSel = computed({
   get: () => probeState.globalText,
   set: (v: string) => {
     setGlobalProbe(v)
-      .then(() => toast(`全局默认词已设为「${probeState.globalText}」`, 'success'))
-      .catch((e) => toast(errMsg(e, '设置全局默认词失败'), 'error'));
+      .then(() => toast(t('activity.globalWordSetTo', { text: probeState.globalText }), 'success'))
+      .catch((e) => toast(errMsg(e, t('activity.setGlobalWordFailed')), 'error'));
   },
 });
 // 全局默认词开关：关闭后未单独绑词的站点渠道测试跳过（测试连接不受影响）。
@@ -55,8 +58,8 @@ const globalOn = computed({
   get: () => probeState.globalEnabled,
   set: (on: boolean) => {
     setGlobalEnabled(on)
-      .then(() => toast(on ? '全局默认词已开启' : '全局默认词已关闭，未绑定词的站点将跳过渠道测试', on ? 'success' : 'info'))
-      .catch((e) => toast(errMsg(e, '切换全局开关失败'), 'error'));
+      .then(() => toast(on ? t('activity.globalWordEnabled') : t('activity.globalWordDisabled'), on ? 'success' : 'info'))
+      .catch((e) => toast(errMsg(e, t('activity.toggleGlobalFailed')), 'error'));
   },
 });
 
@@ -77,17 +80,17 @@ async function onToggleProbe(w: ProbeWord) {
   try {
     const en = await toggleProbe(w.id);
     if (en === null) return;
-    toast(`「${w.text}」${en ? '已启用' : '已停用'}`, en ? 'success' : 'info');
+    toast(en ? t('activity.wordEnabled', { text: w.text }) : t('activity.wordDisabled', { text: w.text }), en ? 'success' : 'info');
   } catch (e) {
-    toast(errMsg(e, '切换启用状态失败'), 'error');
+    toast(errMsg(e, t('activity.toggleEnabledFailed')), 'error');
   }
 }
 async function onDeleteProbe(w: ProbeWord) {
-  if (!confirm(`确定删除测活词「${w.text}」？绑定它的站点将回落到全局默认词。`)) return;
+  if (!confirm(t('activity.deleteWordConfirm', { text: w.text }))) return;
   try {
-    if (await deleteProbe(w.id)) toast(`已删除「${w.text}」`, 'success');
+    if (await deleteProbe(w.id)) toast(t('activity.wordDeleted', { text: w.text }), 'success');
   } catch (e) {
-    toast(errMsg(e, '删除失败'), 'error');
+    toast(errMsg(e, t('activity.deleteFailed')), 'error');
   }
 }
 function onAssignProbe(w: ProbeWord) {
@@ -99,40 +102,40 @@ onMounted(async () => {
   try {
     await Promise.all([loadSites(), loadProbeWords()]);
   } catch (e) {
-    toast(errMsg(e, '加载测活数据失败'), 'error');
+    toast(errMsg(e, t('activity.loadDataFailed')), 'error');
   }
 });
 </script>
 
 <template>
   <div class="min-h-screen bg-background">
-    <AppHeader title="测活" />
+    <AppHeader :title="t('activity.title')" />
 
     <div class="mx-auto max-w-[900px] space-y-6 p-4 sm:p-6">
       <!-- 标题 + 检测按钮 -->
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 class="text-base font-semibold">站点连通性检测</h3>
+          <h3 class="text-base font-semibold">{{ t('activity.connectivityTitle') }}</h3>
           <p class="mt-1 text-sm text-muted-foreground">
-            测试连接=后端量各站 {base}/api/pricing 响应耗时；渠道测试=对该站每个上游模型发一句测活词，逐个判可用。均由后端经站点绑定代理发起（不受浏览器 CORS 限制）。
+            {{ t('activity.connectivityDesc', { base: '{base}' }) }}
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <Button
             :variant="groupMode ? 'default' : 'outline'"
-            title="按分组归类"
+            :title="t('activity.groupByTooltip')"
             @click="groupMode = !groupMode"
           >
             <LayoutGrid :size="16" />
-            分组
+            {{ t('activity.group') }}
           </Button>
-          <Button variant="outline" :disabled="running" title="探测各站响应耗时" @click="runConnectivityCheck()">
+          <Button variant="outline" :disabled="running" :title="t('activity.testConnTooltip')" @click="runConnectivityCheck()">
             <Wifi :size="16" />
-            测试连接
+            {{ t('activity.testConnection') }}
           </Button>
-          <Button :disabled="running" title="发一句测活词看模型能否正常回复" @click="runModelCheck()">
+          <Button :disabled="running" :title="t('activity.channelTestTooltip')" @click="runModelCheck()">
             <MessageSquare :size="16" />
-            渠道测试
+            {{ t('activity.channelTest') }}
           </Button>
         </div>
       </div>
@@ -141,23 +144,23 @@ onMounted(async () => {
       <div class="space-y-3 rounded-lg border border-border bg-card p-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-sm font-medium">测活词</p>
+            <p class="text-sm font-medium">{{ t('activity.probeWords') }}</p>
             <p class="mt-0.5 text-xs text-muted-foreground">
-              渠道测试时发给模型的话，模型正常回复即判为存活。为站点单独绑定某词，或选一条作全局默认；未绑定的站点走全局。
+              {{ t('activity.probeWordsDesc') }}
             </p>
           </div>
           <Button size="sm" class="shrink-0" @click="onCreateProbe">
             <Plus :size="15" />
-            新增测活词
+            {{ t('activity.addProbeWord') }}
           </Button>
         </div>
 
         <!-- 全局默认词 -->
         <div class="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background p-3">
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium">全局默认词</p>
+            <p class="text-sm font-medium">{{ t('activity.globalWord') }}</p>
             <p class="text-xs text-muted-foreground">
-              未单独绑定测活词的站点默认用这条。关闭后这些站点将跳过渠道测试（测试连接不受影响）。
+              {{ t('activity.globalWordDesc') }}
             </p>
           </div>
           <Switch v-model="globalOn" />
@@ -177,7 +180,7 @@ onMounted(async () => {
             v-if="!probeState.words.length"
             class="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground"
           >
-            暂无测活词，点击右上角「新增测活词」添加。
+            {{ t('activity.noProbeWords') }}
           </div>
           <div
             v-for="w in probeState.words"
@@ -190,20 +193,20 @@ onMounted(async () => {
                 <span
                   v-if="w.enabled"
                   class="inline-flex items-center rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400"
-                >● 已启用</span>
+                >{{ t('activity.wordEnabledBadge') }}</span>
                 <span
                   v-else
                   class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                >○ 已停用</span>
+                >{{ t('activity.wordDisabledBadge') }}</span>
                 <span
                   v-if="w.text === probeState.globalText"
                   class="inline-flex items-center rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400"
-                >全局</span>
+                >{{ t('activity.globalBadge') }}</span>
               </div>
               <div class="flex shrink-0 items-center gap-2">
                 <Switch
                   :model-value="w.enabled"
-                  :title="w.enabled ? '停用此测活词' : '启用此测活词'"
+                  :title="w.enabled ? t('activity.disableThisWord') : t('activity.enableThisWord')"
                   @update:model-value="onToggleProbe(w)"
                 />
               </div>
@@ -211,11 +214,11 @@ onMounted(async () => {
             <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
               <Button variant="outline" size="sm" @click="onEditProbe(w)">
                 <Pencil :size="14" />
-                编辑
+                {{ t('common.edit') }}
               </Button>
-              <Button variant="outline" size="sm" title="配置哪些站点使用此测活词" @click="onAssignProbe(w)">
+              <Button variant="outline" size="sm" :title="t('activity.assignSitesTooltip')" @click="onAssignProbe(w)">
                 <LayoutGrid :size="14" />
-                配置站点
+                {{ t('activity.assignSites') }}
                 <span class="ml-0.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold">
                   {{ probeSiteCount(w.text) }}
                 </span>
@@ -227,7 +230,7 @@ onMounted(async () => {
                 @click="onDeleteProbe(w)"
               >
                 <Trash2 :size="14" />
-                删除
+                {{ t('common.delete') }}
               </Button>
             </div>
           </div>
@@ -237,7 +240,7 @@ onMounted(async () => {
       <!-- 站点检测列表 -->
       <div class="rounded-lg border border-border bg-card">
         <div v-if="!sitesState.list.length" class="p-8 text-center text-sm text-muted-foreground">
-          暂无站点
+          {{ t('activity.noSites') }}
         </div>
 
         <!-- 平铺 -->

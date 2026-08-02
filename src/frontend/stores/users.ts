@@ -6,6 +6,7 @@ import { ui, showView } from '@/stores/ui';
 import { settingsState } from '@/stores/settings';
 import { resetDisclaimerState } from '@/stores/disclaimer';
 import { api } from '@/api';
+import { t } from '@/i18n';
 
 export type Role = 'admin' | 'user';
 
@@ -161,8 +162,8 @@ export function showAdminUsers(): boolean {
 
 // 跨用户只读站点：需 admin + 已解锁 ack（双门控）。失败返回原因，成功返回 null。
 export function showUserSites(uid: number): string | null {
-  if (users.currentRole !== 'admin') return '普通用户无权访问';
-  if (!users.globalViewAck) return '请先到 设置 → 协作与隐私 解锁条款';
+  if (users.currentRole !== 'admin') return t('users.noPermission');
+  if (!users.globalViewAck) return t('users.needUnlock');
   users.viewingUserId = uid;
   showView('userSites');
   return null;

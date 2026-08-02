@@ -2,6 +2,7 @@
 // 代理新增/编辑弹窗（Phase F）：名称 / 类型 / 主机 / 端口 / 用户名 / 密码。
 // edit 回填原值；改名的级联同步在 store 的 saveProxy 内处理。
 import { ref, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
@@ -16,6 +17,8 @@ import {
 } from '@/stores/proxies';
 import { toast } from '@/composables/useToast';
 
+const { t } = useI18n({ useScope: 'global' });
+
 const props = defineProps<{ open: boolean; editing: Proxy | null }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 
@@ -28,7 +31,7 @@ const pass = ref('');
 const errorMsg = ref('');
 
 const isEdit = computed(() => props.editing !== null);
-const title = computed(() => (isEdit.value ? '编辑代理' : '新增代理'));
+const title = computed(() => (isEdit.value ? t('proxy.editTitle') : t('proxy.addProxy')));
 
 watch(
   () => [props.open, props.editing] as const,
@@ -62,11 +65,11 @@ async function onSubmit() {
   const nm = name.value.trim();
   const h = host.value.trim();
   const pt = parseInt(String(port.value), 10);
-  if (!nm) { errorMsg.value = '请填写代理名称'; return; }
-  if (!h) { errorMsg.value = '请填写主机地址'; return; }
-  if (!(pt >= 1 && pt <= 65535)) { errorMsg.value = '端口需为 1–65535'; return; }
+  if (!nm) { errorMsg.value = t('proxy.errNameRequired'); return; }
+  if (!h) { errorMsg.value = t('proxy.errHostRequired'); return; }
+  if (!(pt >= 1 && pt <= 65535)) { errorMsg.value = t('proxy.errPortRange'); return; }
   const editingId = props.editing ? props.editing.id : null;
-  if (proxyNameExists(nm, editingId)) { errorMsg.value = '已存在同名代理'; return; }
+  if (proxyNameExists(nm, editingId)) { errorMsg.value = t('proxy.errDuplicateName'); return; }
 
   const form: ProxyForm = {
     name: nm, type: type.value, host: h, port: pt,
@@ -75,10 +78,10 @@ async function onSubmit() {
   busy.value = true;
   try {
     await saveProxy(form, editingId);
-    toast(editingId === null ? `已新增「${nm}」` : `已保存「${nm}」`, 'success');
+    toast(editingId === null ? t('proxy.addedToast', { name: nm }) : t('proxy.savedToast', { name: nm }), 'success');
     emit('close');
   } catch (e) {
-    errorMsg.value = e instanceof Error ? e.message : '保存失败';
+    errorMsg.value = e instanceof Error ? e.message : t('proxy.saveFailed');
   } finally {
     busy.value = false;
   }
@@ -90,16 +93,16 @@ async function onSubmit() {
     <DialogContent class="max-w-[460px]">
       <DialogHeader>
         <DialogTitle>{{ title }}</DialogTitle>
-        <DialogDescription>配置一个出站代理；启用后爬取/签到经此转发</DialogDescription>
+        <DialogDescription>{{ t('proxy.modalDesc') }}</DialogDescription>
       </DialogHeader>
 
       <div class="space-y-5">
         <div class="space-y-1.5">
-          <Label>代理名称</Label>
-          <Input v-model="name" placeholder="如：本地-Clash" />
+          <Label>{{ t('proxy.name') }}</Label>
+          <Input v-model="name" :placeholder="t('proxy.namePlaceholder')" />
         </div>
         <div class="space-y-1.5">
-          <Label>类型</Label>
+          <Label>{{ t('proxy.type') }}</Label>
           <Select v-model="type">
             <SelectTrigger>
               <SelectValue />
@@ -113,21 +116,21 @@ async function onSubmit() {
         </div>
         <div class="flex flex-wrap gap-3">
           <div class="min-w-0 flex-1 space-y-1.5">
-            <Label>主机地址</Label>
+            <Label>{{ t('proxy.host') }}</Label>
             <Input v-model="host" placeholder="127.0.0.1" />
           </div>
           <div class="w-28 space-y-1.5">
-            <Label>端口</Label>
+            <Label>{{ t('proxy.port') }}</Label>
             <Input v-model="port" type="number" min="1" max="65535" placeholder="7890" />
           </div>
         </div>
         <div class="space-y-1.5">
-          <Label>用户名（选填）</Label>
-          <Input v-model="user" autocomplete="off" placeholder="留空表示无需认证" />
+          <Label>{{ t('proxy.username') }}</Label>
+          <Input v-model="user" autocomplete="off" :placeholder="t('proxy.authPlaceholder')" />
         </div>
         <div class="space-y-1.5">
-          <Label>密码（选填）</Label>
-          <Input v-model="pass" type="password" autocomplete="new-password" placeholder="留空表示无需认证" />
+          <Label>{{ t('proxy.password') }}</Label>
+          <Input v-model="pass" type="password" autocomplete="new-password" :placeholder="t('proxy.authPlaceholder')" />
         </div>
 
         <p v-if="errorMsg" class="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-500">
@@ -135,8 +138,8 @@ async function onSubmit() {
         </p>
 
         <div class="flex justify-end gap-2">
-          <Button variant="outline" @click="emit('close')">取消</Button>
-          <Button @click="onSubmit">保存</Button>
+          <Button variant="outline" @click="emit('close')">{{ t('common.cancel') }}</Button>
+          <Button @click="onSubmit">{{ t('common.save') }}</Button>
         </div>
       </div>
     </DialogContent>

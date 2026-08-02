@@ -4,7 +4,7 @@
 import { computed } from 'vue';
 import {
   LayoutDashboard, CloudCog, Container, Activity, Server,
-  Users, Settings, Info, Sun, LogOut, ShieldCheck,
+  Users, Settings, Info, Sun, Languages, LogOut, ShieldCheck,
 } from 'lucide-vue-next';
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -14,30 +14,35 @@ import {
 import { ui, showView, type ViewName } from '@/stores/ui';
 import { users, clearSession } from '@/stores/users';
 import { useTheme, type Theme } from '@/composables/useTheme';
+import { useI18n } from 'vue-i18n';
+import { useLocale } from '@/i18n/useLocale';
 import { api } from '@/api';
 
+const { t } = useI18n({ useScope: 'global' });
 const { theme, setTheme } = useTheme();
+const { locale, setLocale, locales } = useLocale();
 const { isMobile, setOpenMobile } = useSidebar();
 
 const isAdmin = computed(() => users.currentRole === 'admin');
 
-// 导航项定义：platform=仅该平台显示；role=仅该角色显示
+// 导航项定义：platform=仅该平台显示；role=仅该角色显示。
+// labelKey 存 i18n 键，模板里用 t(labelKey) 出串（随语言切换实时变）。
 interface NavItem {
   view: ViewName;
-  label: string;
+  labelKey: string;
   icon: unknown;
   platform?: 'node' | 'workers';
   role?: 'admin';
 }
 const navItems: NavItem[] = [
-  { view: 'dashboard', label: '站点', icon: LayoutDashboard },
-  { view: 'scraperCf', label: '爬虫 · Cloudflare', icon: CloudCog, platform: 'workers' },
-  { view: 'scraperDocker', label: '爬虫 · Docker', icon: Container, platform: 'node' },
-  { view: 'activity', label: '测活', icon: Activity },
-  { view: 'proxy', label: '代理 · Docker', icon: Server, platform: 'node' },
-  { view: 'users', label: '用户管理', icon: Users, role: 'admin' },
-  { view: 'settings', label: '设置', icon: Settings },
-  { view: 'about', label: '关于', icon: Info },
+  { view: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { view: 'scraperCf', labelKey: 'nav.scraperCf', icon: CloudCog, platform: 'workers' },
+  { view: 'scraperDocker', labelKey: 'nav.scraperDocker', icon: Container, platform: 'node' },
+  { view: 'activity', labelKey: 'nav.activity', icon: Activity },
+  { view: 'proxy', labelKey: 'nav.proxy', icon: Server, platform: 'node' },
+  { view: 'users', labelKey: 'nav.users', icon: Users, role: 'admin' },
+  { view: 'settings', labelKey: 'nav.settings', icon: Settings },
+  { view: 'about', labelKey: 'nav.about', icon: Info },
 ];
 
 const visibleNav = computed(() =>
@@ -48,14 +53,14 @@ const visibleNav = computed(() =>
   }),
 );
 
-const themeSegs: { key: Theme; label: string }[] = [
-  { key: 'light', label: '亮色' },
-  { key: 'dark', label: '暗色' },
-  { key: 'system', label: '跟随' },
+const themeSegs: { key: Theme; labelKey: string }[] = [
+  { key: 'light', labelKey: 'theme.light' },
+  { key: 'dark', labelKey: 'theme.dark' },
+  { key: 'system', labelKey: 'theme.system' },
 ];
 
 const avatarChar = computed(() => (users.currentUsername[0] || 'U').toUpperCase());
-const roleBadgeText = computed(() => (isAdmin.value ? '管理员' : '用户'));
+const roleBadgeText = computed(() => t(isAdmin.value ? 'account.adminBadge' : 'account.userBadge'));
 const roleBadgeClass = computed(() =>
   isAdmin.value
     ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
@@ -91,17 +96,17 @@ async function logout() {
 
     <SidebarContent>
       <SidebarGroup>
-        <SidebarGroupLabel>导航</SidebarGroupLabel>
+        <SidebarGroupLabel>{{ t('nav.section') }}</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem v-for="it in visibleNav" :key="it.view">
               <SidebarMenuButton
                 :is-active="ui.view === it.view"
-                :tooltip="it.label"
+                :tooltip="t(it.labelKey)"
                 @click="go(it.view)"
               >
                 <component :is="it.icon" :size="16" />
-                <span>{{ it.label }}</span>
+                <span>{{ t(it.labelKey) }}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -112,7 +117,7 @@ async function logout() {
 
       <!-- 主题切换（折叠时隐藏，仅展开态可见） -->
       <SidebarGroup class="group-data-[collapsible=icon]:hidden">
-        <SidebarGroupLabel>主题</SidebarGroupLabel>
+        <SidebarGroupLabel>{{ t('theme.section') }}</SidebarGroupLabel>
         <SidebarGroupContent>
           <div class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
             <Sun :size="16" />
@@ -129,7 +134,34 @@ async function logout() {
                 ]"
                 @click="setTheme(seg.key)"
               >
-                {{ seg.label }}
+                {{ t(seg.labelKey) }}
+              </button>
+            </div>
+          </div>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      <!-- 语言切换（折叠时隐藏，与主题一致）；段控用极简标签(简/繁/EN)，hover 出全名 -->
+      <SidebarGroup class="group-data-[collapsible=icon]:hidden">
+        <SidebarGroupLabel>{{ t('locale.section') }}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <div class="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
+            <Languages :size="16" />
+            <div class="ml-auto inline-flex overflow-hidden rounded-md border border-border text-xs">
+              <button
+                v-for="(seg, i) in locales"
+                :key="seg.key"
+                class="px-2 py-1"
+                :title="seg.label"
+                :class="[
+                  i > 0 ? 'border-l border-border' : '',
+                  locale === seg.key
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground',
+                ]"
+                @click="setLocale(seg.key)"
+              >
+                {{ seg.short }}
               </button>
             </div>
           </div>
@@ -151,15 +183,15 @@ async function logout() {
               :class="roleBadgeClass"
             >{{ roleBadgeText }}</span>
           </p>
-          <p class="truncate text-xs text-muted-foreground">{{ isAdmin ? '管理员账户' : '普通用户账户' }}</p>
+          <p class="truncate text-xs text-muted-foreground">{{ t(isAdmin ? 'account.adminAccount' : 'account.userAccount') }}</p>
         </div>
       </div>
 
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton tooltip="退出" @click="logout">
+          <SidebarMenuButton :tooltip="t('account.logout')" @click="logout">
             <LogOut :size="16" />
-            <span>退出</span>
+            <span>{{ t('account.logout') }}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>

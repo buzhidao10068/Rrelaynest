@@ -2,6 +2,7 @@
 // 跨用户只读站点页（Phase J，仅 admin + 已解锁 ack）：顶部醒目「只读」横幅 + 站点卡片列表。
 // 无任何写/删/爬取/签到入口；token 已隐藏。数据来自 users.userSites[viewingUserId]。
 import { computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ChevronLeft, Eye } from 'lucide-vue-next';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
@@ -9,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { users, findUser, showAdminUsers, loadUserSites, type UserSite } from '@/stores/users';
 import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const viewing = computed(() => (users.viewingUserId != null ? findUser(users.viewingUserId) : undefined));
 const list = computed<UserSite[]>(() =>
@@ -21,7 +24,7 @@ watch(
   (uid) => {
     if (uid == null) return;
     loadUserSites(uid).catch((e) =>
-      toast(e instanceof ApiError ? e.message : '载入用户站点失败', 'error'),
+      toast(e instanceof ApiError ? e.message : t('users.loadSitesFailed'), 'error'),
     );
   },
   { immediate: true },
@@ -40,10 +43,10 @@ function back() {
     >
       <SidebarTrigger class="-ml-1" />
       <Separator orientation="vertical" class="mr-1 h-4" />
-      <Button variant="ghost" size="icon" class="h-8 w-8" title="返回用户管理" @click="back">
+      <Button variant="ghost" size="icon" class="h-8 w-8" :title="t('users.backToUsers')" @click="back">
         <ChevronLeft :size="18" />
       </Button>
-      <h1 class="text-base font-semibold">用户站点 · {{ viewing?.username ?? '—' }}</h1>
+      <h1 class="text-base font-semibold">{{ t('users.sitesTitle', { name: viewing?.username ?? '—' }) }}</h1>
     </header>
 
     <div class="mx-auto max-w-[960px] space-y-4 p-4 sm:p-6">
@@ -51,9 +54,9 @@ function back() {
       <div class="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
         <Eye :size="18" class="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
         <div>
-          <p class="font-medium text-amber-700 dark:text-amber-300">管理员只读视图</p>
+          <p class="font-medium text-amber-700 dark:text-amber-300">{{ t('users.readonlyTitle') }}</p>
           <p class="mt-0.5 text-xs text-amber-700/80 dark:text-amber-300/80">
-            仅用于管理排障。此处只能查看，不能编辑、删除、爬取或签到；token 已隐藏。
+            {{ t('users.readonlyDesc') }}
           </p>
         </div>
       </div>
@@ -72,9 +75,9 @@ function back() {
           <div class="shrink-0 text-right text-sm">
             <p class="font-medium">{{ s.balance }} {{ s.currency }}</p>
             <p class="mt-0.5 text-xs">
-              <span v-if="!s.checkin_enabled" class="text-muted-foreground">未开启</span>
-              <span v-else-if="s.checkin_done" class="text-green-600 dark:text-green-400">今日已签</span>
-              <span v-else class="text-muted-foreground">未签</span>
+              <span v-if="!s.checkin_enabled" class="text-muted-foreground">{{ t('users.checkinOff') }}</span>
+              <span v-else-if="s.checkin_done" class="text-green-600 dark:text-green-400">{{ t('users.checkedInToday') }}</span>
+              <span v-else class="text-muted-foreground">{{ t('users.notCheckedIn') }}</span>
             </p>
           </div>
         </div>
@@ -83,7 +86,7 @@ function back() {
         v-else
         class="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground"
       >
-        该用户暂无站点
+        {{ t('users.noSites') }}
       </div>
     </div>
   </div>

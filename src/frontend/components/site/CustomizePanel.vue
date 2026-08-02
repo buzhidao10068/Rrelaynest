@@ -33,10 +33,10 @@ function onDrop(i: number) {
   >
     <div class="flex items-center gap-2 border-b border-border px-4 py-4">
       <Settings2 :size="18" />
-      <span class="text-base font-semibold">自定义视图</span>
+      <span class="text-base font-semibold">{{ $t('sites.customizeTitle') }}</span>
       <button
         class="ml-auto flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent"
-        title="关闭"
+        :title="$t('common.close')"
         @click="emit('close')"
       >
         <X :size="18" />
@@ -48,15 +48,15 @@ function onDrop(i: number) {
       <div class="flex items-center gap-3 rounded-lg border border-border p-3">
         <Switch :model-value="sitesState.compact" @update:model-value="toggleCompact" />
         <div>
-          <p class="text-sm font-medium">紧凑模式</p>
-          <p class="text-xs text-muted-foreground">减小行高，一屏显示更多站点。</p>
+          <p class="text-sm font-medium">{{ $t('sites.compactMode') }}</p>
+          <p class="text-xs text-muted-foreground">{{ $t('sites.compactHint') }}</p>
         </div>
       </div>
 
       <!-- 列显示 + 拖拽排序 -->
       <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          显示列 · 拖动重排
+          {{ $t('sites.columnsHeader') }}
         </p>
         <div class="mt-2 space-y-1">
           <div
@@ -77,7 +77,7 @@ function onDrop(i: number) {
               <circle cx="9" cy="12" r="1.4" /><circle cx="15" cy="12" r="1.4" />
               <circle cx="9" cy="18" r="1.4" /><circle cx="15" cy="18" r="1.4" />
             </svg>
-            <span class="flex-1 text-sm">{{ c.label }}</span>
+            <span class="flex-1 text-sm">{{ $t(c.labelKey) }}</span>
             <Switch
               :model-value="c.visible"
               :disabled="c.always"
@@ -93,7 +93,7 @@ function onDrop(i: number) {
         class="w-full rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-accent"
         @click="resetCustomize"
       >
-        恢复默认
+        {{ $t('sites.resetDefault') }}
       </button>
     </div>
   </aside>

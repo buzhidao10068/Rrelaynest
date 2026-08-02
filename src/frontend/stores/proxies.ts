@@ -6,6 +6,7 @@
 import { reactive } from 'vue';
 import { api } from '@/api';
 import { sitesState, loadSites } from '@/stores/sites';
+import { t } from '@/i18n';
 
 export type ProxyType = 'http' | 'https' | 'socks5';
 
@@ -136,7 +137,7 @@ export async function saveProxy(form: ProxyForm, editingId: number | null): Prom
 // 切换启用位（后端持久化后 reload）。返回切换后的 enabled 态；失败抛错。
 export async function toggleProxyEnabled(id: number): Promise<boolean> {
   const p = findProxy(id);
-  if (!p) throw new Error('代理不存在');
+  if (!p) throw new Error(t('proxy.errNotFound'));
   const next = !p.enabled;
   await api.put(`/api/proxies/${id}`, { enabled: next });
   await loadProxies();

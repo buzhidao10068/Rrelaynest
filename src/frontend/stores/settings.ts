@@ -6,6 +6,7 @@
 // - 分页显隐复用 sites store（表格事实来源）；部署平台复用 ui store（sidebar 事实来源）。
 import { reactive } from 'vue';
 import { api, ApiError } from '@/api';
+import { t } from '@/i18n';
 
 const CURRENCY_KEY = 'rrelaynest-setting-currency';
 
@@ -26,7 +27,7 @@ interface SettingsState {
 }
 
 export const settingsState = reactive<SettingsState>({
-  currency: localStorage.getItem(CURRENCY_KEY) || 'RMB（折算）',
+  currency: localStorage.getItem(CURRENCY_KEY) || t('settings.general.currencyDefault'),
   // 后端未加载前的兜底：与后端默认一致（关 / Asia/Shanghai），避免建站弹窗抢跑时行为漂移。
   checkinDefaultOn: false,
   timezone: 'Asia/Shanghai',

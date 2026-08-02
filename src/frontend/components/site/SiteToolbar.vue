@@ -17,33 +17,33 @@ defineEmits<{
     <div class="flex flex-wrap gap-2">
       <Button :variant="sitesState.batchMode ? 'default' : 'outline'" @click="toggleBatch">
         <CheckSquare :size="16" />
-        批量
+        {{ $t('sites.batch') }}
       </Button>
       <Button
         :variant="sitesState.groupMode ? 'default' : 'outline'"
-        title="按分组分区展示（分组时不分页）"
+        :title="$t('sites.groupModeHint')"
         @click="toggleGroupMode"
       >
         <LayoutGrid :size="16" />
-        分组
+        {{ $t('sites.group') }}
       </Button>
     </div>
     <div class="flex flex-wrap gap-2">
       <Button variant="outline" @click="$emit('openCustomize')">
         <SlidersHorizontal :size="16" />
-        <span class="hidden sm:inline">自定义</span>
+        <span class="hidden sm:inline">{{ $t('sites.customize') }}</span>
       </Button>
-      <Button variant="outline" title="按内容自动调整各列宽度" @click="$emit('autoFit')">
+      <Button variant="outline" :title="$t('sites.autoFitHint')" @click="$emit('autoFit')">
         <StretchHorizontal :size="16" />
-        <span class="hidden sm:inline">自动调整</span>
+        <span class="hidden sm:inline">{{ $t('sites.autoFit') }}</span>
       </Button>
       <Button variant="outline" @click="$emit('scrapeAll')">
         <RefreshCw :size="16" />
-        <span class="hidden sm:inline">全部爬取</span>
+        <span class="hidden sm:inline">{{ $t('sites.scrapeAll') }}</span>
       </Button>
       <Button @click="$emit('create')">
         <Plus :size="16" />
-        新增站点
+        {{ $t('sites.addSite') }}
       </Button>
     </div>
   </div>

@@ -6,6 +6,7 @@
 // - Passkey：列 /api/account/passkeys；添加走 register/options→浏览器 create→register/verify；
 //     删除 DELETE /api/account/passkeys/:id。见 shared/routes.ts 的 /api/account/passkey/*。
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Lock, Fingerprint, Trash2 } from 'lucide-vue-next';
 import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser';
@@ -20,6 +21,8 @@ import { clearSession } from '@/stores/users';
 import { showView } from '@/stores/ui';
 import { toast } from '@/composables/useToast';
 import TotpEnrollDialog from './TotpEnrollDialog.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 // ---- 两步验证状态 ----
 const totpEnabled = ref(false);
@@ -82,12 +85,12 @@ async function addPasskey() {
     // 设备名：取平台默认（可留空，后端存 NULL）。这里用简单的时间戳可读名兜底，用户可后续管理。
     const name = defaultPasskeyName();
     await api.post('/api/account/passkey/register/verify', { ticket, response, name });
-    toast('Passkey 添加成功', 'success');
+    toast(t('settings.security.passkeyAddedToast'), 'success');
     await loadPasskeys();
   } catch (e) {
     if (e instanceof Error && (e.name === 'NotAllowedError' || e.name === 'AbortError')) return;
     if (!(e instanceof ApiError && e.status === 401)) {
-      toast(e instanceof Error ? e.message : '添加 Passkey 失败', 'error');
+      toast(e instanceof Error ? e.message : t('settings.security.passkeyAddFailed'), 'error');
     }
   } finally {
     addingPasskey.value = false;
@@ -100,14 +103,14 @@ function defaultPasskeyName(): string {
 }
 
 async function removePasskey(id: number) {
-  if (!window.confirm('删除这个 Passkey？删除后该设备将无法再用它登录。')) return;
+  if (!window.confirm(t('settings.security.passkeyRemoveConfirm'))) return;
   try {
     await api.del(`/api/account/passkeys/${id}`);
     passkeys.value = passkeys.value.filter((p) => p.id !== id);
-    toast('Passkey 已删除', 'success');
+    toast(t('settings.security.passkeyRemovedToast'), 'success');
   } catch (e) {
     if (!(e instanceof ApiError && e.status === 401)) {
-      toast(e instanceof Error ? e.message : '删除失败', 'error');
+      toast(e instanceof Error ? e.message : t('settings.security.passkeyDeleteFailed'), 'error');
     }
   }
 }
@@ -119,7 +122,7 @@ const disabling = ref(false);
 async function confirmDisable() {
   if (disabling.value) return;
   if (!disablePassword.value) {
-    toast('请输入当前密码', 'error');
+    toast(t('settings.security.needCurrentPw'), 'error');
     return;
   }
   disabling.value = true;
@@ -128,10 +131,10 @@ async function confirmDisable() {
     totpEnabled.value = false;
     disableOpen.value = false;
     disablePassword.value = '';
-    toast('两步验证已关闭', 'success');
+    toast(t('settings.security.totpDisabledToast'), 'success');
   } catch (e) {
     if (!(e instanceof ApiError && e.status === 401)) {
-      toast(e instanceof Error ? e.message : '关闭失败', 'error');
+      toast(e instanceof Error ? e.message : t('settings.security.totpDisableFailed'), 'error');
     }
   } finally {
     disabling.value = false;
@@ -142,15 +145,15 @@ async function confirmDisable() {
 const loggingOutAll = ref(false);
 async function logoutAll() {
   if (loggingOutAll.value) return;
-  if (!window.confirm('登出所有设备？包括当前设备，需要重新登录。')) return;
+  if (!window.confirm(t('settings.security.logoutAllConfirm'))) return;
   loggingOutAll.value = true;
   try {
     await api.post('/api/account/logout-all');
-    toast('已登出所有设备，请重新登录', 'success');
+    toast(t('settings.security.logoutAllToast'), 'success');
     clearSession();
     showView('login');
   } catch (e) {
-    toast(e instanceof ApiError ? e.message : '登出所有设备失败', 'error');
+    toast(e instanceof ApiError ? e.message : t('settings.security.logoutAllFailed'), 'error');
   } finally {
     loggingOutAll.value = false;
   }
@@ -175,15 +178,15 @@ const canSubmit = computed(
 async function changePassword() {
   if (busy.value) return;
   if (next.value.length < 8) {
-    toast('新密码至少 8 位', 'error');
+    toast(t('settings.security.pwMin8'), 'error');
     return;
   }
   if (next.value !== confirm.value) {
-    toast('两次输入的新密码不一致', 'error');
+    toast(t('settings.security.pwMismatch'), 'error');
     return;
   }
   if (next.value === current.value) {
-    toast('新密码不能与当前密码相同', 'error');
+    toast(t('settings.security.pwSameAsOld'), 'error');
     return;
   }
   busy.value = true;
@@ -192,9 +195,9 @@ async function changePassword() {
     current.value = '';
     next.value = '';
     confirm.value = '';
-    toast('密码已更新，其他设备的登录会话已失效', 'success');
+    toast(t('settings.security.pwUpdatedToast'), 'success');
   } catch (e) {
-    toast(e instanceof ApiError ? e.message : '密码更新失败', 'error');
+    toast(e instanceof ApiError ? e.message : t('settings.security.pwUpdateFailed'), 'error');
   } finally {
     busy.value = false;
   }
@@ -204,29 +207,29 @@ async function changePassword() {
 <template>
   <div class="space-y-6">
     <div>
-      <h3 class="text-base font-semibold">安全</h3>
-      <p class="mt-1 text-sm text-muted-foreground">登录密码、两步验证、Passkey 与会话。</p>
+      <h3 class="text-base font-semibold">{{ t('settings.security.title') }}</h3>
+      <p class="mt-1 text-sm text-muted-foreground">{{ t('settings.security.desc') }}</p>
     </div>
 
     <!-- 修改密码 -->
     <div class="rounded-lg border border-border p-5">
-      <p class="text-sm font-medium">修改密码</p>
+      <p class="text-sm font-medium">{{ t('settings.security.changePassword') }}</p>
       <div class="mt-4 space-y-3">
         <div class="flex items-center gap-4">
-          <Label class="w-24 shrink-0 text-right text-muted-foreground">当前密码</Label>
-          <Input v-model="current" type="password" placeholder="输入当前密码" class="w-80" autocomplete="current-password" />
+          <Label class="w-24 shrink-0 text-right text-muted-foreground">{{ t('settings.security.currentPw') }}</Label>
+          <Input v-model="current" type="password" :placeholder="t('settings.security.currentPwPlaceholder')" class="w-80" autocomplete="current-password" />
         </div>
         <div class="flex items-center gap-4">
-          <Label class="w-24 shrink-0 text-right text-muted-foreground">新密码</Label>
-          <Input v-model="next" type="password" placeholder="至少 8 位" class="w-80" autocomplete="new-password" />
+          <Label class="w-24 shrink-0 text-right text-muted-foreground">{{ t('settings.security.newPw') }}</Label>
+          <Input v-model="next" type="password" :placeholder="t('settings.security.newPwPlaceholder')" class="w-80" autocomplete="new-password" />
         </div>
         <div class="flex items-center gap-4">
-          <Label class="w-24 shrink-0 text-right text-muted-foreground">确认新密码</Label>
-          <Input v-model="confirm" type="password" placeholder="再次输入新密码" class="w-80" autocomplete="new-password" @keyup.enter="changePassword" />
+          <Label class="w-24 shrink-0 text-right text-muted-foreground">{{ t('settings.security.confirmPw') }}</Label>
+          <Input v-model="confirm" type="password" :placeholder="t('settings.security.confirmPwPlaceholder')" class="w-80" autocomplete="new-password" @keyup.enter="changePassword" />
         </div>
         <div class="flex items-center gap-4">
           <span class="w-24 shrink-0" />
-          <Button :disabled="!canSubmit" @click="changePassword">{{ busy ? '更新中…' : '更新密码' }}</Button>
+          <Button :disabled="!canSubmit" @click="changePassword">{{ busy ? t('settings.security.updating') : t('settings.security.updatePw') }}</Button>
         </div>
       </div>
     </div>
@@ -239,21 +242,21 @@ async function changePassword() {
         </span>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
-            <p class="text-sm font-medium">两步验证 (2FA)</p>
+            <p class="text-sm font-medium">{{ t('settings.security.totpTitle') }}</p>
             <span
               v-if="totpLoaded"
               class="rounded-full px-2 py-0.5 text-xs font-medium"
               :class="totpEnabled
                 ? 'bg-green-500/15 text-green-600 dark:text-green-400'
                 : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'"
-            >{{ totpEnabled ? '已启用' : '未启用' }}</span>
+            >{{ totpEnabled ? t('common.enabled') : t('settings.security.totpNotEnabled') }}</span>
           </div>
           <p class="mt-1 text-xs text-muted-foreground">
-            使用 TOTP 验证器 App（如 Google Authenticator / 1Password）生成动态验证码，登录时二次校验。
+            {{ t('settings.security.totpDesc') }}
           </p>
         </div>
-        <Button v-if="totpLoaded && !totpEnabled" class="shrink-0" @click="enrollOpen = true">启用</Button>
-        <Button v-else-if="totpLoaded && totpEnabled" variant="outline" class="shrink-0" @click="disableOpen = true">关闭</Button>
+        <Button v-if="totpLoaded && !totpEnabled" class="shrink-0" @click="enrollOpen = true">{{ t('common.enable') }}</Button>
+        <Button v-else-if="totpLoaded && totpEnabled" variant="outline" class="shrink-0" @click="disableOpen = true">{{ t('settings.security.totpTurnOff') }}</Button>
       </div>
     </div>
 
@@ -264,9 +267,9 @@ async function changePassword() {
           <Fingerprint :size="18" />
         </span>
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium">Passkey（无密码登录）</p>
+          <p class="text-sm font-medium">{{ t('settings.security.passkeyTitle') }}</p>
           <p class="mt-1 text-xs text-muted-foreground">
-            用设备的指纹 / 面容 / PIN 或安全密钥登录，无需输入密码。可注册多枚（多设备）。
+            {{ t('settings.security.passkeyDesc') }}
           </p>
         </div>
         <Button
@@ -274,12 +277,12 @@ async function changePassword() {
           class="shrink-0"
           :disabled="addingPasskey"
           @click="addPasskey"
-        >{{ addingPasskey ? '添加中…' : '添加 Passkey' }}</Button>
+        >{{ addingPasskey ? t('settings.security.passkeyAdding') : t('settings.security.passkeyAdd') }}</Button>
       </div>
 
       <!-- 浏览器不支持 -->
       <p v-if="!passkeySupported" class="mt-3 text-xs text-amber-600 dark:text-amber-400">
-        当前浏览器不支持 WebAuthn / Passkey，无法添加。
+        {{ t('settings.security.passkeyUnsupported') }}
       </p>
 
       <!-- 已注册列表 -->
@@ -293,14 +296,14 @@ async function changePassword() {
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm">{{ pk.name || `Passkey #${pk.id}` }}</p>
             <p class="text-xs text-muted-foreground">
-              添加于 {{ new Date(pk.created_at).toLocaleString() }}
-              <template v-if="pk.last_used_at"> · 最近使用 {{ new Date(pk.last_used_at).toLocaleString() }}</template>
+              {{ t('settings.security.addedAt', { date: new Date(pk.created_at).toLocaleString() }) }}
+              <template v-if="pk.last_used_at"> {{ t('settings.security.lastUsed', { date: new Date(pk.last_used_at).toLocaleString() }) }}</template>
             </p>
           </div>
           <button
             type="button"
             class="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-red-500"
-            title="删除"
+            :title="t('common.delete')"
             @click="removePasskey(pk.id)"
           >
             <Trash2 :size="15" />
@@ -310,15 +313,15 @@ async function changePassword() {
 
       <!-- 支持但尚无凭证 -->
       <p v-else-if="passkeysLoaded" class="mt-3 text-xs text-muted-foreground">
-        还没有 Passkey。点击「添加 Passkey」用本设备注册一枚。
+        {{ t('settings.security.passkeyEmpty') }}
       </p>
     </div>
 
     <!-- 会话 -->
     <div class="rounded-lg border border-border p-5">
-      <p class="text-sm font-medium">会话</p>
-      <p class="mt-1 text-xs text-muted-foreground">登录会话有效期 7 天（HttpOnly + Secure Cookie）。</p>
-      <Button variant="outline" size="sm" class="mt-3" :disabled="loggingOutAll" @click="logoutAll">{{ loggingOutAll ? '登出中…' : '登出所有设备' }}</Button>
+      <p class="text-sm font-medium">{{ t('settings.security.session') }}</p>
+      <p class="mt-1 text-xs text-muted-foreground">{{ t('settings.security.sessionDesc') }}</p>
+      <Button variant="outline" size="sm" class="mt-3" :disabled="loggingOutAll" @click="logoutAll">{{ loggingOutAll ? t('settings.security.loggingOutAll') : t('settings.security.logoutAll') }}</Button>
     </div>
 
     <!-- 注册向导 -->
@@ -328,16 +331,16 @@ async function changePassword() {
     <Dialog :open="disableOpen" @update:open="(v) => { if (!v) { disableOpen = false; disablePassword = ''; } }">
       <DialogContent class="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>关闭两步验证</DialogTitle>
-          <DialogDescription>关闭后登录将只需密码。请输入当前密码确认。</DialogDescription>
+          <DialogTitle>{{ t('settings.security.disableTotpTitle') }}</DialogTitle>
+          <DialogDescription>{{ t('settings.security.disableTotpDesc') }}</DialogDescription>
         </DialogHeader>
         <div class="space-y-1.5">
-          <Label>当前密码</Label>
-          <Input v-model="disablePassword" type="password" autocomplete="current-password" placeholder="输入当前密码" @keyup.enter="confirmDisable" />
+          <Label>{{ t('settings.security.currentPw') }}</Label>
+          <Input v-model="disablePassword" type="password" autocomplete="current-password" :placeholder="t('settings.security.currentPwPlaceholder')" @keyup.enter="confirmDisable" />
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="disableOpen = false; disablePassword = '';">取消</Button>
-          <Button :disabled="disabling" @click="confirmDisable">{{ disabling ? '关闭中…' : '确认关闭' }}</Button>
+          <Button variant="outline" @click="disableOpen = false; disablePassword = '';">{{ t('common.cancel') }}</Button>
+          <Button :disabled="disabling" @click="confirmDisable">{{ disabling ? t('settings.security.disabling') : t('settings.security.confirmDisable') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
