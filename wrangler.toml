@@ -3,6 +3,11 @@ main = "src/worker/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+# 保留在 Cloudflare 面板里手动配置的变量/绑定，部署时不被本配置覆盖删除。
+# 这是「面板绑定 D1」方案（方式 B / 本地）的关键：仓库不写死 database_id，
+# 面板 Settings → Bindings 里加的 D1 绑定在后续每次部署都能保住。
+keep_vars = true
+
 # 本地开发端口（7738 也是用户的本地代理出口，固定）
 [dev]
 port = 7738
@@ -17,13 +22,15 @@ not_found_handling = "single-page-application"
 [triggers]
 crons = ["*/5 * * * *"]
 
-# D1 数据库绑定
-# database_id 是占位符：GitHub Actions 部署时会用仓库 Secret D1_DATABASE_ID 自动替换；
-# 本地 wrangler 部署则需手动填入自己 D1 的真实 ID。
-[[d1_databases]]
-binding = "DB"
-database_name = "rrelaynest-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+# D1 数据库绑定 —— 默认「不在此声明」，改用 Cloudflare 面板绑定（配合上面的 keep_vars）。
+#   · 方式 B / 本地部署：保持下面这段注释不动，去面板 Settings → Bindings 加 D1，
+#     绑定名（Variable name）必须填 DB（与代码里的 env.DB 一致），无需改本文件。
+#   · 方式 A（GitHub Actions）：CI 会用仓库 Secret D1_DATABASE_ID 自动「取消注释 + 填 ID」，
+#     即把下面每行开头的「#@d1 」标记去掉并替换占位符——所以标记前缀不要手改。
+#@d1 [[d1_databases]]
+#@d1 binding = "DB"
+#@d1 database_name = "rrelaynest-db"
+#@d1 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 
 # 需要通过 `wrangler secret put` 设置的密钥（勿写入仓库）：
 #   ADMIN_PASSWORD  登录密码
