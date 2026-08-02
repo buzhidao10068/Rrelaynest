@@ -3,6 +3,7 @@
 // 默认关闭；须先读条款并勾选同意才能开启。关闭即撤销（对应后端 admin_global_view_ack）。
 // 唯一事实来源：users.globalViewAck。
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Eye } from 'lucide-vue-next';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,9 +11,11 @@ import { users, setGlobalViewAck, loadUsers } from '@/stores/users';
 import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 
+const { t } = useI18n({ useScope: 'global' });
+
 // 进入分区先拉一次用户表 + ack（admin 可能直接进设置页而未经用户管理页）。
 onMounted(() => {
-  loadUsers().catch((e) => toast(e instanceof ApiError ? e.message : '载入解锁状态失败', 'error'));
+  loadUsers().catch((e) => toast(e instanceof ApiError ? e.message : t('settings.privacy.loadFailed'), 'error'));
 });
 
 // 勾选「我已阅读并同意」：解锁后强制勾上且禁用（撤销时先关开关）。
@@ -28,24 +31,24 @@ const ackOn = computed({
   set: (v: boolean) => {
     if (v) {
       if (!agreeLocal.value && !users.globalViewAck) {
-        toast('请先阅读条款并勾选「我已阅读并同意」', 'error');
+        toast(t('settings.privacy.needAgree'), 'error');
         return;
       }
       setGlobalViewAck(true)
-        .then(() => toast('已解锁：可只读查看用户站点', 'success'))
-        .catch((e) => toast(e instanceof ApiError ? e.message : '解锁失败', 'error'));
+        .then(() => toast(t('settings.privacy.unlockedToast'), 'success'))
+        .catch((e) => toast(e instanceof ApiError ? e.message : t('settings.privacy.unlockFailed'), 'error'));
     } else {
       setGlobalViewAck(false)
         .then(() => {
           agreeLocal.value = false;
-          toast('已撤销：恢复隐藏他人站点', 'success');
+          toast(t('settings.privacy.revokedToast'), 'success');
         })
-        .catch((e) => toast(e instanceof ApiError ? e.message : '撤销失败', 'error'));
+        .catch((e) => toast(e instanceof ApiError ? e.message : t('settings.privacy.revokeFailed'), 'error'));
     }
   },
 });
 
-const statusText = computed(() => (users.globalViewAck ? '已解锁' : '未解锁'));
+const statusText = computed(() => (users.globalViewAck ? t('settings.privacy.unlocked') : t('settings.privacy.locked')));
 const statusClass = computed(() =>
   users.globalViewAck
     ? 'text-green-600 dark:text-green-400'
@@ -56,8 +59,8 @@ const statusClass = computed(() =>
 <template>
   <div class="space-y-6">
     <div>
-      <h3 class="text-base font-semibold">协作与隐私</h3>
-      <p class="mt-1 text-sm text-muted-foreground">管理员查看其他用户数据的权限开关。默认关闭。</p>
+      <h3 class="text-base font-semibold">{{ t('settings.privacy.title') }}</h3>
+      <p class="mt-1 text-sm text-muted-foreground">{{ t('settings.privacy.desc') }}</p>
     </div>
 
     <!-- 条款卡：说明 + 滚动阅读区 + 勾选同意 + 开关 -->
@@ -68,26 +71,28 @@ const statusClass = computed(() =>
         </span>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
-            <p class="text-sm font-medium">查看他人站点数据</p>
+            <p class="text-sm font-medium">{{ t('settings.privacy.viewOthersTitle') }}</p>
             <span
               class="rounded-full px-2 py-0.5 text-xs font-medium"
               :class="statusClass"
             >{{ statusText }}</span>
           </div>
           <p class="mt-1 text-xs text-muted-foreground">
-            开启后可在「用户管理」里<b>只读</b>查看任一用户的站点（余额、签到状态等，token 已隐藏）。仅用于管理排障，不能编辑、删除、爬取或签到。
+            <i18n-t keypath="settings.privacy.viewOthersDesc" tag="span" scope="global">
+              <template #readonly><b>{{ t('settings.privacy.readonly') }}</b></template>
+            </i18n-t>
           </p>
         </div>
       </div>
 
       <!-- 条款正文：限高可滚动 -->
       <div class="mt-4 max-h-44 overflow-y-auto rounded-md border border-border bg-muted/30 p-4 text-xs leading-relaxed text-muted-foreground">
-        <p class="font-medium text-foreground">使用条款</p>
-        <p class="mt-2">1. 本功能允许管理员越过数据隔离，只读查看其他用户的站点数据，仅限用于故障排查、合规审计与必要的运维支持。</p>
-        <p class="mt-2">2. 你不得将查看到的他人数据用于任何未经授权的目的，包括但不限于转发、公开、商业利用或个人用途。</p>
-        <p class="mt-2">3. 本功能为只读：系统不提供通过该入口编辑、删除、爬取、签到或导出他人数据的能力；敏感字段（如 access token）始终隐藏。</p>
-        <p class="mt-2">4. 后端会记录该权限的开启状态（admin_global_view_ack）；关闭开关后，查看他人站点的接口将立即恢复拒绝（返回 403）。</p>
-        <p class="mt-2">5. 你作为管理员对查看行为负责，应遵守所在地区的数据保护与隐私法律法规。若不同意上述条款，请勿开启本功能。</p>
+        <p class="font-medium text-foreground">{{ t('settings.privacy.termsTitle') }}</p>
+        <p class="mt-2">{{ t('settings.privacy.term1') }}</p>
+        <p class="mt-2">{{ t('settings.privacy.term2') }}</p>
+        <p class="mt-2">{{ t('settings.privacy.term3') }}</p>
+        <p class="mt-2">{{ t('settings.privacy.term4') }}</p>
+        <p class="mt-2">{{ t('settings.privacy.term5') }}</p>
       </div>
 
       <!-- 勾选同意：解锁后禁用（撤销先关开关） -->
@@ -97,15 +102,15 @@ const statusClass = computed(() =>
           :disabled="users.globalViewAck"
           class="mt-0.5"
         />
-        <span>我已阅读并同意上述条款，理解此功能仅用于只读的管理排障用途。</span>
+        <span>{{ t('settings.privacy.agreeLabel') }}</span>
       </label>
 
       <!-- 开关行 -->
       <div class="mt-4 flex items-center gap-4 border-t border-border pt-4">
         <Switch v-model="ackOn" />
         <div>
-          <p class="text-sm font-medium">启用「查看他人站点」</p>
-          <p class="text-xs text-muted-foreground">需先勾选上方同意项。关闭即撤销权限。</p>
+          <p class="text-sm font-medium">{{ t('settings.privacy.enableTitle') }}</p>
+          <p class="text-xs text-muted-foreground">{{ t('settings.privacy.enableDesc') }}</p>
         </div>
       </div>
     </div>

@@ -6,6 +6,8 @@ import { ref, nextTick, onMounted } from 'vue';
 import { ShieldCheck, KeyRound, Fingerprint } from 'lucide-vue-next';
 import { startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
+import { useI18n } from 'vue-i18n';
+import { useLocale } from '@/i18n/useLocale';
 import { showView } from '@/stores/ui';
 import { setSession } from '@/stores/users';
 import { loadDisclaimer } from '@/stores/disclaimer';
@@ -14,6 +16,9 @@ import { toast } from '@/composables/useToast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
+const { t } = useI18n({ useScope: 'global' });
+const { locale, setLocale, locales } = useLocale();
 
 const username = ref('');
 const password = ref('');
@@ -45,7 +50,7 @@ async function finishLogin() {
 async function login() {
   if (busy.value) return;
   if (!username.value || !password.value) {
-    toast('请输入用户名和密码', 'error');
+    toast(t('login.needUserPass'), 'error');
     return;
   }
   busy.value = true;
@@ -63,7 +68,7 @@ async function login() {
     }
     await finishLogin();
   } catch (e) {
-    toast(e instanceof Error ? e.message : '登录失败', 'error');
+    toast(e instanceof Error ? e.message : t('login.failed'), 'error');
   } finally {
     busy.value = false;
   }
@@ -73,7 +78,7 @@ async function submitMfa() {
   if (busy.value || !mfaTicket.value) return;
   const code = mfaCode.value.trim();
   if (!code) {
-    toast('请输入验证码', 'error');
+    toast(t('login.needCode'), 'error');
     return;
   }
   busy.value = true;
@@ -81,7 +86,7 @@ async function submitMfa() {
     await api.post('/api/login/totp', { ticket: mfaTicket.value, code });
     await finishLogin();
   } catch (e) {
-    toast(e instanceof Error ? e.message : '验证失败', 'error');
+    toast(e instanceof Error ? e.message : t('login.verifyFailed'), 'error');
   } finally {
     busy.value = false;
   }
@@ -112,7 +117,7 @@ async function loginPasskey() {
   } catch (e) {
     // 用户主动取消（NotAllowedError / AbortError）不弹错误提示。
     if (e instanceof Error && (e.name === 'NotAllowedError' || e.name === 'AbortError')) return;
-    toast(e instanceof Error ? e.message : 'Passkey 登录失败', 'error');
+    toast(e instanceof Error ? e.message : t('login.passkeyFailed'), 'error');
   } finally {
     passkeyBusy.value = false;
   }
@@ -120,46 +125,66 @@ async function loginPasskey() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center p-6">
+  <div class="relative flex min-h-screen items-center justify-center p-6">
+    <!-- 登录前语言切换：固定右上角，简/繁/EN 段控（hover 出全名），登录后侧栏还有一处 -->
+    <div class="absolute right-4 top-4 inline-flex overflow-hidden rounded-md border border-border text-xs">
+      <button
+        v-for="(seg, i) in locales"
+        :key="seg.key"
+        type="button"
+        class="px-2.5 py-1"
+        :title="seg.label"
+        :class="[
+          i > 0 ? 'border-l border-border' : '',
+          locale === seg.key
+            ? 'bg-accent text-accent-foreground'
+            : 'text-muted-foreground hover:text-foreground',
+        ]"
+        @click="setLocale(seg.key)"
+      >
+        {{ seg.short }}
+      </button>
+    </div>
+
     <div class="w-[400px] space-y-6 rounded-lg border border-border bg-card p-8 shadow-sm">
       <div class="flex flex-col items-center gap-2">
         <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <ShieldCheck :size="22" />
         </div>
         <h1 class="text-2xl font-semibold tracking-tight">Rrelaynest</h1>
-        <p class="text-sm text-muted-foreground">管理面板登录</p>
+        <p class="text-sm text-muted-foreground">{{ t('login.subtitle') }}</p>
       </div>
       <!-- 第一步：用户名 + 密码 -->
       <template v-if="!mfaTicket">
         <div class="space-y-2">
-          <Label>用户名</Label>
+          <Label>{{ t('login.username') }}</Label>
           <Input
             v-model="username"
             type="text"
-            placeholder="请输入用户名"
+            :placeholder="t('login.usernamePlaceholder')"
             autocomplete="username"
             @keydown.enter="login"
           />
         </div>
         <div class="space-y-2">
-          <Label>密码</Label>
+          <Label>{{ t('login.password') }}</Label>
           <Input
             v-model="password"
             type="password"
-            placeholder="请输入密码"
+            :placeholder="t('login.passwordPlaceholder')"
             autocomplete="current-password"
             @keydown.enter="login"
           />
         </div>
         <Button class="w-full" :disabled="busy" @click="login">
-          {{ busy ? '登录中…' : '登录' }}
+          {{ busy ? t('login.submitting') : t('login.submit') }}
         </Button>
 
         <!-- 无密码登录（Passkey）：仅在浏览器支持 WebAuthn 时展示 -->
         <template v-if="passkeySupported">
           <div class="flex items-center gap-3">
             <span class="h-px flex-1 bg-border" />
-            <span class="text-xs text-muted-foreground">或</span>
+            <span class="text-xs text-muted-foreground">{{ t('login.or') }}</span>
             <span class="h-px flex-1 bg-border" />
           </div>
           <Button
@@ -169,7 +194,7 @@ async function loginPasskey() {
             @click="loginPasskey"
           >
             <Fingerprint :size="16" />
-            {{ passkeyBusy ? '验证中…' : '使用 Passkey 登录' }}
+            {{ passkeyBusy ? t('login.passkeyVerifying') : t('login.passkey') }}
           </Button>
         </template>
       </template>
@@ -178,37 +203,37 @@ async function loginPasskey() {
       <template v-else>
         <div class="flex flex-col items-center gap-1 text-center">
           <KeyRound :size="20" class="text-muted-foreground" />
-          <p class="text-sm font-medium">两步验证</p>
+          <p class="text-sm font-medium">{{ t('login.mfaTitle') }}</p>
           <p class="text-xs text-muted-foreground">
-            打开验证器 App 输入 6 位动态码；也可输入一个备份码。
+            {{ t('login.mfaHint') }}
           </p>
         </div>
         <div class="space-y-2">
-          <Label>验证码</Label>
+          <Label>{{ t('login.mfaCode') }}</Label>
           <Input
             ref="codeInput"
             v-model="mfaCode"
             type="text"
             inputmode="numeric"
             autocomplete="one-time-code"
-            placeholder="6 位验证码或备份码"
+            :placeholder="t('login.mfaCodePlaceholder')"
             @keydown.enter="submitMfa"
           />
         </div>
         <Button class="w-full" :disabled="busy" @click="submitMfa">
-          {{ busy ? '验证中…' : '验证并登录' }}
+          {{ busy ? t('login.mfaSubmitting') : t('login.mfaSubmit') }}
         </Button>
         <button
           type="button"
           class="w-full text-center text-xs text-muted-foreground hover:underline"
           @click="cancelMfa"
         >
-          返回上一步
+          {{ t('login.mfaBack') }}
         </button>
       </template>
 
       <p class="text-center text-xs text-muted-foreground">
-        仅限授权用户访问 · Rrelaynest 中转站管理系统
+        {{ t('login.footer') }}
       </p>
     </div>
   </div>

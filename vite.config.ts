@@ -10,6 +10,12 @@ export default defineConfig(({ mode }) => {
   const apiPort = env.DEV_API_PORT ?? '3100';
   return {
     plugins: [vue()],
+    // vue-i18n 特性开关（去掉运行时未定义告警；仅用 Composition API，关掉 legacy 以减小体积）。
+    define: {
+      __VUE_I18N_FULL_INSTALL__: 'true',
+      __VUE_I18N_LEGACY_API__: 'false',
+      __INTLIFY_PROD_DEVTOOLS__: 'false',
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src/frontend', import.meta.url)),

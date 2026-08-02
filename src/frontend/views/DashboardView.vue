@@ -2,6 +2,7 @@
 // 站点主页（块8：接线后端）：顶栏 + 统计卡 + 工具条 + 表格 + 分页 + 批量栏 + 自定义面板
 // + 编辑/新增弹窗。充值/手动签到弹窗本轮砍掉（余额爬取权威、签到走后端 /checkin）。
 import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import AppHeader from '@/components/AppHeader.vue';
 import {
   stats,
@@ -25,6 +26,8 @@ import BatchBar from '@/components/site/BatchBar.vue';
 import CustomizePanel from '@/components/site/CustomizePanel.vue';
 import SiteEditorModal from '@/components/site/SiteEditorModal.vue';
 
+const { t } = useI18n({ useScope: 'global' });
+
 const customizeOpen = ref(false);
 
 // 编辑弹窗状态：复用 新增(editing=null)/编辑(editing=Site)
@@ -40,7 +43,7 @@ onMounted(async () => {
   try {
     await Promise.all([loadSites(), loadProxies(), loadSettings()]);
   } catch (e) {
-    toast(errMsg(e, '加载站点失败'), 'error');
+    toast(errMsg(e, t('sites.loadFailed')), 'error');
   }
 });
 
@@ -49,10 +52,10 @@ async function onScrape(id: number) {
   const nm = s?.name ?? '';
   try {
     const r = await scrapeSite(id);
-    if (r.ok) toast('已爬取「' + nm + '」余额', 'success');
-    else toast('「' + nm + '」爬取失败：' + (r.error ?? '未知错误'), 'error');
+    if (r.ok) toast(t('sites.scrapeOk', { name: nm }), 'success');
+    else toast(t('sites.scrapeFailed', { name: nm, error: r.error ?? t('sites.unknownError') }), 'error');
   } catch (e) {
-    toast(errMsg(e, '爬取失败'), 'error');
+    toast(errMsg(e, t('sites.scrapeError')), 'error');
   }
 }
 async function onCheckin(id: number) {
@@ -60,11 +63,11 @@ async function onCheckin(id: number) {
   const nm = s?.name ?? '';
   try {
     const r = await checkinSite(id);
-    if (r.ok) toast('「' + nm + '」签到成功：' + (r.result ?? '已签到'), 'success');
-    else if (r.needs_manual) toast('「' + nm + '」需人工验证：' + (r.result ?? ''), 'info');
-    else toast('「' + nm + '」签到失败：' + (r.result ?? '未知错误'), 'error');
+    if (r.ok) toast(t('sites.checkinOk', { name: nm, result: r.result ?? t('sites.checkedIn') }), 'success');
+    else if (r.needs_manual) toast(t('sites.checkinManual', { name: nm, result: r.result ?? '' }), 'info');
+    else toast(t('sites.checkinFailed', { name: nm, result: r.result ?? t('sites.unknownError') }), 'error');
   } catch (e) {
-    toast(errMsg(e, '签到失败'), 'error');
+    toast(errMsg(e, t('sites.checkinError')), 'error');
   }
 }
 function onEdit(id: number) {
@@ -74,12 +77,12 @@ function onEdit(id: number) {
 async function onDelete(id: number) {
   const s = findSite(id);
   const nm = s?.name ?? '';
-  if (!confirm('确认删除站点「' + nm + '」？此操作不可恢复。')) return;
+  if (!confirm(t('sites.confirmDelete', { name: nm }))) return;
   try {
     await deleteSite(id);
-    toast('已删除「' + nm + '」', 'success');
+    toast(t('sites.deleteOk', { name: nm }), 'success');
   } catch (e) {
-    toast(errMsg(e, '删除失败'), 'error');
+    toast(errMsg(e, t('sites.deleteError')), 'error');
   }
 }
 function onOpenAddr(host: string) {
@@ -87,18 +90,18 @@ function onOpenAddr(host: string) {
   void host;
 }
 function onAutoFit() {
-  toast('自动调整列宽将在后续补测量逻辑', 'info');
+  toast(t('sites.autoFitTodo'), 'info');
 }
 async function onScrapeAll() {
   if (scrapingAll.value) return;
   scrapingAll.value = true;
-  toast('开始爬取全部站点…', 'info');
+  toast(t('sites.scrapeAllStart'), 'info');
   try {
     const results = await scrapeAll();
     const ok = results.filter((r) => r.ok).length;
-    toast(`全部爬取完成：${ok}/${results.length} 成功`, ok === results.length ? 'success' : 'info');
+    toast(t('sites.scrapeAllDone', { ok, total: results.length }), ok === results.length ? 'success' : 'info');
   } catch (e) {
-    toast(errMsg(e, '全部爬取失败'), 'error');
+    toast(errMsg(e, t('sites.scrapeAllError')), 'error');
   } finally {
     scrapingAll.value = false;
   }
@@ -110,9 +113,9 @@ function onCreate() {
 async function onBatchDelete() {
   try {
     const n = await batchDelete();
-    if (n) toast('已删除 ' + n + ' 个站点', 'success');
+    if (n) toast(t('sites.batchDeleteOk', { n }), 'success');
   } catch (e) {
-    toast(errMsg(e, '批量删除失败'), 'error');
+    toast(errMsg(e, t('sites.batchDeleteError')), 'error');
   }
 }
 // 弹窗保存后重拉列表由 store 内部完成，这里只需关闭。
@@ -124,21 +127,21 @@ function onEditorClose() {
 <template>
   <div class="min-h-screen bg-background">
     <!-- 顶栏 -->
-    <AppHeader title="站点" />
+    <AppHeader :title="$t('dashboard.title')" />
 
     <div class="space-y-6 p-4 sm:p-6">
       <!-- 统计卡 -->
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div class="rounded-lg border border-border bg-card p-5">
-          <p class="text-sm text-muted-foreground">站点总数</p>
+          <p class="text-sm text-muted-foreground">{{ $t('dashboard.statTotal') }}</p>
           <p class="mt-1 text-3xl font-semibold">{{ stats.total }}</p>
         </div>
         <div class="rounded-lg border border-border bg-card p-5">
-          <p class="text-sm text-muted-foreground">合计余额</p>
+          <p class="text-sm text-muted-foreground">{{ $t('dashboard.statBalance') }}</p>
           <p class="mt-1 text-3xl font-semibold">{{ stats.balance }}</p>
         </div>
         <div class="rounded-lg border border-border bg-card p-5">
-          <p class="text-sm text-muted-foreground">今日已签到</p>
+          <p class="text-sm text-muted-foreground">{{ $t('dashboard.statCheckin') }}</p>
           <p class="mt-1 text-3xl font-semibold">{{ stats.checkin }}</p>
         </div>
       </div>

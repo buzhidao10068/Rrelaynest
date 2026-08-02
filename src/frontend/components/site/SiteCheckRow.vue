@@ -29,7 +29,7 @@ defineProps<{ site: Site }>();
         <span
           v-else
           class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-        >连接 待检</span>
+        >{{ $t('sites.connPending') }}</span>
         <span
           v-if="modelResults[site.id]"
           class="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
@@ -38,28 +38,28 @@ defineProps<{ site: Site }>();
         <span
           v-else
           class="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-        >渠道 待检</span>
+        >{{ $t('sites.channelPending') }}</span>
 
         <!-- 单站按钮 -->
         <Button
           variant="ghost" size="sm"
           class="h-7 px-2"
           :disabled="running || busySites.has(site.id)"
-          title="仅测本站连接"
+          :title="$t('sites.testConnHint')"
           @click="runConnectivityCheck(site.id)"
         >
           <Wifi :size="14" />
-          测连接
+          {{ $t('sites.testConn') }}
         </Button>
         <Button
           variant="ghost" size="sm"
           class="h-7 px-2"
           :disabled="running || busySites.has(site.id)"
-          title="仅测本站渠道（逐模型）"
+          :title="$t('sites.testChannelHint')"
           @click="runModelCheck(site.id)"
         >
           <MessageSquare :size="14" />
-          测渠道
+          {{ $t('sites.testChannel') }}
         </Button>
       </div>
     </div>

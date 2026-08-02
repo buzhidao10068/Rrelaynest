@@ -3,6 +3,7 @@
 // + 分组分区（可折叠、跨组拖拽改分组）。分页条与自定义面板由父组件挂载。
 // 块8：键与操作事件改为按 id；充值按钮与「已签金额」徽章砍掉（余额爬取权威、无客户端记账）。
 import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   ArrowUpDown, ArrowUp, ArrowDown, GripVertical,
   RefreshCw, CalendarCheck, Pencil, Trash2,
@@ -23,6 +24,8 @@ const emit = defineEmits<{
   (e: 'delete', id: number): void;
   (e: 'openAddr', host: string): void;
 }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 const cols = visibleColumns;
 const pad = computed(() => (sitesState.compact ? 'px-4 py-1.5' : 'px-4 py-3'));
@@ -157,9 +160,9 @@ function checkinDisabled(s: Site): boolean {
   return !s.hasToken && s.ck === 'off';
 }
 function checkinTitle(s: Site): string {
-  if (!s.hasToken) return '未设置 Access Token，无法签到';
-  if (s.ck === 'off') return '该站未启用签到，请在编辑中开启';
-  return '立即签到';
+  if (!s.hasToken) return t('sites.noTokenCheckin');
+  if (s.ck === 'off') return t('sites.checkinOffHint');
+  return t('sites.checkinNow');
 }
 </script>
 
@@ -180,20 +183,20 @@ function checkinTitle(s: Site): string {
               class="inline-flex max-w-full items-center gap-1 truncate hover:text-foreground"
               @click="toggleSort(c.key)"
             >
-              {{ c.label }}
+              {{ $t(c.labelKey) }}
               <ArrowUp v-if="sortState(c.key) === 'asc'" :size="14" class="text-foreground" />
               <ArrowDown v-else-if="sortState(c.key) === 'desc'" :size="14" class="text-foreground" />
               <ArrowUpDown v-else :size="14" class="opacity-40" />
             </button>
-            <span v-else class="block truncate">{{ c.label }}</span>
+            <span v-else class="block truncate">{{ $t(c.labelKey) }}</span>
             <span
               class="col-resizer"
-              title="拖拽调整列宽"
+              :title="$t('sites.resizeColHint')"
               @mousedown="startResize($event, c.key)"
               @touchstart="startResize($event, c.key)"
             ></span>
           </th>
-          <th class="px-4 py-3 text-right font-medium" :style="{ width: ACTION_COL_W + 'px' }">操作</th>
+          <th class="px-4 py-3 text-right font-medium" :style="{ width: ACTION_COL_W + 'px' }">{{ $t('common.actions') }}</th>
         </tr>
       </thead>
 
@@ -226,12 +229,12 @@ function checkinTitle(s: Site): string {
                   <ChevronRight v-if="sitesState.collapsedGroups[grp.group]" :size="16" />
                   <ChevronDown v-else :size="16" />
                 </template>
-                <span>{{ grp.group }}</span>
+                <span>{{ grp.group === '未分组' ? $t('sites.ungrouped') : grp.group }}</span>
                 <span class="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  {{ grp.rows.length }} 站
+                  {{ $t('sites.siteCount', { n: grp.rows.length }) }}
                 </span>
                 <span class="text-xs font-normal text-muted-foreground">
-                  合计 ¥{{ grp.sum.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                  {{ $t('sites.groupTotal') }} ¥{{ grp.sum.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
                 </span>
               </span>
             </td>
@@ -269,7 +272,7 @@ function checkinTitle(s: Site): string {
                       <span
                         v-if="rowDraggable"
                         class="row-grip mr-2 inline-flex h-5 w-4 shrink-0 cursor-grab items-center justify-center align-middle text-muted-foreground opacity-0 transition group-hover/row:opacity-100 active:cursor-grabbing"
-                        title="按住拖动重排"
+                        :title="$t('sites.dragHint')"
                         @mousedown="armGrip(s.id)"
                       >
                         <GripVertical :size="14" />
@@ -291,7 +294,7 @@ function checkinTitle(s: Site): string {
                         role="tooltip"
                         class="pointer-events-none absolute bottom-full left-0 z-[100] mb-2 hidden w-56 rounded-md bg-foreground px-3 py-2 text-xs leading-relaxed text-background shadow-lg group-hover:block"
                       >
-                        未设置 Access Token，无法爬取余额与签到。点击行内「编辑」补充 Token 后即可启用。
+                        {{ $t('sites.noTokenTooltip') }}
                       </span>
                     </span>
                   </span>
@@ -309,15 +312,15 @@ function checkinTitle(s: Site): string {
                   <span
                     v-if="s.ck === 'signed'"
                     class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400"
-                  >● 已签</span>
+                  >● {{ $t('sites.ckSigned') }}</span>
                   <span
                     v-else-if="s.ck === 'pending'"
                     class="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400"
-                  >● 待签</span>
+                  >● {{ $t('sites.ckPending') }}</span>
                   <span
                     v-else
                     class="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                  >● 未启用</span>
+                  >● {{ $t('sites.ckOff') }}</span>
                 </template>
                 <template v-else>{{ cellText(s, c.key) }}</template>
               </td>
@@ -328,7 +331,7 @@ function checkinTitle(s: Site): string {
                     class="flex h-8 w-8 items-center justify-center rounded-md"
                     :class="s.hasToken ? 'text-muted-foreground hover:bg-accent' : 'cursor-not-allowed text-muted-foreground opacity-50'"
                     :disabled="!s.hasToken"
-                    :title="s.hasToken ? '爬取' : '未设置 Access Token，无法爬取'"
+                    :title="s.hasToken ? $t('sites.scrape') : $t('sites.noTokenScrape')"
                     @click="emit('scrape', s.id)"
                   ><RefreshCw :size="15" /></button>
                   <button
@@ -340,12 +343,12 @@ function checkinTitle(s: Site): string {
                   ><CalendarCheck :size="15" /></button>
                   <button
                     class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
-                    title="编辑"
+                    :title="$t('common.edit')"
                     @click="emit('edit', s.id)"
                   ><Pencil :size="15" /></button>
                   <button
                     class="flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-accent"
-                    title="删除"
+                    :title="$t('common.delete')"
                     @click="emit('delete', s.id)"
                   ><Trash2 :size="15" /></button>
                 </div>
@@ -388,7 +391,7 @@ function checkinTitle(s: Site): string {
                   <span
                     v-if="rowDraggable"
                     class="row-grip mr-2 inline-flex h-5 w-4 shrink-0 cursor-grab items-center justify-center align-middle text-muted-foreground opacity-0 transition group-hover/row:opacity-100 active:cursor-grabbing"
-                    title="按住拖动重排"
+                    :title="$t('sites.dragHint')"
                     @mousedown="armGrip(s.id)"
                   >
                     <GripVertical :size="14" />
@@ -410,7 +413,7 @@ function checkinTitle(s: Site): string {
                     role="tooltip"
                     class="pointer-events-none absolute bottom-full left-0 z-[100] mb-2 hidden w-56 rounded-md bg-foreground px-3 py-2 text-xs leading-relaxed text-background shadow-lg group-hover:block"
                   >
-                    未设置 Access Token，无法爬取余额与签到。点击行内「编辑」补充 Token 后即可启用。
+                    {{ $t('sites.noTokenTooltip') }}
                   </span>
                 </span>
               </span>
@@ -426,15 +429,15 @@ function checkinTitle(s: Site): string {
               <span
                 v-if="s.ck === 'signed'"
                 class="inline-flex items-center gap-1 rounded-md bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400"
-              >● 已签</span>
+              >● {{ $t('sites.ckSigned') }}</span>
               <span
                 v-else-if="s.ck === 'pending'"
                 class="inline-flex items-center gap-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400"
-              >● 待签</span>
+              >● {{ $t('sites.ckPending') }}</span>
               <span
                 v-else
                 class="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-              >● 未启用</span>
+              >● {{ $t('sites.ckOff') }}</span>
             </template>
             <template v-else>{{ cellText(s, c.key) }}</template>
           </td>
@@ -444,7 +447,7 @@ function checkinTitle(s: Site): string {
                 class="flex h-8 w-8 items-center justify-center rounded-md"
                 :class="s.hasToken ? 'text-muted-foreground hover:bg-accent' : 'cursor-not-allowed text-muted-foreground opacity-50'"
                 :disabled="!s.hasToken"
-                :title="s.hasToken ? '爬取' : '未设置 Access Token，无法爬取'"
+                :title="s.hasToken ? $t('sites.scrape') : $t('sites.noTokenScrape')"
                 @click="emit('scrape', s.id)"
               ><RefreshCw :size="15" /></button>
               <button
@@ -456,12 +459,12 @@ function checkinTitle(s: Site): string {
               ><CalendarCheck :size="15" /></button>
               <button
                 class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
-                title="编辑"
+                :title="$t('common.edit')"
                 @click="emit('edit', s.id)"
               ><Pencil :size="15" /></button>
               <button
                 class="flex h-8 w-8 items-center justify-center rounded-md text-red-500 hover:bg-accent"
-                title="删除"
+                :title="$t('common.delete')"
                 @click="emit('delete', s.id)"
               ><Trash2 :size="15" /></button>
             </div>

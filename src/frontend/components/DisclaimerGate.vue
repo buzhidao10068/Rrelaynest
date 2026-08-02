@@ -19,6 +19,9 @@ import {
   CardDescription,
   CardFooter,
 } from '@/components/ui/card';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const agreed = ref(false);
 const busy = ref(false);
@@ -30,7 +33,7 @@ async function accept() {
   try {
     await acceptDisclaimer();
   } catch (e) {
-    toast(e instanceof Error ? e.message : '保存失败，请重试', 'error');
+    toast(e instanceof Error ? e.message : t('disclaimer.saveFailed'), 'error');
   } finally {
     busy.value = false;
   }
@@ -63,44 +66,39 @@ async function declineAndLogout() {
             <ShieldAlert :size="22" />
           </div>
           <div>
-            <CardTitle class="text-xl">使用前须知 · 免责声明</CardTitle>
-            <CardDescription>请阅读并同意后进入使用</CardDescription>
+            <CardTitle class="text-xl">{{ t('disclaimer.title') }}</CardTitle>
+            <CardDescription>{{ t('disclaimer.subtitle') }}</CardDescription>
           </div>
         </div>
       </CardHeader>
 
       <CardContent class="space-y-5 text-sm leading-relaxed text-muted-foreground">
         <section class="space-y-2">
-          <h3 class="font-medium text-foreground">一、封禁风险</h3>
-          <p>
-            本项目的部分功能（如每日自动签到、余额/额度抓取、活跃度探测等）会以<span
-              class="font-medium text-foreground"
-            >自动化方式</span>访问上游中转站（new-api 等服务）。这些行为<span
-              class="font-medium text-foreground"
-            >可能触发上游的风控策略，导致你的账号被限制或封禁</span>。是否启用相关功能、以及由此产生的一切后果，均由你自行评估与承担，<span
-              class="font-medium text-foreground"
-            >与本项目及其作者无关</span>。
-          </p>
+          <h3 class="font-medium text-foreground">{{ t('disclaimer.banRiskTitle') }}</h3>
+          <i18n-t keypath="disclaimer.banRiskBody" tag="p">
+            <template #auto><span class="font-medium text-foreground">{{ t('disclaimer.banRiskAuto') }}</span></template>
+            <template #risk><span class="font-medium text-foreground">{{ t('disclaimer.banRiskRisk') }}</span></template>
+            <template #disclaim><span class="font-medium text-foreground">{{ t('disclaimer.banRiskDisclaim') }}</span></template>
+          </i18n-t>
         </section>
         <section class="space-y-2">
-          <h3 class="font-medium text-foreground">二、AI 创作声明</h3>
-          <p>
-            本项目<span class="font-medium text-foreground">完全由 AI 创作</span>，可能存在各类错误、缺陷或考虑不周之处，<span
-              class="font-medium text-foreground"
-            >不对其正确性、稳定性或适用性作任何保证</span>。请在充分理解代码与风险的前提下自行使用。
-          </p>
+          <h3 class="font-medium text-foreground">{{ t('disclaimer.aiTitle') }}</h3>
+          <i18n-t keypath="disclaimer.aiBody" tag="p">
+            <template #byAi><span class="font-medium text-foreground">{{ t('disclaimer.aiByAi') }}</span></template>
+            <template #noGuarantee><span class="font-medium text-foreground">{{ t('disclaimer.aiNoGuarantee') }}</span></template>
+          </i18n-t>
         </section>
 
         <label class="flex cursor-pointer items-start gap-2 border-t border-border pt-4 text-foreground">
           <Checkbox v-model="agreed" class="mt-0.5" />
-          <span>我已阅读并理解上述风险，自愿使用本项目并自行承担全部后果。</span>
+          <span>{{ t('disclaimer.agree') }}</span>
         </label>
       </CardContent>
 
       <CardFooter class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-        <Button variant="ghost" :disabled="busy" @click="declineAndLogout"> 不同意，退出登录 </Button>
+        <Button variant="ghost" :disabled="busy" @click="declineAndLogout">{{ t('disclaimer.declineLogout') }}</Button>
         <Button :disabled="!agreed || busy" @click="accept">
-          {{ busy ? '处理中…' : '同意并继续' }}
+          {{ busy ? t('disclaimer.processing') : t('disclaimer.agreeContinue') }}
         </Button>
       </CardFooter>
     </Card>

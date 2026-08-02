@@ -2,6 +2,7 @@
 // 代理页「配置哪些站点使用此代理」弹窗（块8 已接线后端）：
 // 默认平铺 / 分组两视图；勾选态本地暂存（切视图不丢），保存时按 id 落后端 sites.proxy_id。
 import { ref, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -10,6 +11,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { sitesState, allGroups, type Site } from '@/stores/sites';
 import { assignSitesToProxy, findProxy, type Proxy } from '@/stores/proxies';
 import { toast } from '@/composables/useToast';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{ open: boolean; proxy: Proxy | null }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
@@ -33,7 +36,7 @@ watch(
   { immediate: true },
 );
 
-const title = computed(() => `配置使用「${props.proxy?.name ?? ''}」的站点`);
+const title = computed(() => t('proxy.assignModalTitle', { name: props.proxy?.name ?? '' }));
 const checkedCount = computed(() => Object.values(checks.value).filter(Boolean).length);
 
 // 分组视图：按 allGroups 归类
@@ -67,10 +70,10 @@ async function onSave() {
   busy.value = true;
   try {
     const cnt = await assignSitesToProxy(props.proxy.id, checkedIds);
-    toast(`「${props.proxy.name}」已配置 ${cnt} 个站点`, 'success');
+    toast(t('proxy.assignedToast', { name: props.proxy.name, n: cnt }), 'success');
     emit('close');
   } catch (e) {
-    toast(e instanceof Error ? e.message : '配置站点失败', 'error');
+    toast(e instanceof Error ? e.message : t('proxy.assignFailed'), 'error');
   } finally {
     busy.value = false;
   }
@@ -82,7 +85,7 @@ async function onSave() {
     <DialogContent class="flex max-h-[calc(100vh-2rem)] max-w-[520px] flex-col">
       <DialogHeader>
         <DialogTitle>{{ title }}</DialogTitle>
-        <DialogDescription>勾选的站点将经此代理出网；取消勾选则回落跟随全局。</DialogDescription>
+        <DialogDescription>{{ t('proxy.assignModalDesc') }}</DialogDescription>
       </DialogHeader>
 
       <!-- 视图切换 -->
@@ -91,19 +94,19 @@ async function onSave() {
           :variant="view === 'default' ? 'default' : 'outline'"
           size="sm"
           @click="view = 'default'"
-        >默认</Button>
+        >{{ t('proxy.viewFlat') }}</Button>
         <Button
           :variant="view === 'group' ? 'default' : 'outline'"
           size="sm"
           @click="view = 'group'"
-        >分组</Button>
-        <span class="ml-auto self-center text-xs text-muted-foreground">{{ checkedCount }} 站已选</span>
+        >{{ t('proxy.viewGroup') }}</Button>
+        <span class="ml-auto self-center text-xs text-muted-foreground">{{ t('proxy.selectedCount', { n: checkedCount }) }}</span>
       </div>
 
       <!-- 列表 -->
       <div class="-mx-1 flex-1 overflow-y-auto px-1">
         <div v-if="!sitesState.list.length" class="p-6 text-center text-sm text-muted-foreground">
-          暂无站点
+          {{ t('proxy.noSites') }}
         </div>
 
         <!-- 默认平铺 -->
@@ -117,7 +120,7 @@ async function onSave() {
             <Checkbox :model-value="!!checks[s.id]" class="pointer-events-none" />
             <span class="min-w-0 flex-1 truncate text-sm">{{ s.name }}</span>
             <span v-if="otherProxy(s)" class="shrink-0 text-xs text-muted-foreground">
-              当前：{{ otherProxy(s) }}
+              {{ t('proxy.currentlyOn', { name: otherProxy(s) }) }}
             </span>
           </div>
         </div>
@@ -132,7 +135,7 @@ async function onSave() {
             >
               <span>{{ g.name }}</span>
               <span class="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                {{ g.sites.length }} 站
+                {{ t('proxy.siteCount', { n: g.sites.length }) }}
               </span>
             </button>
             <div
@@ -144,7 +147,7 @@ async function onSave() {
               <Checkbox :model-value="!!checks[s.id]" class="pointer-events-none" />
               <span class="min-w-0 flex-1 truncate text-sm">{{ s.name }}</span>
               <span v-if="otherProxy(s)" class="shrink-0 text-xs text-muted-foreground">
-                当前：{{ otherProxy(s) }}
+                {{ t('proxy.currentlyOn', { name: otherProxy(s) }) }}
               </span>
             </div>
           </div>
@@ -152,8 +155,8 @@ async function onSave() {
       </div>
 
       <DialogFooter>
-        <Button variant="outline" :disabled="busy" @click="emit('close')">取消</Button>
-        <Button :disabled="busy" @click="onSave">{{ busy ? '保存中…' : '保存' }}</Button>
+        <Button variant="outline" :disabled="busy" @click="emit('close')">{{ t('common.cancel') }}</Button>
+        <Button :disabled="busy" @click="onSave">{{ busy ? t('common.saving') : t('common.save') }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

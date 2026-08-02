@@ -4,6 +4,7 @@
 //
 // 约定：后端所有端点返回 JSON；出错时形如 { error: '文案' }（见 src/shared/routes.ts）。
 // 本客户端把非 2xx 与网络异常都抛成带可读 message 的 ApiError，调用方 try/catch 后 toast。
+import { t } from '@/i18n';
 
 // 401 回调：由 App 挂载时注入（避免 api.ts 反向依赖 ui store，防循环依赖）。
 // 未登录/会话失效时后端返回 401，这里触发回调让 UI 切回登录页。
@@ -34,18 +35,18 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     });
   } catch {
     // 网络层失败（断网/DNS/被拦截）：无 HTTP 状态，归一成 0。
-    throw new ApiError('网络请求失败（无法连接服务器）', 0);
+    throw new ApiError(t('common.networkError'), 0);
   }
 
   if (resp.status === 401) {
     // 会话失效：先解析文案（若有），再触发全局登出回调，最后抛错让调用方停下。
-    const msg = await readError(resp, '未登录或会话已失效');
+    const msg = await readError(resp, t('toast.sessionExpired'));
     if (onUnauthorized) onUnauthorized();
     throw new ApiError(msg, 401);
   }
 
   if (!resp.ok) {
-    throw new ApiError(await readError(resp, `请求失败（HTTP ${resp.status}）`), resp.status);
+    throw new ApiError(await readError(resp, t('toast.httpError', { status: resp.status })), resp.status);
   }
 
   // 204 或空体：返回 undefined（调用方泛型标 void 即可）。
@@ -54,7 +55,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new ApiError('响应不是合法 JSON', resp.status);
+    throw new ApiError(t('toast.invalidJson'), resp.status);
   }
 }
 

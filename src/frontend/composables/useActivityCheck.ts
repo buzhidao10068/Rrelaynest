@@ -12,6 +12,7 @@ import { effectiveProbe } from '@/stores/probes';
 import { sitesState, type Site } from '@/stores/sites';
 import { api, ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
+import { t } from '@/i18n';
 
 export type ConnStatus = 'ok' | 'slow' | 'down' | 'checking';
 // 整体渠道态：ok=至少一个模型可用 / down=全部不可用 / checking=测试中 / skipped=无模型可测或未绑词且全局关
@@ -41,11 +42,11 @@ export function connBadgeClass(st: ConnStatus): string {
   return 'bg-blue-500/15 text-blue-600 dark:text-blue-400';
 }
 export function connBadgeText(r?: { status: ConnStatus; ms: number }): string {
-  if (!r) return '连接 待检';
-  if (r.status === 'ok') return `● 正常 ${r.ms}ms`;
-  if (r.status === 'slow') return `● 较慢 ${r.ms}ms`;
-  if (r.status === 'down') return '● 不可达';
-  return '● 连接中…';
+  if (!r) return t('activity.connPending');
+  if (r.status === 'ok') return t('activity.connOk', { ms: r.ms });
+  if (r.status === 'slow') return t('activity.connSlow', { ms: r.ms });
+  if (r.status === 'down') return t('activity.connDown');
+  return t('activity.connChecking');
 }
 export function modelBadgeClass(st: ModelStatus): string {
   if (st === 'ok') return 'bg-green-500/15 text-green-600 dark:text-green-400';
@@ -54,15 +55,15 @@ export function modelBadgeClass(st: ModelStatus): string {
   return 'bg-blue-500/15 text-blue-600 dark:text-blue-400';
 }
 export function modelBadgeText(r?: { status: ModelStatus; probe: string; models: ModelDetail[] }): string {
-  if (!r) return '渠道 待检';
+  if (!r) return t('activity.modelPending');
   const p = r.probe ? ` · ${r.probe}` : '';
   const okN = r.models.filter((m) => m.status === 'ok').length;
   const tot = r.models.length;
   const cnt = tot ? ` ${okN}/${tot}` : '';
-  if (r.status === 'ok') return `● 可用${cnt}${p}`;
-  if (r.status === 'down') return `● 不可用${cnt}${p}`;
-  if (r.status === 'skipped') return '○ 未测（无模型或无测活词）';
-  return `● 测试中…${cnt}`;
+  if (r.status === 'ok') return t('activity.modelOk') + cnt + p;
+  if (r.status === 'down') return t('activity.modelDown') + cnt + p;
+  if (r.status === 'skipped') return t('activity.modelSkipped');
+  return t('activity.modelChecking') + cnt;
 }
 // 单个模型 chip 的绿/红/蓝
 export function modelChipClass(st: ModelDetailStatus): string {
@@ -84,7 +85,7 @@ async function checkOneConnectivity(s: Site) {
   } catch (e) {
     // 401 已由 api 层触发登出；其余（404 站点不存在等）标不可达。
     connResults[s.id] = { status: 'down', ms: 0 };
-    if (e instanceof ApiError && e.status !== 401) toast(`「${s.name}」测连接失败：${e.message}`, 'error');
+    if (e instanceof ApiError && e.status !== 401) toast(t('activity.connFailed', { name: s.name, msg: e.message }), 'error');
   }
 }
 
@@ -104,7 +105,7 @@ export async function runConnectivityCheck(scope?: number) {
   try {
     for (const s of list) await checkOneConnectivity(s);
     const down = list.filter((s) => connResults[s.id]?.status === 'down').length;
-    toast(down ? `连接检测完成，${down} 个站点不可达` : '连接检测完成，全部站点可达', down ? 'error' : 'success');
+    toast(down ? t('activity.connDoneWithDown', { n: down }) : t('activity.connDoneAllOk'), down ? 'error' : 'success');
   } finally {
     running.value = false;
   }
@@ -134,7 +135,7 @@ async function checkOneModel(s: Site): Promise<ModelStatus> {
       d.status = r.ok ? 'ok' : 'down';
     } catch (e) {
       d.status = 'down';
-      if (e instanceof ApiError && e.status !== 401) toast(`「${s.name}」测渠道失败：${e.message}`, 'error');
+      if (e instanceof ApiError && e.status !== 401) toast(t('activity.channelFailed', { name: s.name, msg: e.message }), 'error');
     }
   }
   const anyOk = details.some((d) => d.status === 'ok');
@@ -158,7 +159,7 @@ export async function runModelCheck(scope?: number) {
   try {
     let down = 0;
     for (const s of list) { if ((await checkOneModel(s)) === 'down') down++; }
-    toast(down ? `渠道测试完成，${down} 个站点全部模型不可用` : '渠道测试完成', down ? 'error' : 'success');
+    toast(down ? t('activity.channelDoneWithDown', { n: down }) : t('activity.channelDoneOk'), down ? 'error' : 'success');
   } finally {
     running.value = false;
   }

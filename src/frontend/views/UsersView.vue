@@ -3,6 +3,7 @@
 // 每卡：头像 + 用户名 + 角色/状态徽章 + 站点数/创建日期 + 查看站点/编辑/停用/删除。
 // 自我保护：id=1（自己）不能停用/删除/降级；查看站点需已解锁 ack（双门控）。
 import { ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Plus, Eye, Pencil, Ban, CircleCheck, Trash2 } from 'lucide-vue-next';
 import AppHeader from '@/components/AppHeader.vue';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,8 @@ import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 import UserModal from '@/components/users/UserModal.vue';
 
+const { t } = useI18n({ useScope: 'global' });
+
 const modalOpen = ref(false);
 const modalEditing = ref<AdminUser | null>(null);
 
@@ -22,7 +25,7 @@ function errMsg(e: unknown, fallback: string): string {
 }
 
 onMounted(() => {
-  loadUsers().catch((e) => toast(errMsg(e, '载入用户列表失败'), 'error'));
+  loadUsers().catch((e) => toast(errMsg(e, t('users.loadListFailed')), 'error'));
 });
 
 function onCreate() {
@@ -41,17 +44,17 @@ async function onToggle(u: AdminUser) {
   try {
     const d = await toggleUserDisabled(u.id);
     if (d === null) return;
-    toast(d ? `已停用 ${u.username}（其已登录会话立即失效）` : `已启用 ${u.username}`, 'success');
+    toast(d ? t('users.disabledToast', { name: u.username }) : t('users.enabledToast', { name: u.username }), 'success');
   } catch (e) {
-    toast(errMsg(e, '操作失败'), 'error');
+    toast(errMsg(e, t('common.failed')), 'error');
   }
 }
 async function onDelete(u: AdminUser) {
-  if (!confirm(`确认删除用户「${u.username}」？其所有站点/代理/设置将一并删除，不可恢复。`)) return;
+  if (!confirm(t('users.deleteConfirm', { name: u.username }))) return;
   try {
-    if (await deleteUser(u.id)) toast(`已删除用户 ${u.username}`, 'success');
+    if (await deleteUser(u.id)) toast(t('users.deletedToast', { name: u.username }), 'success');
   } catch (e) {
-    toast(errMsg(e, '删除失败'), 'error');
+    toast(errMsg(e, t('users.deleteFailed')), 'error');
   }
 }
 
@@ -71,11 +74,11 @@ function createdText(u: AdminUser): string {
 
 <template>
   <div class="min-h-screen bg-background">
-    <AppHeader title="用户管理">
+    <AppHeader :title="t('users.title')">
       <template #actions>
         <Button size="sm" @click="onCreate">
           <Plus :size="15" />
-          新增用户
+          {{ t('users.addUser') }}
         </Button>
       </template>
     </AppHeader>
@@ -83,21 +86,21 @@ function createdText(u: AdminUser): string {
     <div class="mx-auto max-w-[960px] space-y-4 p-4 sm:p-6">
       <!-- 邀请制说明 + 跨用户只读状态提示 -->
       <div class="rounded-lg border border-border bg-muted/40 p-4 text-sm">
-        <p class="font-medium">邀请制</p>
+        <p class="font-medium">{{ t('users.inviteSystem') }}</p>
         <p class="mt-1 text-xs text-muted-foreground">
-          系统不开放自助注册，只有管理员在此手动开号。每个用户的站点、代理、设置完全隔离，互不可见。
+          {{ t('users.inviteDesc') }}
         </p>
         <p class="mt-2 text-xs">
           <template v-if="users.globalViewAck">
-            <span class="text-green-600 dark:text-green-400">✓ 已解锁「查看他人站点」</span>
-            ——可点各用户的「查看站点」只读查看。前往
-            <button class="underline hover:opacity-80" @click="goPrivacySettings">设置 → 协作与隐私</button>
-            可撤销。
+            <span class="text-green-600 dark:text-green-400">{{ t('users.viewOthersUnlocked') }}</span>
+            {{ t('users.viewOthersUnlockedDesc') }}
+            <button class="underline hover:opacity-80" @click="goPrivacySettings">{{ t('users.privacySettingsLink') }}</button>
+            {{ t('users.canRevoke') }}
           </template>
           <template v-else>
-            「查看他人站点」默认关闭。需先到
-            <button class="underline hover:opacity-80" @click="goPrivacySettings">设置 → 协作与隐私</button>
-            阅读条款并同意后，才能只读查看用户站点。
+            {{ t('users.viewOthersLocked') }}
+            <button class="underline hover:opacity-80" @click="goPrivacySettings">{{ t('users.privacySettingsLink') }}</button>
+            {{ t('users.viewOthersLockedSuffix') }}
           </template>
         </p>
       </div>
@@ -116,20 +119,20 @@ function createdText(u: AdminUser): string {
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-medium">{{ u.username }}</span>
               <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="roleBadgeClass(u)">
-                {{ u.role === 'admin' ? '管理员' : '用户' }}
+                {{ u.role === 'admin' ? t('users.roleAdmin') : t('users.roleUser') }}
               </span>
               <span
                 v-if="u.disabled"
                 class="rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-medium text-red-600 dark:text-red-400"
-              >已停用</span>
+              >{{ t('users.statusDisabled') }}</span>
               <span
                 v-else
                 class="rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400"
-              >正常</span>
-              <span v-if="isSelf(u.id)" class="text-xs text-muted-foreground">(你)</span>
+              >{{ t('users.statusNormal') }}</span>
+              <span v-if="isSelf(u.id)" class="text-xs text-muted-foreground">{{ t('users.you') }}</span>
             </div>
             <p class="mt-0.5 text-xs text-muted-foreground">
-              {{ u.sites }} 个站点 · 创建于 {{ createdText(u) }}
+              {{ t('users.sitesAndCreated', { n: u.sites, date: createdText(u) }) }}
             </p>
           </div>
 
@@ -140,26 +143,26 @@ function createdText(u: AdminUser): string {
               variant="outline"
               size="sm"
               :class="!users.globalViewAck && 'opacity-50'"
-              :title="users.globalViewAck ? '' : '需先在设置解锁条款'"
+              :title="users.globalViewAck ? '' : t('users.needUnlockTitle')"
               @click="onView(u)"
             >
               <Eye :size="14" />
-              查看站点
+              {{ t('users.viewSites') }}
             </Button>
             <Button variant="outline" size="sm" @click="onEdit(u)">
               <Pencil :size="14" />
-              编辑
+              {{ t('common.edit') }}
             </Button>
             <!-- 停用/启用：不能对自己 -->
             <Button
               variant="outline"
               size="sm"
               :disabled="isSelf(u.id)"
-              :title="isSelf(u.id) ? '不能停用自己' : ''"
+              :title="isSelf(u.id) ? t('users.cannotDisableSelf') : ''"
               @click="onToggle(u)"
             >
               <component :is="u.disabled ? CircleCheck : Ban" :size="14" />
-              {{ u.disabled ? '启用' : '停用' }}
+              {{ u.disabled ? t('common.enable') : t('users.disableAction') }}
             </Button>
             <!-- 删除：不能删自己 -->
             <Button
@@ -167,11 +170,11 @@ function createdText(u: AdminUser): string {
               size="sm"
               class="border-red-500/40 text-red-500 hover:bg-red-500/10 hover:text-red-500"
               :disabled="isSelf(u.id)"
-              :title="isSelf(u.id) ? '不能删除自己' : ''"
+              :title="isSelf(u.id) ? t('users.cannotDeleteSelf') : ''"
               @click="onDelete(u)"
             >
               <Trash2 :size="14" />
-              删除
+              {{ t('common.delete') }}
             </Button>
           </div>
         </div>
@@ -180,7 +183,7 @@ function createdText(u: AdminUser): string {
         v-else
         class="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground"
       >
-        暂无用户
+        {{ t('users.empty') }}
       </div>
     </div>
 

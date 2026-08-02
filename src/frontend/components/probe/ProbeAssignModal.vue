@@ -11,6 +11,9 @@ import { sitesState, allGroups, type Site } from '@/stores/sites';
 import { assignSitesToProbe } from '@/stores/probes';
 import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{ open: boolean; probeText: string | null }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
@@ -34,7 +37,7 @@ watch(
   { immediate: true },
 );
 
-const title = computed(() => `配置使用「${props.probeText ?? ''}」的站点`);
+const title = computed(() => t('probe.assignTitle', { text: props.probeText ?? '' }));
 const checkedCount = computed(() => Object.values(checks.value).filter(Boolean).length);
 
 // 分组视图：按 allGroups 归类
@@ -67,10 +70,10 @@ async function onSave() {
   busy.value = true;
   try {
     const cnt = await assignSitesToProbe(props.probeText, checkedIds);
-    toast(`「${props.probeText}」已配置 ${cnt} 个站点`, 'success');
+    toast(t('probe.assignedCount', { text: props.probeText, n: cnt }), 'success');
     emit('close');
   } catch (e) {
-    toast(e instanceof ApiError ? e.message : '配置失败', 'error');
+    toast(e instanceof ApiError ? e.message : t('probe.assignFailed'), 'error');
   } finally {
     busy.value = false;
   }
@@ -82,7 +85,7 @@ async function onSave() {
     <DialogContent class="flex max-h-[calc(100vh-2rem)] max-w-[520px] flex-col">
       <DialogHeader>
         <DialogTitle>{{ title }}</DialogTitle>
-        <DialogDescription>勾选的站点渠道测试将发这条词；取消勾选则回落跟随全局。</DialogDescription>
+        <DialogDescription>{{ $t('probe.assignDesc') }}</DialogDescription>
       </DialogHeader>
 
       <!-- 视图切换 -->
@@ -91,19 +94,19 @@ async function onSave() {
           :variant="view === 'default' ? 'default' : 'outline'"
           size="sm"
           @click="view = 'default'"
-        >默认</Button>
+        >{{ $t('probe.viewDefault') }}</Button>
         <Button
           :variant="view === 'group' ? 'default' : 'outline'"
           size="sm"
           @click="view = 'group'"
-        >分组</Button>
-        <span class="ml-auto self-center text-xs text-muted-foreground">{{ checkedCount }} 站已选</span>
+        >{{ $t('probe.viewGroup') }}</Button>
+        <span class="ml-auto self-center text-xs text-muted-foreground">{{ $t('probe.selectedCount', { n: checkedCount }) }}</span>
       </div>
 
       <!-- 列表 -->
       <div class="-mx-1 flex-1 overflow-y-auto px-1">
         <div v-if="!sitesState.list.length" class="p-6 text-center text-sm text-muted-foreground">
-          暂无站点
+          {{ $t('probe.noSites') }}
         </div>
 
         <!-- 默认平铺 -->
@@ -117,7 +120,7 @@ async function onSave() {
             <Checkbox :model-value="!!checks[s.id]" class="pointer-events-none" />
             <span class="min-w-0 flex-1 truncate text-sm">{{ s.name }}</span>
             <span v-if="otherProbe(s)" class="shrink-0 text-xs text-muted-foreground">
-              当前：{{ otherProbe(s) }}
+              {{ $t('probe.currentBound', { text: otherProbe(s) }) }}
             </span>
           </div>
         </div>
@@ -132,7 +135,7 @@ async function onSave() {
             >
               <span>{{ g.name }}</span>
               <span class="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                {{ g.sites.length }} 站
+                {{ $t('probe.siteCount', { n: g.sites.length }) }}
               </span>
             </button>
             <div
@@ -152,8 +155,8 @@ async function onSave() {
       </div>
 
       <DialogFooter>
-        <Button variant="outline" :disabled="busy" @click="emit('close')">取消</Button>
-        <Button :disabled="busy" @click="onSave">{{ busy ? '保存中…' : '保存' }}</Button>
+        <Button variant="outline" :disabled="busy" @click="emit('close')">{{ $t('common.cancel') }}</Button>
+        <Button :disabled="busy" @click="onSave">{{ busy ? $t('common.saving') : $t('common.save') }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

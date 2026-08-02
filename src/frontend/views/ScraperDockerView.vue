@@ -16,13 +16,16 @@ import { scraperState, loadScraperSettings, saveDk } from '@/stores/scraper';
 import { showView } from '@/stores/ui';
 import { toast } from '@/composables/useToast';
 import { ApiError } from '@/api';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const dk = scraperState.dk;
 const busy = ref(false);
 
 onMounted(() => {
   loadScraperSettings().catch((e) => {
-    toast(e instanceof ApiError ? e.message : '载入爬取设置失败', 'error');
+    toast(e instanceof ApiError ? e.message : t('scraper.loadFailed'), 'error');
   });
 });
 
@@ -30,9 +33,9 @@ async function onSave() {
   busy.value = true;
   try {
     await saveDk();
-    toast('爬取设置已保存', 'success');
+    toast(t('scraper.settingsSaved'), 'success');
   } catch (e) {
-    toast(e instanceof ApiError ? e.message : '保存失败', 'error');
+    toast(e instanceof ApiError ? e.message : t('scraper.saveFailed'), 'error');
   } finally {
     busy.value = false;
   }
@@ -41,7 +44,7 @@ async function onSave() {
 
 <template>
   <div class="min-h-screen bg-background">
-    <AppHeader title="爬虫 · Docker">
+    <AppHeader :title="t('scraper.docker.title')">
       <template #actions>
         <span class="inline-flex items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-600 dark:text-sky-400">
           Node / Docker
@@ -54,16 +57,14 @@ async function onSave() {
       <div class="flex items-start gap-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
         <CheckCircle2 :size="18" class="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
         <div class="min-w-0">
-          <p class="font-medium text-emerald-700 dark:text-emerald-300">Docker / Node 部署</p>
-          <p class="mt-1 text-muted-foreground">
-            定时由 <b>node-cron</b> 驱动，爬取间隔可随时修改、即时生效；<b>支持</b> http/https/socks5 出站代理（在代理页配置）；并发/超时/重试可自由配置，<b>无平台硬限制</b>。
-          </p>
+          <p class="font-medium text-emerald-700 dark:text-emerald-300">{{ t('scraper.docker.platformTitle') }}</p>
+          <p class="mt-1 text-muted-foreground" v-html="t('scraper.docker.platformDesc')"></p>
         </div>
       </div>
 
       <div>
-        <h3 class="text-base font-semibold">爬取设置</h3>
-        <p class="mt-1 text-sm text-muted-foreground">余额爬取的全局行为；单站可在编辑中覆盖。</p>
+        <h3 class="text-base font-semibold">{{ t('scraper.settingsTitle') }}</h3>
+        <p class="mt-1 text-sm text-muted-foreground">{{ t('scraper.settingsDesc') }}</p>
       </div>
 
       <!-- 定时机制：node-cron，间隔可编辑 -->
@@ -71,13 +72,13 @@ async function onSave() {
         <div class="flex items-center gap-4">
           <Switch v-model="dk.autoOn" />
           <div>
-            <p class="text-sm font-medium">启用定时爬取</p>
-            <p class="text-xs text-muted-foreground">由 node-cron 按下方间隔周期性爬取所有站点余额。</p>
+            <p class="text-sm font-medium">{{ t('scraper.autoScrape') }}</p>
+            <p class="text-xs text-muted-foreground">{{ t('scraper.docker.autoScrapeDesc') }}</p>
           </div>
         </div>
 
         <div class="space-y-1.5">
-          <Label>爬取间隔</Label>
+          <Label>{{ t('scraper.docker.interval') }}</Label>
           <div class="flex items-center gap-2">
             <Input v-model.number="dk.interval" type="number" min="1" class="w-28" />
             <Select v-model="dk.intervalUnit">
@@ -85,12 +86,12 @@ async function onSave() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="min">分钟</SelectItem>
-                <SelectItem value="hour">小时</SelectItem>
+                <SelectItem value="min">{{ t('scraper.docker.unitMin') }}</SelectItem>
+                <SelectItem value="hour">{{ t('scraper.docker.unitHour') }}</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <p class="text-xs text-muted-foreground">两次自动爬取之间的最小间隔，修改后即时生效，无需重启。</p>
+          <p class="text-xs text-muted-foreground">{{ t('scraper.docker.intervalHint') }}</p>
         </div>
       </div>
 
@@ -98,38 +99,38 @@ async function onSave() {
       <div class="flex items-start gap-3 rounded-lg border border-border p-4">
         <Network :size="18" class="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium">出站代理 · 支持</p>
+          <p class="text-sm font-medium">{{ t('scraper.docker.proxyTitle') }}</p>
           <p class="mt-0.5 text-xs text-muted-foreground">
-            支持 http/https/socks5。爬取/签到经代理出网，在代理页统一管理。
+            {{ t('scraper.docker.proxyDesc') }}
           </p>
         </div>
         <Button variant="outline" size="sm" class="shrink-0 self-center gap-1" @click="showView('proxy')">
-          前往代理页
+          {{ t('scraper.docker.goProxy') }}
           <ArrowRight :size="14" />
         </Button>
       </div>
 
       <!-- 并发/超时/重试：自由配置 -->
       <div class="space-y-1.5">
-        <Label>并发数</Label>
+        <Label>{{ t('scraper.concurrency') }}</Label>
         <Input v-model.number="dk.concurrency" type="number" min="1" max="50" class="w-28" />
-        <p class="text-xs text-muted-foreground">同时爬取的站点数量；无平台硬限制，过高仍可能触发站点风控。</p>
+        <p class="text-xs text-muted-foreground">{{ t('scraper.docker.concurrencyHint') }}</p>
       </div>
 
       <div class="space-y-1.5">
-        <Label>单站超时（秒）</Label>
+        <Label>{{ t('scraper.timeoutSec') }}</Label>
         <Input v-model.number="dk.timeout" type="number" min="1" class="w-28" />
-        <p class="text-xs text-muted-foreground">单个站点请求超过该时长视为失败。</p>
+        <p class="text-xs text-muted-foreground">{{ t('scraper.docker.timeoutHint') }}</p>
       </div>
 
       <div class="space-y-1.5">
-        <Label>失败重试次数</Label>
+        <Label>{{ t('scraper.docker.retry') }}</Label>
         <Input v-model.number="dk.retry" type="number" min="0" max="5" class="w-28" />
-        <p class="text-xs text-muted-foreground">失败站点按此次数退避重试。</p>
+        <p class="text-xs text-muted-foreground">{{ t('scraper.docker.retryHint') }}</p>
       </div>
 
       <div class="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-        <Button :disabled="busy" @click="onSave">{{ busy ? '保存中…' : '保存设置' }}</Button>
+        <Button :disabled="busy" @click="onSave">{{ busy ? t('common.saving') : t('scraper.saveSettings') }}</Button>
       </div>
     </div>
   </div>

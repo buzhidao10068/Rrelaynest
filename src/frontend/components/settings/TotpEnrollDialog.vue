@@ -4,6 +4,7 @@
 // 关掉对话框（完成或取消）时通知父组件刷新 2FA 状态。见 shared/routes.ts 的 /api/account/totp/*。
 import { ref, watch } from 'vue';
 import QRCode from 'qrcode';
+import { useI18n } from 'vue-i18n';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -15,6 +16,8 @@ import { toast } from '@/composables/useToast';
 
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ (e: 'close', enabled: boolean): void }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 type Step = 'loading' | 'scan' | 'done';
 const step = ref<Step>('loading');
@@ -44,7 +47,7 @@ watch(
     } catch (e) {
       // 401 交给 api 层登出；其余在对话框内提示并允许关闭。
       if (e instanceof ApiError && e.status === 401) return;
-      errorMsg.value = e instanceof Error ? e.message : '初始化两步验证失败';
+      errorMsg.value = e instanceof Error ? e.message : t('settings.totp.initFailed');
     }
   },
 );
@@ -53,7 +56,7 @@ async function confirmEnable() {
   if (busy.value) return;
   const c = code.value.trim();
   if (!/^\d{6}$/.test(c)) {
-    toast('请输入 6 位数字验证码', 'error');
+    toast(t('settings.totp.needSixDigit'), 'error');
     return;
   }
   busy.value = true;
@@ -61,10 +64,10 @@ async function confirmEnable() {
     const r = await api.post<{ ok: boolean; backupCodes: string[] }>('/api/account/totp/enable', { code: c });
     backupCodes.value = r.backupCodes ?? [];
     step.value = 'done';
-    toast('两步验证已启用', 'success');
+    toast(t('settings.totp.enabledToast'), 'success');
   } catch (e) {
     if (!(e instanceof ApiError && e.status === 401)) {
-      toast(e instanceof Error ? e.message : '启用失败', 'error');
+      toast(e instanceof Error ? e.message : t('settings.totp.enableFailed'), 'error');
     }
   } finally {
     busy.value = false;
@@ -74,8 +77,8 @@ async function confirmEnable() {
 function copyBackup() {
   const text = backupCodes.value.join('\n');
   navigator.clipboard?.writeText(text).then(
-    () => toast('备份码已复制到剪贴板', 'success'),
-    () => toast('复制失败，请手动选择复制', 'error'),
+    () => toast(t('settings.totp.copiedToast'), 'success'),
+    () => toast(t('settings.totp.copyFailed'), 'error'),
   );
 }
 
@@ -89,29 +92,29 @@ function close() {
   <Dialog :open="open" @update:open="(v) => { if (!v) close(); }">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>启用两步验证</DialogTitle>
+        <DialogTitle>{{ t('settings.totp.enableTitle') }}</DialogTitle>
         <DialogDescription>
-          用验证器 App（Google Authenticator / 1Password / Authy 等）扫码或手动录入密钥。
+          {{ t('settings.totp.enableDesc') }}
         </DialogDescription>
       </DialogHeader>
 
       <!-- 加载中 -->
       <div v-if="step === 'loading'" class="py-8 text-center text-sm text-muted-foreground">
         <span v-if="errorMsg" class="text-red-500">{{ errorMsg }}</span>
-        <span v-else>正在初始化…</span>
+        <span v-else>{{ t('settings.totp.initializing') }}</span>
       </div>
 
       <!-- 扫码 + 输入码 -->
       <div v-else-if="step === 'scan'" class="space-y-4">
         <div class="flex flex-col items-center gap-3">
-          <img v-if="qrDataUrl" :src="qrDataUrl" alt="TOTP 二维码" class="rounded-md border border-border" width="200" height="200" />
+          <img v-if="qrDataUrl" :src="qrDataUrl" :alt="t('settings.totp.qrAlt')" class="rounded-md border border-border" width="200" height="200" />
           <div class="w-full space-y-1">
-            <p class="text-xs text-muted-foreground">无法扫码时，手动录入密钥：</p>
+            <p class="text-xs text-muted-foreground">{{ t('settings.totp.manualEntry') }}</p>
             <code class="block break-all rounded-md bg-muted px-3 py-2 text-center text-sm font-mono tracking-wider">{{ secret }}</code>
           </div>
         </div>
         <div class="space-y-1.5">
-          <Label>验证器生成的 6 位码</Label>
+          <Label>{{ t('settings.totp.codeLabel') }}</Label>
           <Input
             v-model="code"
             inputmode="numeric"
@@ -122,15 +125,15 @@ function close() {
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="close">取消</Button>
-          <Button :disabled="busy" @click="confirmEnable">{{ busy ? '验证中…' : '确认启用' }}</Button>
+          <Button variant="outline" @click="close">{{ t('common.cancel') }}</Button>
+          <Button :disabled="busy" @click="confirmEnable">{{ busy ? t('settings.totp.verifying') : t('settings.totp.confirmEnable') }}</Button>
         </DialogFooter>
       </div>
 
       <!-- 备份码 -->
       <div v-else class="space-y-4">
         <div class="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
-          请把这些一次性备份码保存到安全的地方。丢失验证器时，每个备份码可用于登录一次。此后将无法再次查看。
+          {{ t('settings.totp.backupWarning') }}
         </div>
         <div class="grid grid-cols-2 gap-2">
           <code
@@ -140,8 +143,8 @@ function close() {
           >{{ bc }}</code>
         </div>
         <DialogFooter class="gap-2">
-          <Button variant="outline" @click="copyBackup">复制全部</Button>
-          <Button @click="close">我已保存</Button>
+          <Button variant="outline" @click="copyBackup">{{ t('settings.totp.copyAll') }}</Button>
+          <Button @click="close">{{ t('settings.totp.saved') }}</Button>
         </DialogFooter>
       </div>
     </DialogContent>

@@ -31,14 +31,17 @@ jobs:
       - name: 构建前端（产出 dist/，Workers 静态资源）
         run: npm run build
 
-      # 把 D1 数据库 ID 注入 wrangler.toml（仓库里存的是占位符，不含真实 ID）。
-      # 用 | 作分隔符，避免 ID 中出现 / 时 sed 报错。
-      - name: 注入 D1 database_id
+      # 激活 D1 绑定并注入数据库 ID。
+      # 仓库里 D1 段默认是注释的（每行以「#@d1 」开头，面板绑定方案用不到它）；
+      # CI 走的是「配置文件声明 D1」路径，所以先去掉标记前缀取消注释，再替换占位符。
+      # 用 | 作 sed 分隔符，避免 ID 中出现 / 时报错。
+      - name: 激活并注入 D1 database_id
         run: |
           if [ -z "${{ secrets.D1_DATABASE_ID }}" ]; then
             echo "::error::缺少 Secret D1_DATABASE_ID，请先创建 D1 数据库并把 ID 填进仓库 Secrets"
             exit 1
           fi
+          sed -i "s|^#@d1 ||" wrangler.toml
           sed -i "s|REPLACE_WITH_YOUR_D1_DATABASE_ID|${{ secrets.D1_DATABASE_ID }}|" wrangler.toml
 
       - name: 部署 Worker（同时注入三个密钥）
