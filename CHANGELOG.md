@@ -10,9 +10,17 @@
 
 ## [未发布]
 
+## [0.2.0] - 2026-08-02
+
 ### 新增
+- **三语国际化（i18n）**：简体中文 / 繁体中文 / English 一键切换，localStorage 持久化、首屏无语言闪烁；繁体为台湾正体 + 惯用词（opencc-js 构建期从简体自动生成，不手工维护第三份）
 - **首次使用免责声明门禁**：登录后、进入主面板前弹出免责声明（封禁风险 + AI 创作声明），需勾选同意方可使用；同意状态按账号记录（服务端），每个账号仅需确认一次
 - README 增加「免责声明与使用须知」章节
+
+### 变更
+- **D1 数据库改为 Cloudflare 面板绑定**：`wrangler.toml` 不再写死 `database_id`，「连接 Git」方式（方式 B）与本地部署全程无需编辑仓库文件——在面板 Bindings 下拉绑定 `DB` 即可；配合 `keep_vars = true` 保证后续部署面板绑定不丢
+- 一键部署按钮（方式 C）现需部署后在面板手动绑定一次 D1（README 已说明）
+- GitHub Actions（方式 A）自动激活并注入 `database_id`，不依赖面板绑定
 
 ## [0.1.0] - 2026-07-30
 
@@ -31,5 +39,6 @@
 - CSV / JSON 导出、检查更新
 - Worker 首访自动引导（幂等建表 + seed 首个 admin）
 
-[未发布]: https://github.com/buzhidao10068/Rrelaynest/compare/v0.1.0...HEAD
+[未发布]: https://github.com/buzhidao10068/Rrelaynest/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/buzhidao10068/Rrelaynest/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/buzhidao10068/Rrelaynest/releases/tag/v0.1.0
