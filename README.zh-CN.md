@@ -1,0 +1,298 @@
+> **语言 / Language**：[English](README.md) · **简体中文** · [繁體中文](README.zh-TW.md)
+
+# Rrelaynest
+
+集中管理 LLM API 中转站（new-api）的自部署面板。一套代码，两种部署：
+
+- **Docker / Node** —— 单容器，本地 SQLite 落盘，进程内定时任务。适合自有服务器。
+- **Cloudflare Workers + D1** —— Serverless，全球边缘，零运维。适合无服务器托管。
+
+功能：站点集中管理、余额/额度抓取、每日自动签到、活跃度探测、多用户（邀请制 + 完整隔离）、两步验证（TOTP）、Passkey 无密码登录。
+
+---
+
+## ⚠️ 免责声明与使用须知
+
+- **封禁风险**：本项目的部分功能（如每日自动签到、余额/额度抓取、活跃度探测等）会以**自动化方式**访问上游中转站（new-api 等服务），**可能触发上游的风控策略，导致你的账号被限制或封禁**。是否启用相关功能、以及由此产生的一切后果，均由你自行评估与承担，**与本项目及其作者无关**。
+- **AI 创作声明**：本项目**完全由 AI 创作**，可能存在各类错误、缺陷或考虑不周之处，**不对其正确性、稳定性或适用性作任何保证**。请在充分理解代码与风险的前提下自行使用。
+
+> 首次登录后，面板会展示以上声明，**需勾选同意后方可进入使用**；同意状态按账号记录（服务端持久化），每个账号仅需确认一次。
+
+---
+
+## ⚠️ 安全前提：生产必须 HTTPS
+
+会话与登录态用带 **`Secure` 标记**的 cookie 承载，浏览器**只在 HTTPS（或 `http://localhost`）下才会回传它**。
+
+这意味着：直接用 `http://你的域名` 或 `http://内网IP` 暴露本服务，会出现「**登录成功、下一次请求却又变未登录**」的现象——因为 cookie 根本没被浏览器发回来。
+
+**所以：**
+
+- ✅ `https://你的域名` —— 正常
+- ✅ `http://localhost:3100` —— 正常（仅本机调试，浏览器对 localhost 有安全豁免）
+- ❌ `http://你的域名` / `http://内网IP` —— **登录必然失效，不要这样部署**
+
+应用本身（Node 入口）只监听明文端口、不做 TLS。**生产环境请把它放到反向代理之后，由反代终结 HTTPS。** Workers 部署由平台自带 HTTPS，无需额外处理。
+
+Nginx 反代示例：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name relay.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/relay.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/relay.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3100;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+用 Caddy 更省事（自动签发 Let's Encrypt 证书），一个 `Caddyfile`：
+
+```
+relay.example.com {
+    reverse_proxy 127.0.0.1:3100
+}
+```
+
+Cloudflare Tunnel 亦可，同样能免公网端口地提供 HTTPS 入口。
+
+---
+
+## 部署一：Docker
+
+### 1. 准备密钥
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，填入三个必需值（缺任一则容器启动即报错退出）：
+
+| 变量 | 用途 | 生成方式 |
+| --- | --- | --- |
+| `ADMIN_PASSWORD` | 首个 admin 的**初始**登录密码（用户名固定 `admin`） | 自定义强口令 |
+| `SESSION_SECRET` | 会话 cookie / MFA 短票 / Passkey 挑战票的 HMAC 签名密钥 | `openssl rand -hex 32` |
+| `ENCRYPTION_KEY` | 上游 API Key 等敏感字段的 AES-GCM 加密密钥 | `openssl rand -hex 32` |
+
+> `ADMIN_PASSWORD` **只在首次启动、库为空时**用于 seed 首个 admin。之后在设置页改密，此变量便不再影响登录——可以留着，也可以清空。
+
+### 2. 启动
+
+```bash
+docker compose up -d --build
+```
+
+首次启动会自动：建表（跑全部迁移）→ seed 首个 admin（用户名 `admin`，密码 = `ADMIN_PASSWORD`）→ 回填存量数据。全部**幂等**，重复启动不会重复 seed。
+
+sqlite 文件落在宿主的 `./data/`（compose 已挂 volume），删容器不丢数据。
+
+### 3. 访问
+
+服务监听 `3100`。**务必置于 HTTPS 反代之后**（见上文安全前提），然后用 `admin` + 你设的初始密码登录，进设置页尽快改密。
+
+### 4. 升级
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+启动时自动应用新增迁移（幂等，不会动既有数据）。
+
+### 5. 新增用户
+
+本面板**邀请制**：首个 admin 登录后，在「管理 → 用户」里生成邀请，把邀请链接发给对方注册。用户之间数据完全隔离，admin 可只读查看。
+
+---
+
+## 部署二：Cloudflare Workers + D1
+
+Serverless，平台自带 HTTPS（无需自己配反代）。有三种方式，都不需要本地终端，任选其一：
+
+- **方式 C — 一键部署按钮（首次最省事，推荐新手）**：点下面的按钮，Cloudflare 自动帮你克隆仓库、创建 D1、引导你填三个密钥、构建部署。部署后在面板加一次 D1 绑定即可（建表由首次访问自动完成）。
+- **方式 A — GitHub Actions**：密钥填在 **GitHub** 仓库，网页点 Run 部署。CI 自动注入 D1 ID 并触发建表，无需面板绑定。适合想让部署走 GitHub、自己掌控 CI 的人。
+- **方式 B — Cloudflare 连接 Git**：密钥填在 **Cloudflare** 面板，推送即自动部署，连 GitHub Actions 都不用碰。**不用改仓库任何文件**，D1 在面板下拉绑定一次。
+
+> 三种方式的建表（跑迁移 + seed 首个 admin）都由 **首次访问自动完成**——Worker 收到第一个 `/api/*` 请求时会幂等地跑一次引导，无需再手动 curl。
+
+### 方式 C — 一键部署按钮（推荐）
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/buzhidao10068/Rrelaynest)
+
+1. 点上面的 **Deploy to Cloudflare** 按钮，用 GitHub 账户授权登录 Cloudflare
+2. 按提示**填入三个密钥**的值（`ADMIN_PASSWORD` / `SESSION_SECRET` / `ENCRYPTION_KEY`，取值见下方「通用准备第 3 步」；`ADMIN_PASSWORD` 务必改掉示例默认值）
+3. 点部署（此时 Worker 已起，但还没绑 D1）
+4. **绑定 D1**：先在 **Storage & Databases → D1** 创建一个数据库（名字随意，如 `rrelaynest-db`）；再到该 Worker 的 **Settings → Bindings → Add binding → D1 database**，**Variable name 填 `DB`**（必须大写、必须是 `DB`），下拉选刚建的库；保存后点 **Retry/Redeploy** 让绑定生效
+5. 打开分配的 `*.workers.dev` 地址，首访自动建表 + seed admin，用 `admin` + 你填的初始密码登录，进设置页尽快改密
+
+> **为什么方式 C 也要手动绑 D1？** 本项目的 `wrangler.toml` 默认不声明 D1（改用面板绑定，配合 `keep_vars = true`，让三种部署方式共用同一份干净配置），所以一键按钮不会再自动建库并写回 ID——这一步挪到了部署后由你在面板点一下（第 4 步）。若你更想要「点完全自动、连 D1 都不用管」，用**本地 CLI 部署**（见页面末尾），它会 `wrangler d1 create` 自动建库。
+
+> **升级**：方式 C 在你 GitHub 账户下建的是**独立克隆仓库（不是 Fork）**，所以**没有「Sync fork」一键同步按钮**。想拿本项目后续更新，需手动操作：给你的仓库加一个 upstream 远程（`git remote add upstream <本仓库地址>`），再 `git fetch upstream && git merge upstream/main` 并推送，Cloudflare 会自动重新构建部署。
+>
+> 如果你更看重**一键同步上游更新**，用**方式 A / B**（它们基于 Fork，GitHub 上有「Sync fork」按钮可一键拉取上游代码）。方式 C 胜在首次部署最省事，但后续更新反而更麻烦。
+
+---
+
+方式 A / B 需要先做下面的「通用准备」。方式 C 只需其中的「创建 D1 数据库」（第 2 步），Fork 与密钥准备可跳过（一键按钮会引导）。
+
+### 通用准备（方式 A / B 都要做）
+
+**1. Fork 本仓库**
+
+打开本项目页面，右上角点 **Fork**，Fork 到你自己的 GitHub 账户。后续所有操作都在你 Fork 的仓库里进行。
+
+**2. 创建 D1 数据库**
+
+1. 登录 [Cloudflare 控制台](https://dash.cloudflare.com/)，左侧 **Storage & Databases → D1 SQL Database → Create**
+2. 数据库名填 `rrelaynest-db`，创建后进入详情页，**记录 Database ID**
+
+**3. 准备三个密钥的值**
+
+| 密钥 | 说明 | 取值 |
+| --- | --- | --- |
+| `ADMIN_PASSWORD` | 首个 admin 的**初始**登录密码（用户名固定 `admin`） | 自定义强口令 |
+| `SESSION_SECRET` | 会话 cookie / MFA 短票 / Passkey 挑战票的 HMAC 签名密钥 | 随机 32 字节十六进制串 |
+| `ENCRYPTION_KEY` | 上游 API Key 等敏感字段的 AES-GCM 加密密钥 | 随机 32 字节十六进制串 |
+
+> `SESSION_SECRET` / `ENCRYPTION_KEY` 需要随机值。本地有终端的话用 `openssl rand -hex 32` 生成；没有也行，用任意在线随机十六进制生成器出两串 64 位十六进制即可。两者务必不同。
+
+---
+
+### 方式 A — GitHub Actions
+
+**A1. 再获取 API Token 和 Account ID**
+
+1. Cloudflare 控制台右上角头像 → **My Profile → API Tokens**
+2. 点 **Create Token**，选 **Edit Cloudflare Workers** 模板，创建后**记录生成的 Token**（只显示一次）
+3. 回到控制台首页，右侧栏可见 **Account ID**，**记录下来**
+
+**A2. 配置 GitHub Secrets**
+
+在你 Fork 的仓库：**Settings → Secrets and variables → Actions → New repository secret**，逐个添加 6 个：
+
+| Secret 名称 | 取值 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | A1 记录的 Token |
+| `CLOUDFLARE_ACCOUNT_ID` | A1 记录的 Account ID |
+| `D1_DATABASE_ID` | 通用准备第 2 步记录的 Database ID |
+| `ADMIN_PASSWORD` | 通用准备第 3 步的强口令 |
+| `SESSION_SECRET` | 通用准备第 3 步的随机串 |
+| `ENCRYPTION_KEY` | 通用准备第 3 步的随机串 |
+
+**A3. 运行部署**
+
+在你 Fork 的仓库：**Actions** 页 →（若提示先启用 Actions 就点启用）→ 左侧选 **部署到 Cloudflare Workers** → 右侧 **Run workflow** → 选 `main` 分支 → **Run workflow**。
+
+工作流会自动：构建前端 → 注入 D1 ID 与三个密钥 → 部署 Worker → **调一次 `/api/admin/bootstrap` 完成建表 + seed 首个 admin**（幂等，重复运行不会重复 seed）。
+
+跑完后展开最后一步日志，能看到访问地址（形如 `https://rrelaynest.<你的子域>.workers.dev`）。用 `admin` + 初始密码登录，进设置页尽快改密。
+
+> 建表首次访问就会自动完成（三种方式通用），工作流里那步 bootstrap 只是让 CI 日志能直接看到引导结果，冗余但无害。
+
+**A4. 升级**：这条工作流**只手动触发**（不会因为推代码或同步就自动跑）。升级步骤：在 Fork 仓库点 **Sync fork** 同步上游 → ⚠️ **然后必须回 Actions 页手动点一次 Run workflow**，部署才会真正更新。（光点 Sync fork 不会自动部署——网页同步是快进合并，不产生触发工作流的 push 事件。）新增迁移会在部署后的 bootstrap 调用中幂等应用。
+
+---
+
+### 方式 B — Cloudflare 连接 Git（密钥填在 Cloudflare）
+
+这条路是 Cloudflare 直接拉你的仓库、读仓库里的 `wrangler.toml` 跑 `wrangler deploy`，**不经过 GitHub Actions**。**全程不用编辑仓库任何文件**——D1 在 Cloudflare 面板里下拉绑定即可。你只需在面板做两件事：**配置三个密钥**（B3）、**加一次 D1 绑定**（B4），建表则由首次访问自动完成（B5）。
+
+**B1. 无需改仓库文件**
+
+仓库里的 `wrangler.toml` 默认**不声明 D1**（那段配置是注释的），配合文件顶部的 `keep_vars = true`——意思是「部署时保留我在面板里手动加的绑定，别用配置文件覆盖删掉」。所以这条路你**不用碰 `wrangler.toml`**，D1 留到 B4 在面板里绑。
+
+> 为什么不写进仓库？`database_id` 虽然不是密钥（提交进仓库也没安全问题），但写死在配置里就意味着每个 fork 的人都得改一次文件。改用面板绑定后，仓库保持干净、人人开箱即用，代价只是首次部署后去面板点一下绑定（B4）。
+
+**B2. 在 Cloudflare 导入仓库**
+
+1. Cloudflare 控制台 **Workers & Pages → Create → 选 Import a repository** 旁的 **Get started**
+2. 授权并选中你 Fork 的仓库
+3. 构建配置：
+   - **Build command** 填 `npm run build`
+   - **Deploy command** 保持默认 `npx wrangler deploy`
+   - Worker 名建议保持 `rrelaynest`（**必须与 `wrangler.toml` 里的 `name` 一致**，否则构建失败）
+
+**B3. 配置运行时密钥**
+
+在该 Worker 的 **Settings → Variables and Secrets** 里，添加三个 **Secret 类型**变量（不是 build 变量，build 变量运行时读不到）：`ADMIN_PASSWORD`、`SESSION_SECRET`、`ENCRYPTION_KEY`，值取自通用准备第 3 步。
+
+> 若在 B2 已点 Save and Deploy 部署过一次，配置完密钥后需再触发一次部署让密钥生效（改仓库推一下，或在面板点 Retry/Redeploy）。
+
+**B4. 在面板绑定 D1 数据库**
+
+这是这条路唯一需要在面板手动做的绑定。在该 Worker 的 **Settings → Bindings → Add binding → D1 database**：
+
+- **Variable name** 填 `DB`（**必须大写、必须是 `DB`**，要与代码里的 `env.DB` 一致，填错运行时会报 D1 未绑定）
+- **D1 database** 下拉选择通用准备第 2 步创建的 `rrelaynest-db`
+
+保存后**再触发一次部署**让绑定生效（改仓库推一下，或面板点 Retry/Redeploy）。因为 `wrangler.toml` 里有 `keep_vars = true`，这个绑定在之后每次自动部署都会保留，无需重复操作。
+
+**B5. 首次访问，完成建表 + seed admin**
+
+部署完成后 D1 还是空库，但**无需手动做任何事**：用浏览器打开一次 Worker 地址（形如 `https://rrelaynest.<你的子域>.workers.dev`），首个请求会自动建表 + seed 首个 admin（幂等）。稍等一两秒刷新，即可用 `admin` + 初始密码登录，进设置页尽快改密。
+
+> 若想显式确认，也可调引导端点（带 `Authorization` Header 的 POST，浏览器地址栏访问不了，用 Postman / Hoppscotch 或 curl）：
+> ```bash
+> curl -X POST https://你的-worker-域名/api/admin/bootstrap \
+>   -H "Authorization: Bearer 你设的_ADMIN_PASSWORD"
+> ```
+> 成功返回 `{"ok":true,...}`，`alreadyInitialized:true` 表示首次访问已引导过。
+
+**B6. 升级**：在 Fork 仓库点 **Sync fork** 同步上游并推到 `main`，Cloudflare 会自动重新构建部署。新增迁移会在下一次访问时自动应用（幂等）。D1 绑定因 `keep_vars = true` 会一直保留，升级时无需再动。
+
+---
+
+> **想用本地 CLI 部署？** 也支持：`npx wrangler d1 create rrelaynest-db` 拿到 ID → 打开 `wrangler.toml` 把 D1 段每行开头的 `#@d1 ` 删掉（取消注释），并把占位符换成你的真实 ID（**这个改动留在本地即可，别提交**，否则会污染面板绑定方案）→ `npx wrangler secret put` 设三个密钥 → `npm run deploy` → 浏览器访问一次自动建表。或者更省事：跳过改文件，直接 `npm run deploy` 后按 B4 在面板绑定 D1。方式 A 的 GitHub Actions 本质就是把「取消注释 + 填 ID」这套搬到了云端。
+
+---
+
+## 本地开发
+
+```bash
+npm ci
+npm run dev            # 前端 (Vite)
+
+# 另开一个终端，起 Node 后端：
+export ADMIN_PASSWORD=dev-admin
+export SESSION_SECRET=$(openssl rand -hex 32)
+export ENCRYPTION_KEY=$(openssl rand -hex 32)
+npm run build:server && npm run start:node   # http://localhost:3100
+
+# 或 Workers 本地：
+npm run dev:worker     # http://localhost:7738
+```
+
+测试与类型检查：
+
+```bash
+npm test               # vitest
+npm run typecheck      # tsc（客户端 + 服务端两套配置）
+```
+
+---
+
+## 环境变量一览
+
+| 变量 | 必需 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `ADMIN_PASSWORD` | 是 | —— | 首个 admin 初始密码 / Workers 引导令牌 |
+| `SESSION_SECRET` | 是 | —— | 会话签名密钥 |
+| `ENCRYPTION_KEY` | 是 | —— | 敏感字段加密密钥 |
+| `PORT` | 否 | `3100` | Node 监听端口 |
+| `DB_PATH` | 否 | `data/rrelaynest.sqlite` | Node SQLite 文件路径 |
+| `DIST_DIR` | 否 | `dist` | Node 前端静态资源目录 |
+
+> Node 部署需 **Node 22+**（依赖内置 `node:sqlite`）。Docker 镜像已锁 Node 24。
+
+---
+
+## 许可证
+
+[MIT](LICENSE)。可自由使用、修改、商用与二次分发，保留版权与许可声明即可。
