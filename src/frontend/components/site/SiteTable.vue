@@ -16,6 +16,9 @@ import {
   setColWidth, reorderRow, moveToGroup,
   ACTION_COL_W, MIN_COL_W, type Site,
 } from '@/stores/sites';
+// 无 token 警告的提示改用 reka-ui tooltip：它 portal 到 body，不会被表格外层
+// overflow-x-auto 裁掉（手搓的 absolute 提示在裁剪容器里再高的 z-index 也逃不出去）。
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const emit = defineEmits<{
   (e: 'scrape', id: number): void;
@@ -167,6 +170,8 @@ function checkinTitle(s: Site): string {
 </script>
 
 <template>
+  <!-- 一个 provider 服务整表所有行的 tooltip（避免每行各起一个） -->
+  <TooltipProvider :delay-duration="150">
   <div class="overflow-x-auto rounded-lg border border-border bg-card">
     <table class="w-full text-sm" :style="{ tableLayout: 'fixed', minWidth: tableMinW + 'px' }">
       <!-- 表头 -->
@@ -288,15 +293,14 @@ function checkinTitle(s: Site): string {
                       </span>
                       {{ s.name }}
                     </span>
-                    <span v-if="!s.hasToken" class="group relative ml-1.5 inline-flex align-middle">
-                      <TriangleAlert :size="16" class="text-red-500" />
-                      <span
-                        role="tooltip"
-                        class="pointer-events-none absolute bottom-full left-0 z-[100] mb-2 hidden w-56 rounded-md bg-foreground px-3 py-2 text-xs leading-relaxed text-background shadow-lg group-hover:block"
-                      >
+                    <Tooltip v-if="!s.hasToken">
+                      <TooltipTrigger as="span" class="ml-1.5 inline-flex align-middle">
+                        <TriangleAlert :size="16" class="text-red-500" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" align="start" class="max-w-56 text-xs leading-relaxed">
                         {{ $t('sites.noTokenTooltip') }}
-                      </span>
-                    </span>
+                      </TooltipContent>
+                    </Tooltip>
                   </span>
                 </template>
                 <!-- 地址：可点链接 -->
@@ -407,15 +411,14 @@ function checkinTitle(s: Site): string {
                   </span>
                   {{ s.name }}
                 </span>
-                <span v-if="!s.hasToken" class="group relative ml-1.5 inline-flex align-middle">
-                  <TriangleAlert :size="16" class="text-red-500" />
-                  <span
-                    role="tooltip"
-                    class="pointer-events-none absolute bottom-full left-0 z-[100] mb-2 hidden w-56 rounded-md bg-foreground px-3 py-2 text-xs leading-relaxed text-background shadow-lg group-hover:block"
-                  >
+                <Tooltip v-if="!s.hasToken">
+                  <TooltipTrigger as="span" class="ml-1.5 inline-flex align-middle">
+                    <TriangleAlert :size="16" class="text-red-500" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start" class="max-w-56 text-xs leading-relaxed">
                     {{ $t('sites.noTokenTooltip') }}
-                  </span>
-                </span>
+                  </TooltipContent>
+                </Tooltip>
               </span>
             </template>
             <template v-else-if="c.key === 'url'">
@@ -473,4 +476,5 @@ function checkinTitle(s: Site): string {
       </tbody>
     </table>
   </div>
+  </TooltipProvider>
 </template>
