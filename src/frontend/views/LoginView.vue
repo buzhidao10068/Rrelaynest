@@ -8,7 +8,8 @@ import { startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/br
 import type { PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 import { useI18n } from 'vue-i18n';
 import { useLocale } from '@/i18n/useLocale';
-import { showView } from '@/stores/ui';
+import { showView, setDeployPlatform } from '@/stores/ui';
+import type { DeployPlatform } from '@/stores/ui';
 import { setSession } from '@/stores/users';
 import { loadDisclaimer } from '@/stores/disclaimer';
 import { api } from '@/api';
@@ -36,9 +37,17 @@ const mfaTicket = ref<string | null>(null); // 非空 = 进入第二步
 const mfaCode = ref('');
 const codeInput = ref<InstanceType<typeof Input> | null>(null);
 
-// 会话就绪后回查角色/用户名并进主页（两条登录路径共用）。
+// 会话就绪后回查角色/用户名并进主页（三条登录路径共用：密码 / 两步 / Passkey）。
+// 顺带写入后端下发的部署平台（权威值，前端不猜）。
 async function finishLogin() {
-  const s = await api.get<{ authenticated: boolean; id?: number; username?: string; role?: string }>('/api/session');
+  const s = await api.get<{
+    authenticated: boolean;
+    id?: number;
+    username?: string;
+    role?: string;
+    platform?: DeployPlatform;
+  }>('/api/session');
+  setDeployPlatform(s.platform ?? null);
   setSession(s.id ?? null, s.username ?? username.value, s.role === 'admin' ? 'admin' : 'user');
   password.value = '';
   mfaCode.value = '';

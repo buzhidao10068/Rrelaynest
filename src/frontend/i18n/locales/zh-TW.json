@@ -273,12 +273,12 @@
       "deployPlatform": "部署平臺",
       "currentPlatform": "當前：{platform}",
       "autoDetect": "自動檢測",
-      "demoPlatform": "演示平臺",
-      "platformFilterHint": "側欄會按當前平臺自動隱藏另一平臺的專屬功能（Cloudflare 隱藏「爬蟲 · Docker」「代理」；Docker 隱藏「爬蟲 · Cloudflare」）。",
+      "detectingPlatform": "檢測中…",
+      "platformFilterHint": "部署平臺由執行環境決定，前端不可更改。側欄會按當前平臺自動隱藏另一平臺的專屬功能（Cloudflare 隱藏「採集 · Docker」與「代理」；Docker 隱藏「採集 · Cloudflare」）。",
       "paginationHiddenToast": "已隱藏分頁：主頁平鋪全部站點",
       "paginationRestoredToast": "已恢復分頁",
       "detectedPlatformToast": "檢測到部署平臺：{platform}",
-      "switchedDemoPlatformToast": "已切換演示平臺為 {platform}"
+      "detectFailedToast": "檢測失敗，請稍後重試"
     },
     "security": {
       "title": "安全",

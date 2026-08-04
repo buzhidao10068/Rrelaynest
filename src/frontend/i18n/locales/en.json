@@ -273,12 +273,12 @@
       "deployPlatform": "Deployment platform",
       "currentPlatform": "Current: {platform}",
       "autoDetect": "Auto detect",
-      "demoPlatform": "Demo platform",
-      "platformFilterHint": "The sidebar automatically hides the other platform's exclusive features based on the current platform (Cloudflare hides \"Scraper · Docker\" and \"Proxy\"; Docker hides \"Scraper · Cloudflare\").",
+      "detectingPlatform": "Detecting…",
+      "platformFilterHint": "The deployment platform is determined by the runtime environment and cannot be changed here. The sidebar automatically hides the other platform's exclusive features (Cloudflare hides \"Scraper · Docker\" and \"Proxy\"; Docker hides \"Scraper · Cloudflare\").",
       "paginationHiddenToast": "Pagination hidden: the home page shows all sites",
       "paginationRestoredToast": "Pagination restored",
       "detectedPlatformToast": "Detected deployment platform: {platform}",
-      "switchedDemoPlatformToast": "Switched demo platform to {platform}"
+      "detectFailedToast": "Detection failed, please try again later"
     },
     "security": {
       "title": "Security",

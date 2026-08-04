@@ -75,9 +75,14 @@ const DEPS = { runMigrations, hashPassword, migrations: MIGRATIONS };
 
 // 起一个已迁移 + seed 好 admin 的 app；再直接建两个普通用户 A/B（绕过 admin 端点，
 // 那是步骤6的事）。返回 app 与工具。
-async function setupApp() {
+async function setupApp(platform?: 'node' | 'workers') {
   const { db, raw } = memDb();
-  const app = createApp({ db, secrets: SECRETS, runStartup: (d, s) => runStartupMigration(d, s, DEPS) });
+  const app = createApp({
+    db,
+    secrets: SECRETS,
+    runStartup: (d, s) => runStartupMigration(d, s, DEPS),
+    ...(platform ? { platform } : {}),
+  });
   await runStartupMigration(db, SECRETS, DEPS);
 
   // 直接插两个 user（密码都是 'pw'），拿各自 id。
@@ -292,4 +297,31 @@ test('0004 group_label + balance 在 POST/PUT/GET 间往返', async () => {
 
   list = await (await app.request('/api/sites', authed(cookie))).json();
   expect(list.sites[0].group_label).toBe(null);
+});
+
+// ---- /api/session 下发部署平台（前端据此显示平台并过滤菜单，不再自行猜测）----
+
+test('GET /api/session 未登录时也返回注入的 platform=workers', async () => {
+  const { app } = await setupApp('workers');
+  const res = await app.request('/api/session');
+  expect(res.status).toBe(200);
+  const body = await res.json();
+  expect(body.authenticated).toBe(false);
+  expect(body.platform).toBe('workers');
+});
+
+test('GET /api/session 未注入 platform 时缺省为 node', async () => {
+  const { app } = await setupApp();
+  const body = await (await app.request('/api/session')).json();
+  expect(body.authenticated).toBe(false);
+  expect(body.platform).toBe('node');
+});
+
+test('GET /api/session 已登录时同样带回 platform', async () => {
+  const { app } = await setupApp('workers');
+  const cookie = await login(app, 'userA');
+  const body = await (await app.request('/api/session', authed(cookie))).json();
+  expect(body.authenticated).toBe(true);
+  expect(body.username).toBe('userA');
+  expect(body.platform).toBe('workers');
 });
