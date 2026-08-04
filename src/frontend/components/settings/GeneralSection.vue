@@ -1,15 +1,16 @@
 <script setup lang="ts">
-// 通用偏好分区：默认货币显示、隐藏分页开关、部署平台检测 + 平台功能过滤。
-import { computed } from 'vue';
+// 通用偏好分区：默认货币显示、隐藏分页开关、部署平台展示 + 平台功能过滤。
+// 部署平台是后端权威事实（经 /api/session 下发），前端只读、不可改；「自动检测」= 重新问后端。
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { RefreshCw, RotateCw } from 'lucide-vue-next';
+import { RefreshCw } from 'lucide-vue-next';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { settingsState, persistCurrency } from '@/stores/settings';
 import { sitesState, setPaginationHidden } from '@/stores/sites';
-import { ui, setDeployPlatform, type DeployPlatform } from '@/stores/ui';
+import { ui, refreshPlatform, type DeployPlatform } from '@/stores/ui';
 import { toast } from '@/composables/useToast';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -23,26 +24,30 @@ const hidePagination = computed({
   },
 });
 
-function platformLabel(p: DeployPlatform): string {
-  return p === 'workers' ? 'Cloudflare' : 'Docker';
+// 平台全称：null = 后端尚未告知（首屏 /api/session 返回前，或检测失败）
+function platformLabel(p: DeployPlatform | null): string {
+  if (p === 'workers') return 'Cloudflare Workers';
+  if (p === 'node') return 'Docker / Node';
+  return '';
 }
-const platformResult = computed(
-  () => t('settings.general.currentPlatform', {
-    platform: `${platformLabel(ui.deployPlatform)}${ui.deployPlatform === 'workers' ? ' Workers' : ' / Node'}`,
-  }),
+const platformResult = computed(() =>
+  ui.deployPlatform === null
+    ? t('settings.general.detectingPlatform')
+    : t('settings.general.currentPlatform', { platform: platformLabel(ui.deployPlatform) }),
 );
 
-// 自动检测（mock：600ms 转圈后确认当前平台）
-function detectPlatform() {
-  setDeployPlatform(ui.deployPlatform); // 持久化当前值
-  toast(t('settings.general.detectedPlatformToast', { platform: platformLabel(ui.deployPlatform) }), 'success');
-}
-
-// 演示端可在两平台间切换（真实端由后端注入，前端不可改）
-function switchPlatform(p: DeployPlatform) {
-  if (p === ui.deployPlatform) return;
-  setDeployPlatform(p);
-  toast(t('settings.general.switchedDemoPlatformToast', { platform: platformLabel(p) }), 'info');
+// 自动检测：真的重新问一次后端（GET /api/session），如实反映返回值。
+const detecting = ref(false);
+async function detectPlatform() {
+  if (detecting.value) return;
+  detecting.value = true;
+  try {
+    const p = await refreshPlatform();
+    if (p) toast(t('settings.general.detectedPlatformToast', { platform: platformLabel(p) }), 'success');
+    else toast(t('settings.general.detectFailedToast'), 'error');
+  } finally {
+    detecting.value = false;
+  }
 }
 </script>
 
@@ -74,27 +79,16 @@ function switchPlatform(p: DeployPlatform) {
           <p class="text-sm font-medium">{{ t('settings.general.deployPlatform') }}</p>
           <p class="mt-0.5 text-xs text-muted-foreground">{{ platformResult }}</p>
         </div>
-        <Button variant="outline" size="sm" class="shrink-0 gap-1.5" @click="detectPlatform">
-          <RefreshCw :size="15" />
+        <Button
+          variant="outline"
+          size="sm"
+          class="shrink-0 gap-1.5"
+          :disabled="detecting"
+          @click="detectPlatform"
+        >
+          <RefreshCw :size="15" :class="detecting && 'animate-spin'" />
           {{ t('settings.general.autoDetect') }}
         </Button>
-      </div>
-      <!-- 演示端平台切换（真实端由后端决定，此处便于预览两平台专属功能） -->
-      <div class="flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
-        <RotateCw :size="14" class="shrink-0" />
-        <span class="shrink-0">{{ t('settings.general.demoPlatform') }}</span>
-        <div class="ml-auto inline-flex overflow-hidden rounded-md border border-border">
-          <button
-            class="px-3 py-1"
-            :class="ui.deployPlatform === 'node' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'"
-            @click="switchPlatform('node')"
-          >Docker / Node</button>
-          <button
-            class="border-l border-border px-3 py-1"
-            :class="ui.deployPlatform === 'workers' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'"
-            @click="switchPlatform('workers')"
-          >Cloudflare</button>
-        </div>
       </div>
       <p class="text-xs text-muted-foreground">
         {{ t('settings.general.platformFilterHint') }}

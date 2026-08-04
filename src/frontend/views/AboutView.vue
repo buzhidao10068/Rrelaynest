@@ -12,6 +12,7 @@ import {
   aboutState, RELEASES_URL,
   hasNewVersion, checkForUpdate, loadAbout, setAutoUpdate,
 } from '@/stores/about';
+import { ui } from '@/stores/ui';
 import { ApiError } from '@/api';
 import { toast } from '@/composables/useToast';
 import { useI18n } from 'vue-i18n';
@@ -21,8 +22,9 @@ const { t } = useI18n({ useScope: 'global' });
 // 当前版本（后端注入，载入前为空）
 const currentVer = computed(() => aboutState.current || '—');
 
-// 升级步骤按平台由后端给（含 wrangler 即 Workers）；结果面板前展示用 ui 平台兜底不再需要。
-const isWorkers = computed(() => aboutState.upgradeSteps.some((s) => s.includes('wrangler')));
+// 部署平台读 store 里的权威值（后端经 /api/session 下发）。
+// 不再从 upgradeSteps 里嗅探 'wrangler' —— 那是靠命令文案反推平台，文案一改就失准。
+const isWorkers = computed(() => ui.deployPlatform === 'workers');
 
 // 更新结果三态：无检查结果 / 已是最新 / 有新版
 const latest = computed(() => aboutState.latest);

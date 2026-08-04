@@ -2,7 +2,8 @@
 // 顶层 view-router（Phase C + sidebar 改造）：按 ui.view 切换整屏视图。
 // 登录页独立无侧边栏；其余视图用官方 shadcn-vue sidebar（常驻 + 图标折叠）+ SidebarInset 包主内容。
 import { onMounted } from 'vue';
-import { ui, showView } from '@/stores/ui';
+import { ui, showView, setDeployPlatform } from '@/stores/ui';
+import type { DeployPlatform } from '@/stores/ui';
 import { setSession, clearSession } from '@/stores/users';
 import { disclaimerState, loadDisclaimer } from '@/stores/disclaimer';
 import { api, setUnauthorizedHandler } from '@/api';
@@ -32,11 +33,17 @@ setUnauthorizedHandler(() => {
 });
 
 // 启动引导：回查 /api/session。已登录则注入角色/用户名并进主页；否则停在登录页。
+// platform 是部署期事实（后端权威），未登录也会下发，故先于 authenticated 分支写入。
 onMounted(async () => {
   try {
-    const s = await api.get<{ authenticated: boolean; id?: number; username?: string; role?: string }>(
-      '/api/session',
-    );
+    const s = await api.get<{
+      authenticated: boolean;
+      id?: number;
+      username?: string;
+      role?: string;
+      platform?: DeployPlatform;
+    }>('/api/session');
+    setDeployPlatform(s.platform ?? null);
     if (s.authenticated) {
       setSession(s.id ?? null, s.username ?? '', s.role === 'admin' ? 'admin' : 'user');
       await loadDisclaimer(); // 认证后、进主面板前读免责同意态（未同意则渲染门禁）

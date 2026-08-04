@@ -256,14 +256,22 @@ export function createApp(deps: AppDeps) {
   });
 
   // 前端启动时探测是否已登录；已登录时附带用户名与角色（供前端渲染菜单/权限）。
+  // platform 是部署期事实（由 worker/server 两个入口注入），两个分支都返回：前端据此显示
+  // 部署平台并按平台过滤菜单，不再自行猜测。它不含用户数据，未登录也可安全下发。
   app.get('/api/session', async (c) => {
     const user = await authenticate(c.req.raw);
-    if (!user) return c.json({ authenticated: false });
+    if (!user) return c.json({ authenticated: false, platform });
     const row = await db
       .prepare('SELECT username FROM users WHERE id = ?')
       .bind(user.uid)
       .first<{ username: string }>();
-    return c.json({ authenticated: true, id: user.uid, username: row?.username ?? '', role: user.role });
+    return c.json({
+      authenticated: true,
+      id: user.uid,
+      username: row?.username ?? '',
+      role: user.role,
+      platform,
+    });
   });
 
   // ---- Workers 首装引导（见 multiuser-plan 第六节，选项 1）----
