@@ -1,6 +1,6 @@
 {
   "name": "rrelaynest",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "集中管理 LLM API 中转站（new-api）的自部署面板，可部署到 Cloudflare Workers 或 Docker",
   "license": "MIT",
   "private": true,
