@@ -1,0 +1,66 @@
+#===============================================================================
+# 【仅本分支】Cloudflare 面板连 Git 自动部署用的配置（deploy/cloudflare 分支专属）
+#
+# 为什么要这份文件？
+#   方式 B（面板连 Git）下，Cloudflare 每次构建都以仓库里的配置为准。而 main 的
+#   `wrangler.toml` 有意把 D1 段注释掉（保持公开模板干净，fork 的人开箱可用），
+#   等于告诉 Cloudflare「这个 Worker 没有 D1 绑定」——于是面板 Settings → Bindings
+#   里手动加的 D1 每次部署都被抹掉。
+#
+#   `keep_vars = true` 救不了：它只保留「变量/secrets」，**不保留资源绑定**。
+#   （2026-08-05 实测：自动部署后面板里 D1 绑定条目真的消失，不是绑定名不对读不到。）
+#
+#   所以这条路必须走「声明式配置」——把 database_id 写进配置文件。
+#
+# 怎么生效？
+#   面板 → Workers & Pages → 你的 Worker → Settings → Build：
+#     · 生产分支          → deploy/cloudflare
+#     · 部署命令          → npx wrangler deploy --config wrangler.deploy.toml
+#     · 构建命令          → npm run build（默认，不用改）
+#     · 非生产分支部署命令 → npx wrangler versions upload（默认，不用改；
+#                            意味着其他分支只上传版本、不覆盖线上）
+#
+# 为什么不直接改 wrangler.toml？
+#   那样 main 与本分支的 wrangler.toml 会长期不一致，每次把 main 合进来都要解
+#   同一行冲突。抽成独立文件后两边 wrangler.toml 完全相同，main 上根本没有本文件，
+#   合并时碰不到它 —— 零冲突。
+#
+# 维护：wrangler.toml 若有改动（加绑定/改 compat date 等），记得同步到本文件。
+#       两份文件除 D1 段外应保持一致。
+#===============================================================================
+
+name = "rrelaynest"
+main = "src/worker/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 保留面板里手动配的变量/secrets（ADMIN_PASSWORD / SESSION_SECRET / ENCRYPTION_KEY
+# 若是在面板里设的，靠这个键不被覆盖删除）。
+# 注意：它**不保资源绑定**，D1 必须像下面那样在配置里声明。
+keep_vars = true
+
+# 本地开发端口（7738 也是用户的本地代理出口，固定）
+[dev]
+port = 7738
+
+# 前端构建产物作为静态资源托管，非 /api/* 的请求回落到 SPA
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Cron 每 5 分钟触发一次；实际是否执行由面板设定的间隔（settings.scrape_interval_min）决定
+[triggers]
+crons = ["*/5 * * * *"]
+
+# D1 数据库绑定 —— 本文件的核心差异：这里是**激活状态**（main 的 wrangler.toml 里是注释的）。
+# binding 名必须是大写 DB，与代码里的 env.DB 一致。
+[[d1_databases]]
+binding = "DB"
+database_name = "rrelaynest-db"
+database_id = "b48ad7cc-1e14-4fe7-a6aa-798485bfa0fc"
+
+# 需要通过 `wrangler secret put` 或面板设置的密钥（勿写入仓库）：
+#   ADMIN_PASSWORD  登录密码
+#   SESSION_SECRET  会话 cookie 签名密钥
+#   ENCRYPTION_KEY  站点 access token 的加密密钥（32 字节，base64）
