@@ -132,7 +132,9 @@ Serverless，平台自带 HTTPS（无需自己配反代）。有三种方式，�
 4. **绑定 D1**：先在 **Storage & Databases → D1** 创建一个数据库（名字随意，如 `rrelaynest-db`）；再到该 Worker 的 **Settings → Bindings → Add binding → D1 database**，**Variable name 填 `DB`**（必须大写、必须是 `DB`），下拉选刚建的库；保存后点 **Retry/Redeploy** 让绑定生效
 5. 打开分配的 `*.workers.dev` 地址，首访自动建表 + seed admin，用 `admin` + 你填的初始密码登录，进设置页尽快改密
 
-> **为什么方式 C 也要手动绑 D1？** 本项目的 `wrangler.toml` 默认不声明 D1（改用面板绑定，配合 `keep_vars = true`，让三种部署方式共用同一份干净配置），所以一键按钮不会再自动建库并写回 ID——这一步挪到了部署后由你在面板点一下（第 4 步）。若你更想要「点完全自动、连 D1 都不用管」，用**本地 CLI 部署**（见页面末尾），它会 `wrangler d1 create` 自动建库。
+> **为什么方式 C 也要手动绑 D1？** 本项目的 `wrangler.toml` 默认**不声明 D1**（那段配置带 `#@d1 ` 前缀注释掉了），让三种部署方式共用同一份干净配置、fork 的人开箱不用改文件。代价是一键按钮不会自动建库并写回 ID——这一步挪到了部署后由你在面板点一下（第 4 步）。若你更想要「点完全自动、连 D1 都不用管」，用**本地 CLI 部署**（见页面末尾），它会 `wrangler d1 create` 自动建库。
+>
+> ⚠️ **面板绑定只在「不会再自动部署」的前提下才稳。** 方式 C 建的是独立克隆仓库、没接 Git 自动部署，所以平时绑一次就够。但**只要之后又触发了一次部署**（比如你手动 merge upstream 后推送、或在面板点 Redeploy），Cloudflare 会按仓库里那份「没有 D1」的配置覆盖，**面板上的 D1 绑定会被抹掉**，需要重新绑。若你会经常同步上游，建议改用下面方式 B 的 B1 甲/乙两种「把 D1 写进配置」的做法，一次到位。
 
 > **升级**：方式 C 在你 GitHub 账户下建的是**独立克隆仓库（不是 Fork）**，所以**没有「Sync fork」一键同步按钮**。想拿本项目后续更新，需手动操作：给你的仓库加一个 upstream 远程（`git remote add upstream <本仓库地址>`），再 `git fetch upstream && git merge upstream/main` 并推送，Cloudflare 会自动重新构建部署。
 >
@@ -202,13 +204,68 @@ Serverless，平台自带 HTTPS（无需自己配反代）。有三种方式，�
 
 ### 方式 B — Cloudflare 连接 Git（密钥填在 Cloudflare）
 
-这条路是 Cloudflare 直接拉你的仓库、读仓库里的 `wrangler.toml` 跑 `wrangler deploy`，**不经过 GitHub Actions**。**全程不用编辑仓库任何文件**——D1 在 Cloudflare 面板里下拉绑定即可。你只需在面板做两件事：**配置三个密钥**（B3）、**加一次 D1 绑定**（B4），建表则由首次访问自动完成（B5）。
+这条路是 Cloudflare 直接拉你的仓库、读仓库里的配置跑 `wrangler deploy`，**不经过 GitHub Actions**。每次 push 到生产分支就自动重新部署。你需要做三件事：**让 D1 生效**（B1，三种做法选一）、**配置三个密钥**（B3）、其余交给首次访问自动建表（B5）。
 
-**B1. 无需改仓库文件**
+**B1. 让 D1 绑定生效（三种做法，选一种）**
 
-仓库里的 `wrangler.toml` 默认**不声明 D1**（那段配置是注释的），配合文件顶部的 `keep_vars = true`——意思是「部署时保留我在面板里手动加的绑定，别用配置文件覆盖删掉」。所以这条路你**不用碰 `wrangler.toml`**，D1 留到 B4 在面板里绑。
+> ⚠️ **先理解这里的坑，否则会反复踩：** 方式 B 每次部署都以**仓库里的配置文件**为准。而本仓库的 `wrangler.toml` 默认把 D1 段注释掉了（每行带 `#@d1 ` 前缀，为的是让 fork 的人开箱不用改文件），这等于告诉 Cloudflare「这个 Worker 没有 D1 绑定」——于是**你在面板里手动加的 D1，每次自动部署都会被抹掉**。
+>
+> 文件顶部的 `keep_vars = true` **救不了这个**：它只保留「变量 / Secrets」，**不保留资源绑定**（D1 / KV / R2 这类）。所以想让 D1 稳定存在，得让配置文件里真的有它。
 
-> 为什么不写进仓库？`database_id` 虽然不是密钥（提交进仓库也没安全问题），但写死在配置里就意味着每个 fork 的人都得改一次文件。改用面板绑定后，仓库保持干净、人人开箱即用，代价只是首次部署后去面板点一下绑定（B4）。
+下面三种做法效果不同，按你的使用习惯选：
+
+---
+
+**甲、改 `wrangler.toml`（最简单，推荐大多数人）**
+
+在你 Fork 的仓库里编辑 `wrangler.toml`：把 D1 那 4 行的 `#@d1 ` 前缀去掉，并把 `database_id` 换成你自己的（在面板 **Storage & Databases → D1 → 点开你的库**，页面上的 **Database ID**，形如 `b48ad7cc-1e14-4fe7-a6aa-798485bfa0fc`）：
+
+```toml
+[[d1_databases]]
+binding = "DB"                        # 必须是大写 DB，与代码里的 env.DB 一致
+database_name = "rrelaynest-db"
+database_id = "换成你自己的 Database ID"
+```
+
+提交推送即可，面板的构建配置不用改。
+
+- ✅ 步骤最少、最好懂，一次到位不会再掉
+- ⚠️ 以后点 **Sync fork** 同步上游时，这一行可能和上游冲突（上游那行是占位符）。冲突时保留你自己的版本即可
+
+---
+
+**乙、专用部署分支 + 独立配置（避开 Sync fork 冲突）**
+
+适合会频繁同步上游的人。思路是让 `wrangler.toml` 跟上游**永远保持一致**（所以永不冲突），把你的 `database_id` 放进一个**只存在于你部署分支**的独立文件里。
+
+1. 从主分支拉一条部署分支，例如 `deploy/cloudflare`
+2. 在该分支上新建 `wrangler.deploy.toml`：内容复制 `wrangler.toml`，但把 D1 段解注释并填上你的真实 `database_id`（其余保持一致）
+3. 只在这条分支上提交这个文件（主分支不要有它）
+4. 面板 **Settings → Build（构建配置）** 改两处：
+   - **生产分支** → `deploy/cloudflare`
+   - **部署命令** → `npx wrangler deploy --config wrangler.deploy.toml`
+   - 构建命令保持 `npm run build`、非生产分支部署命令保持默认即可
+5. 以后要部署：把主分支合进部署分支再推送
+   ```bash
+   git checkout deploy/cloudflare
+   git merge main        # wrangler.toml 两边一致，不会冲突
+   git push
+   ```
+
+- ✅ 同步上游零冲突；你的 ID 不出现在主分支上
+- ⚠️ 步骤多一些，需要理解分支操作
+
+---
+
+**丙、只在面板绑定（零文件编辑，但每次部署后要重绑）**
+
+完全不动仓库文件，只在面板 **Settings → Bindings → Add binding → D1 database** 绑一次（Variable name 填 `DB`，大写）。
+
+- ✅ 不用碰任何文件，首次上手最快
+- ❌ **每次自动部署后绑定都会消失，必须再去面板绑一次**；而且在你重绑之前，应用是连不上数据库的（页面会报错）。方式 B 是 push 就自动部署，所以这个代价会反复出现
+- 只建议在「先跑起来看看效果」的试用阶段用；打算长期用请选甲或乙
+
+> `database_id` 不是密钥，提交进公开仓库没有安全问题——光有 ID 没有你的 API Token 访问不了数据。
 
 **B2. 在 Cloudflare 导入仓库**
 
@@ -225,14 +282,15 @@ Serverless，平台自带 HTTPS（无需自己配反代）。有三种方式，�
 
 > 若在 B2 已点 Save and Deploy 部署过一次，配置完密钥后需再触发一次部署让密钥生效（改仓库推一下，或在面板点 Retry/Redeploy）。
 
-**B4. 在面板绑定 D1 数据库**
+**B4. 确认 D1 已生效**
 
-这是这条路唯一需要在面板手动做的绑定。在该 Worker 的 **Settings → Bindings → Add binding → D1 database**：
+D1 的处理在 **B1** 就做完了（甲/乙写进配置文件，丙在面板绑定），这一步只是确认：
 
-- **Variable name** 填 `DB`（**必须大写、必须是 `DB`**，要与代码里的 `env.DB` 一致，填错运行时会报 D1 未绑定）
-- **D1 database** 下拉选择通用准备第 2 步创建的 `rrelaynest-db`
+- 部署完成后到该 Worker 的 **Settings → Bindings**，应能看到一条 D1 绑定，**Variable name 是 `DB`**（必须大写、必须是 `DB`，与代码里的 `env.DB` 一致；名字不对运行时会报 D1 未绑定）
+- 若走的是 B1 甲/乙，这条绑定由配置文件生成，之后每次部署都在，不用管
+- 若走的是 B1 丙，**每次部署后都要回来检查并重绑**（这就是丙的代价）
 
-保存后**再触发一次部署**让绑定生效（改仓库推一下，或面板点 Retry/Redeploy）。因为 `wrangler.toml` 里有 `keep_vars = true`，这个绑定在之后每次自动部署都会保留，无需重复操作。
+> 如果绑定在但应用仍报数据库错误，先确认 Variable name 是大写 `DB` 而不是 `db` 或别的名字。
 
 **B5. 首次访问，完成建表 + seed admin**
 
@@ -245,11 +303,21 @@ Serverless，平台自带 HTTPS（无需自己配反代）。有三种方式，�
 > ```
 > 成功返回 `{"ok":true,...}`，`alreadyInitialized:true` 表示首次访问已引导过。
 
-**B6. 升级**：在 Fork 仓库点 **Sync fork** 同步上游并推到 `main`，Cloudflare 会自动重新构建部署。新增迁移会在下一次访问时自动应用（幂等）。D1 绑定因 `keep_vars = true` 会一直保留，升级时无需再动。
+**B6. 升级**：在 Fork 仓库点 **Sync fork** 同步上游并推到生产分支，Cloudflare 会自动重新构建部署。新增迁移会在下一次访问时自动应用（幂等）。
+
+D1 绑定在升级时是否需要重新处理，取决于 B1 选了哪种：
+
+| B1 做法 | 升级后 D1 |
+|---|---|
+| 甲（改 `wrangler.toml`） | 不用管。但 Sync fork 时那一行可能冲突，保留你自己的版本 |
+| 乙（部署分支 + 独立配置） | 不用管，也不会冲突。记得把主分支合进部署分支再推 |
+| 丙（只在面板绑定） | **每次都要重新绑一遍**，重绑前应用连不上数据库 |
 
 ---
 
-> **想用本地 CLI 部署？** 也支持：`npx wrangler d1 create rrelaynest-db` 拿到 ID → 打开 `wrangler.toml` 把 D1 段每行开头的 `#@d1 ` 删掉（取消注释），并把占位符换成你的真实 ID（**这个改动留在本地即可，别提交**，否则会污染面板绑定方案）→ `npx wrangler secret put` 设三个密钥 → `npm run deploy` → 浏览器访问一次自动建表。或者更省事：跳过改文件，直接 `npm run deploy` 后按 B4 在面板绑定 D1。方式 A 的 GitHub Actions 本质就是把「取消注释 + 填 ID」这套搬到了云端。
+> **想用本地 CLI 部署？** 也支持：`npx wrangler d1 create rrelaynest-db` 拿到 ID → 打开 `wrangler.toml` 把 D1 段每行开头的 `#@d1 ` 删掉（取消注释），并把占位符换成你的真实 ID → `npx wrangler secret put` 设三个密钥 → `npm run deploy` → 浏览器访问一次自动建表。
+>
+> 这个改动**提交或不提交都可以**：不提交就只在本地生效（每台机器各自改一次）；提交了就等于 B1 甲，以后 CLI、面板连 Git 都能用，代价是 Sync fork 时那行可能冲突。方式 A 的 GitHub Actions 本质就是把「取消注释 + 填 ID」这套搬到了云端（用仓库 Secret 存 ID）。
 
 ---
 

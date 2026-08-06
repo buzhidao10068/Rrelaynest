@@ -132,7 +132,9 @@ Serverless, with HTTPS built in from the platform (no need to configure your own
 4. **Bind D1**: First create a database under **Storage & Databases → D1** (any name, e.g. `rrelaynest-db`); then go to that Worker's **Settings → Bindings → Add binding → D1 database**, set **Variable name to `DB`** (must be uppercase, must be `DB`), and select the database you just created from the dropdown; after saving, click **Retry/Redeploy** to make the binding take effect
 5. Open the assigned `*.workers.dev` address; first access auto-creates tables + seeds the admin. Log in with `admin` + the initial password you filled in, and change the password on the settings page as soon as possible
 
-> **Why does Approach C also require binding D1 manually?** This project's `wrangler.toml` does not declare D1 by default (it uses panel binding instead, together with `keep_vars = true`, so all three deployment approaches share the same clean config). Therefore the one-click button no longer auto-creates the database and writes back the ID — that step has moved to after deployment, done by you with one click in the panel (step 4). If you'd rather have "fully automatic, no need to manage D1 at all," use **local CLI deployment** (see the end of the page); it runs `wrangler d1 create` to create the database automatically.
+> **Why does Approach C also require binding D1 manually?** This project's `wrangler.toml` **does not declare D1** by default (that config block is commented out with a `#@d1 ` prefix on each line), so that all three deployment approaches can share one clean config and anyone who forks the repo gets something that works without editing a file. The cost is that the one-click button won't auto-create the database and write the ID back — that step has moved to after deployment, done by you with one click in the panel (step 4). If you'd rather have "fully automatic, no need to manage D1 at all," use **local CLI deployment** (see the end of the page); it runs `wrangler d1 create` to create the database automatically.
+>
+> ⚠️ **A panel binding only holds as long as nothing deploys again.** Approach C creates an independent clone repo with no Git auto-deploy wired up, so binding once is normally enough. But **the moment another deploy is triggered** (say you merge upstream by hand and push, or click Redeploy in the panel), Cloudflare applies the "no D1" config from the repo and **the D1 binding is wiped from the panel** — you have to add it again. If you expect to sync upstream often, use one of the two "write D1 into the config" options from Approach B's B1 below (Option 1 or Option 2) instead; those are permanent.
 
 > **Upgrade**: Approach C creates an **independent clone repo (not a Fork)** under your GitHub account, so there's **no "Sync fork" one-click sync button**. To pull in later updates from this project, do it manually: add an upstream remote to your repo (`git remote add upstream <this repo URL>`), then `git fetch upstream && git merge upstream/main` and push; Cloudflare will automatically rebuild and deploy.
 >
@@ -202,13 +204,68 @@ After it finishes, expand the last step's log to see the access URL (of the form
 
 ### Approach B — Cloudflare connects to Git (secrets filled in on Cloudflare)
 
-This path has Cloudflare pull your repo directly, read the `wrangler.toml` in the repo, and run `wrangler deploy` — **it does not go through GitHub Actions**. **You never edit any file in the repo throughout** — bind D1 from a dropdown in the Cloudflare panel. You only need to do two things in the panel: **configure the three secrets** (B3) and **add a D1 binding once** (B4); table creation happens on first access automatically (B5).
+This path has Cloudflare pull your repo directly, read the config in the repo, and run `wrangler deploy` — **it does not go through GitHub Actions**. Every push to the production branch redeploys automatically. There are three things to handle: **make D1 take effect** (B1, pick one of three options), **configure the three secrets** (B3), and leave the rest to automatic table creation on first access (B5).
 
-**B1. No need to change repo files**
+**B1. Make the D1 binding take effect (three options, pick one)**
 
-The `wrangler.toml` in the repo does **not declare D1** by default (that config block is commented out), together with `keep_vars = true` at the top of the file — meaning "on deploy, keep the bindings I added manually in the panel; don't let the config file override and delete them." So on this path you **don't touch `wrangler.toml`**; leave D1 to be bound in the panel in B4.
+> ⚠️ **Understand the trap here first, or you'll keep falling into it:** on Approach B, every deploy takes **the config file in the repo** as the source of truth. This repo's `wrangler.toml` has the D1 block commented out by default (a `#@d1 ` prefix on each line, so that people who fork it don't have to edit a file), which effectively tells Cloudflare "this Worker has no D1 binding" — so **any D1 you add by hand in the panel gets wiped on every auto-deploy**.
+>
+> The `keep_vars = true` at the top of the file **does not save you here**: it only preserves *variables / secrets*, **not resource bindings** (D1 / KV / R2 and friends). For D1 to stick around, the config file has to actually contain it.
 
-> Why not write it into the repo? Although `database_id` is not a secret (committing it to the repo poses no security issue), hardcoding it into the config means everyone who forks has to edit the file once. Switching to panel binding keeps the repo clean and out-of-the-box for everyone, at the cost of just one click in the panel to bind after the first deploy (B4).
+The three options below behave differently — pick based on how you work:
+
+---
+
+**Option 1 — Edit `wrangler.toml` (simplest, recommended for most people)**
+
+In your forked repo, edit `wrangler.toml`: strip the `#@d1 ` prefix from those 4 lines and swap in your own `database_id` (find it in the panel under **Storage & Databases → D1 → open your database**; the **Database ID** on that page looks like `b48ad7cc-1e14-4fe7-a6aa-798485bfa0fc`):
+
+```toml
+[[d1_databases]]
+binding = "DB"                        # must be uppercase DB, matching env.DB in the code
+database_name = "rrelaynest-db"
+database_id = "replace with your own Database ID"
+```
+
+Commit and push — no changes needed to the panel's build configuration.
+
+- ✅ Fewest steps, easiest to understand, and it stays fixed once done
+- ⚠️ When you later click **Sync fork** to sync upstream, this line may conflict with upstream (upstream has a placeholder there). If it conflicts, just keep your version
+
+---
+
+**Option 2 — Dedicated deploy branch + separate config (avoids Sync fork conflicts)**
+
+Good for people who sync upstream frequently. The idea is to keep `wrangler.toml` **permanently identical** to upstream (so it never conflicts) and put your `database_id` in a separate file that **only exists on your deploy branch**.
+
+1. Branch a deploy branch off your main branch, e.g. `deploy/cloudflare`
+2. On that branch, create `wrangler.deploy.toml`: copy the contents of `wrangler.toml`, but uncomment the D1 block and fill in your real `database_id` (leave everything else identical)
+3. Commit that file only on this branch (your main branch must not have it)
+4. Change two settings in the panel under **Settings → Build**:
+   - **Production branch** → `deploy/cloudflare`
+   - **Deploy command** → `npx wrangler deploy --config wrangler.deploy.toml`
+   - Leave the build command as `npm run build` and the non-production branch deploy command at its default
+5. To deploy from then on: merge your main branch into the deploy branch and push
+   ```bash
+   git checkout deploy/cloudflare
+   git merge main        # wrangler.toml is identical on both sides, so no conflict
+   git push
+   ```
+
+- ✅ Zero conflicts when syncing upstream; your ID never appears on the main branch
+- ⚠️ A few more steps, and you need to be comfortable with branches
+
+---
+
+**Option 3 — Panel binding only (zero file edits, but re-bind after every deploy)**
+
+Touch no repo files at all; just bind once in the panel under **Settings → Bindings → Add binding → D1 database** (Variable name `DB`, uppercase).
+
+- ✅ No files to touch, quickest way to get started
+- ❌ **The binding disappears after every auto-deploy and you have to go re-bind it in the panel**; until you do, the app can't reach the database (pages will error). Approach B deploys on every push, so you'll pay this cost over and over
+- Only worth it while you're trying things out to see how it works; for long-term use, pick Option 1 or Option 2
+
+> `database_id` is not a secret, so committing it to a public repo is not a security problem — the ID alone gets nobody to your data without your API Token.
 
 **B2. Import the repo in Cloudflare**
 
@@ -225,14 +282,15 @@ In that Worker's **Settings → Variables and Secrets**, add three **Secret-type
 
 > If you already deployed once by clicking Save and Deploy in B2, you need to trigger another deploy after configuring the secrets for them to take effect (push a change to the repo, or click Retry/Redeploy in the panel).
 
-**B4. Bind the D1 database in the panel**
+**B4. Confirm D1 is in effect**
 
-This is the only binding you need to do manually in the panel on this path. In that Worker's **Settings → Bindings → Add binding → D1 database**:
+D1 was already handled back in **B1** (Option 1/2 write it into the config file, Option 3 binds it in the panel); this step is just a check:
 
-- **Variable name**: `DB` (**must be uppercase, must be `DB`**, to match `env.DB` in the code; a wrong value causes a "D1 not bound" runtime error)
-- **D1 database**: select the `rrelaynest-db` created in step 2 of General preparation from the dropdown
+- After the deploy finishes, go to that Worker's **Settings → Bindings** — you should see one D1 binding whose **Variable name is `DB`** (must be uppercase, must be `DB`, matching `env.DB` in the code; a wrong name causes a "D1 not bound" runtime error)
+- If you went with B1 Option 1 or 2, this binding is generated from the config file and will be there on every deploy — nothing to do
+- If you went with B1 Option 3, **come back and check and re-bind after every deploy** (that's the cost of Option 3)
 
-After saving, **trigger another deploy** for the binding to take effect (push a change to the repo, or click Retry/Redeploy in the panel). Because `wrangler.toml` has `keep_vars = true`, this binding is preserved on every subsequent auto-deploy — no need to repeat.
+> If the binding is there but the app still reports a database error, first check that the Variable name is an uppercase `DB` and not `db` or something else.
 
 **B5. First access, complete table creation + seed the admin**
 
@@ -245,11 +303,21 @@ After deployment D1 is still an empty database, but **you don't need to do anyth
 > ```
 > A success returns `{"ok":true,...}`; `alreadyInitialized:true` means first access already bootstrapped it.
 
-**B6. Upgrade**: Click **Sync fork** in the forked repo to sync upstream and push to `main`; Cloudflare will automatically rebuild and deploy. New migrations are applied automatically on the next access (idempotent). The D1 binding is preserved thanks to `keep_vars = true`, so there's no need to touch it on upgrade.
+**B6. Upgrade**: Click **Sync fork** in the forked repo to sync upstream and push to your production branch; Cloudflare will automatically rebuild and deploy. New migrations are applied automatically on the next access (idempotent).
+
+Whether the D1 binding needs handling again on upgrade depends on which B1 option you chose:
+
+| B1 option | D1 after upgrade |
+|---|---|
+| Option 1 (edit `wrangler.toml`) | Nothing to do. But that line may conflict on Sync fork — keep your version |
+| Option 2 (deploy branch + separate config) | Nothing to do, and no conflicts. Remember to merge your main branch into the deploy branch and push |
+| Option 3 (panel binding only) | **Re-bind every single time**; until you do, the app can't reach the database |
 
 ---
 
-> **Want to deploy with the local CLI?** That's supported too: `npx wrangler d1 create rrelaynest-db` to get the ID → open `wrangler.toml` and remove the leading `#@d1 ` on each line of the D1 block (uncomment it), and replace the placeholder with your real ID (**keep this change local only, don't commit it**, otherwise it pollutes the panel-binding approach) → `npx wrangler secret put` to set the three secrets → `npm run deploy` → visit once in a browser to auto-create tables. Or, more conveniently: skip editing the file, just `npm run deploy` and then bind D1 in the panel per B4. Approach A's GitHub Actions is essentially this "uncomment + fill in ID" flow moved to the cloud.
+> **Want to deploy with the local CLI?** That's supported too: `npx wrangler d1 create rrelaynest-db` to get the ID → open `wrangler.toml` and remove the leading `#@d1 ` on each line of the D1 block (uncomment it), and replace the placeholder with your real ID → `npx wrangler secret put` to set the three secrets → `npm run deploy` → visit once in a browser to auto-create tables.
+>
+> **Committing this change is optional, either way is fine**: if you don't commit it, it stays local (and you redo it once per machine); if you do commit it, you've effectively done B1 Option 1, and it then works for the CLI as well as for panel-connected Git — at the cost of that line possibly conflicting on Sync fork. Approach A's GitHub Actions is essentially this "uncomment + fill in ID" flow moved to the cloud (with the ID stored in a repo Secret).
 
 ---
 
