@@ -33,7 +33,12 @@ import {
   verifyTotp,
 } from './totp.js';
 import type { StartupResult } from './startup.js';
-import { encryptToken, decryptToken } from './crypto.js';
+import {
+  encryptToken,
+  decryptToken,
+  checkEncryptionKey,
+  encryptionKeyErrorMessage,
+} from './crypto.js';
 import { scrapeAndStore, checkinAndStore, readScrapeConfig, resolveFetch } from './scrape-runner.js';
 import { mapWithConcurrency } from './concurrency.js';
 import { fetchLatestRelease } from './version.js';
@@ -101,9 +106,46 @@ export function createApp(deps: AppDeps) {
   const { db, secrets, makeFetch, runStartup: runStartupDep } = deps;
   const appVersion = deps.appVersion ?? '0.0.0';
   const platform = deps.platform ?? 'node';
+  // 配置健康标记：部署期事实，随 /api/session 下发给前端做常驻提示（两个分支都带）。
+  // 不新增 AppDeps 字段 —— secrets 已经在 deps 里，多加一个入参等于多一条真相源。
+  // 只给标记不给细节：前端看不到密钥，也不该自行判断合法性。
+  const encryptionKeyCheck = checkEncryptionKey(secrets.ENCRYPTION_KEY);
+  const configWarnings: string[] = encryptionKeyCheck.ok ? [] : ['ENCRYPTION_KEY_INVALID'];
   // 更新检查目标 repo（与前端 about store 的 GITHUB_REPO 一致）。
   const UPDATE_REPO = 'buzhidao10068/Rrelaynest';
   const app = new Hono<{ Variables: AppVariables }>();
+
+  // 加解密助手：把 crypto 异常收敛成可读的 { error } 文案，避免异常冒出 handler 变裸 500。
+  // 五个加密调用点（站点 token ×2、代理密码 ×2、TOTP 密钥）共用 encryptOrFail，漏一个就留一条同样的裸 500 路径。
+  // 刻意不加 app.onError：全局错误行为变更的风险面比本 bug 本身大，不该顺手夹带。
+  type CryptoOutcome = { ok: true; value: string } | { ok: false; message: string };
+  async function encryptOrFail(plain: string): Promise<CryptoOutcome> {
+    if (!encryptionKeyCheck.ok) {
+      return { ok: false, message: `服务端加密密钥配置无效：${encryptionKeyErrorMessage(encryptionKeyCheck)}` };
+    }
+    try {
+      return { ok: true, value: await encryptToken(secrets.ENCRYPTION_KEY, plain) };
+    } catch (err) {
+      // 密钥合法却仍失败（如运行时 crypto 异常）：带上原始 message 便于排查，不含密钥内容。
+      return { ok: false, message: `加密失败：${err instanceof Error ? err.message : String(err)}` };
+    }
+  }
+
+  // 解密同款兜底：TOTP 两处解密（两步登录、确认启用）此前直接 await decryptToken，
+  // 密钥非法或**已更换**时异常冒出 handler 又变成裸 500 —— 与本任务要消灭的形状完全一样。
+  // 站点 token / 代理密码的解密路径本就各有兜底（ping、渠道测试的 .catch，scrape-runner 写 error 列），
+  // 只有 TOTP 这两处是裸的。文案不含密钥内容，也不回显密文。
+  async function decryptOrFail(stored: string): Promise<CryptoOutcome> {
+    if (!encryptionKeyCheck.ok) {
+      return { ok: false, message: `服务端加密密钥配置无效：${encryptionKeyErrorMessage(encryptionKeyCheck)}` };
+    }
+    try {
+      return { ok: true, value: await decryptToken(secrets.ENCRYPTION_KEY, stored) };
+    } catch {
+      // AES-GCM 校验失败的原始文案（OperationError）对用户无意义，换成能指向原因的话。
+      return { ok: false, message: '解密失败：ENCRYPTION_KEY 可能已更换（换回原密钥，或重新设置该项）' };
+    }
+  }
 
   // 无状态验签 + 有状态查库校验：通过则返回库里最新 {uid, role}，否则 null。
   // 步骤（见 multiuser-plan 3.2）：验签+过期 → 回查 users → 不存在/停用 → 版本不匹配 → 全过。
@@ -239,12 +281,18 @@ export function createApp(deps: AppDeps) {
     if (!user || user.session_version !== claims.ver || !user.totp_enabled || !user.totp_secret_encrypted) {
       return fail();
     }
-    const secret = await decryptToken(secrets.ENCRYPTION_KEY, user.totp_secret_encrypted);
     const trimmed = code.trim();
     // 先试 TOTP 码；不匹配再试一次性备份码（用后即焚）。
-    let ok = await verifyTotp(secret, trimmed);
+    // 密钥解不开时不能直接抛（会变裸 500，用户看不懂也无从恢复）：跳过 TOTP 验证，
+    // 仍放行备份码 —— 备份码只存 SHA-256 哈希、不经 ENCRYPTION_KEY，所以换过密钥的用户
+    // 还有这条自救路径。两者都不通才带可读原因返回。
+    const dec = await decryptOrFail(user.totp_secret_encrypted);
+    let ok = dec.ok ? await verifyTotp(dec.value, trimmed) : false;
     if (!ok) ok = await consumeBackupCode(user.id, trimmed);
-    if (!ok) return fail();
+    if (!ok) {
+      if (!dec.ok) return c.json({ error: `${dec.message}。也可用备份码登录（备份码不经加密密钥）` }, 500);
+      return fail();
+    }
     const token = await createSession(secrets.SESSION_SECRET, user.id, user.role, user.session_version);
     c.header('Set-Cookie', sessionCookie(token));
     return c.json({ ok: true });
@@ -258,9 +306,11 @@ export function createApp(deps: AppDeps) {
   // 前端启动时探测是否已登录；已登录时附带用户名与角色（供前端渲染菜单/权限）。
   // platform 是部署期事实（由 worker/server 两个入口注入），两个分支都返回：前端据此显示
   // 部署平台并按平台过滤菜单，不再自行猜测。它不含用户数据，未登录也可安全下发。
+  // configWarnings 同理（部署期配置健康标记，只有枚举名不含密钥内容）：两个分支都要带，
+  // 漏了未登录分支登录页就看不到提示 —— 而「部署后尽早看到」正是它存在的意义。
   app.get('/api/session', async (c) => {
     const user = await authenticate(c.req.raw);
-    if (!user) return c.json({ authenticated: false, platform });
+    if (!user) return c.json({ authenticated: false, platform, configWarnings });
     const row = await db
       .prepare('SELECT username FROM users WHERE id = ?')
       .bind(user.uid)
@@ -271,6 +321,7 @@ export function createApp(deps: AppDeps) {
       username: row?.username ?? '',
       role: user.role,
       platform,
+      configWarnings,
     });
   });
 
@@ -384,7 +435,9 @@ export function createApp(deps: AppDeps) {
     if (!user) return c.json({ error: '用户不存在' }, 404);
     if (user.totp_enabled) return c.json({ error: '两步验证已启用，请先停用再重新设置' }, 400);
     const secret = randomBase32Secret();
-    const encrypted = await encryptToken(secrets.ENCRYPTION_KEY, secret);
+    const enc = await encryptOrFail(secret);
+    if (!enc.ok) return c.json({ error: enc.message }, 500);
+    const encrypted = enc.value;
     // 存下密钥但保持 totp_enabled=0：验过一次码（enable）才算真启用。
     await db
       .prepare('UPDATE users SET totp_secret_encrypted = ?, updated_at = ? WHERE id = ?')
@@ -403,8 +456,10 @@ export function createApp(deps: AppDeps) {
     if (!user) return c.json({ error: '用户不存在' }, 404);
     if (user.totp_enabled) return c.json({ error: '两步验证已启用' }, 400);
     if (!user.totp_secret_encrypted) return c.json({ error: '请先调用 setup 生成密钥' }, 400);
-    const secret = await decryptToken(secrets.ENCRYPTION_KEY, user.totp_secret_encrypted);
-    if (!(await verifyTotp(secret, code.trim()))) return c.json({ error: '验证码错误，请重试' }, 400);
+    // 解不开则给可读原因（重新 setup 即可覆盖旧密钥），不让异常冒出 handler 变裸 500。
+    const dec = await decryptOrFail(user.totp_secret_encrypted);
+    if (!dec.ok) return c.json({ error: `${dec.message}，请重新生成两步验证密钥` }, 500);
+    if (!(await verifyTotp(dec.value, code.trim()))) return c.json({ error: '验证码错误，请重试' }, 400);
     // 生成 10 个一次性备份码（明文仅此次返回；库里只存 SHA-256 哈希）。
     const backupCodes = Array.from({ length: 10 }, () => randomBackupCode());
     const now = Date.now();
@@ -923,9 +978,13 @@ export function createApp(deps: AppDeps) {
       return c.json({ error: 'name 和 base_url 必填' }, 400);
     }
     const now = Date.now();
-    const tokenEnc = body.token
-      ? await encryptToken(secrets.ENCRYPTION_KEY, body.token)
-      : null;
+    // 只有填了 token 才走加密；密钥配错时返回可读文案而非裸 500（见 encryptOrFail）。
+    let tokenEnc: string | null = null;
+    if (body.token) {
+      const enc = await encryptOrFail(body.token);
+      if (!enc.ok) return c.json({ error: enc.message }, 500);
+      tokenEnc = enc.value;
+    }
     const res = await db
       .prepare(
         `INSERT INTO sites
@@ -968,9 +1027,13 @@ export function createApp(deps: AppDeps) {
     // token: undefined=不变, ''=清除, 非空=更新
     let tokenEnc = existing.token_encrypted;
     if (body.token !== undefined) {
-      tokenEnc = body.token
-        ? await encryptToken(secrets.ENCRYPTION_KEY, body.token)
-        : null;
+      if (body.token) {
+        const enc = await encryptOrFail(body.token);
+        if (!enc.ok) return c.json({ error: enc.message }, 500);
+        tokenEnc = enc.value;
+      } else {
+        tokenEnc = null;
+      }
     }
 
     // proxy_id: undefined=不变, null=清除(回落全局/直连), 数字=绑定该代理
@@ -1304,9 +1367,13 @@ export function createApp(deps: AppDeps) {
       return c.json({ error: 'type 仅支持 http/https/socks5' }, 400);
     }
     const now = Date.now();
-    const passEnc = body.password
-      ? await encryptToken(secrets.ENCRYPTION_KEY, body.password)
-      : null;
+    // 代理密码与站点 token 同款：加密失败返回可读文案，不让异常冒出 handler 变裸 500。
+    let passEnc: string | null = null;
+    if (body.password) {
+      const enc = await encryptOrFail(body.password);
+      if (!enc.ok) return c.json({ error: enc.message }, 500);
+      passEnc = enc.value;
+    }
     const res = await db
       .prepare(
         `INSERT INTO proxies
@@ -1346,9 +1413,13 @@ export function createApp(deps: AppDeps) {
     // password: undefined=不变, ''=清除, 非空=更新（与 token 同款）
     let passEnc = existing.password_encrypted;
     if (body.password !== undefined) {
-      passEnc = body.password
-        ? await encryptToken(secrets.ENCRYPTION_KEY, body.password)
-        : null;
+      if (body.password) {
+        const enc = await encryptOrFail(body.password);
+        if (!enc.ok) return c.json({ error: enc.message }, 500);
+        passEnc = enc.value;
+      } else {
+        passEnc = null;
+      }
     }
 
     await db

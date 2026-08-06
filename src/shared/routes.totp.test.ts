@@ -231,6 +231,61 @@ test('两步登录可用备份码；备份码用后即焚（第二次失败）',
   expect(res2.status).toBe(401);
 });
 
+// ==== ENCRYPTION_KEY 换过之后：解密失败不能变裸 500 ====
+// 已启用 2FA 的用户若运维换了 ENCRYPTION_KEY（CHANGELOG 正是这么指导踩坑用户的），
+// totp_secret_encrypted 就解不开了。此前这两处直接 await decryptToken，异常冒出 handler
+// 变成没有响应体的裸 500 —— 与本任务要消灭的形状完全一样。
+
+// 另一个同样合法但不同的密钥（32 字节全 7），模拟「改了 secret 后重新部署」。
+const ROTATED: AppSecrets = {
+  ...SECRETS,
+  ENCRYPTION_KEY: btoa(String.fromCharCode(...new Uint8Array(32).fill(7))),
+};
+
+test('换过密钥：两步登录用 TOTP 码返回可读 error 而非裸 500，且不回显密钥', async () => {
+  const { app, db } = await setupApp();
+  const { secret } = await enroll(app);
+  const rotated = createApp({ db, secrets: ROTATED }); // 同一个库，新密钥
+
+  const second = await login(rotated);
+  expect(second.body.mfaRequired).toBe(true);
+  const res = await rotated.request(
+    '/api/login/totp',
+    post({ ticket: second.body.ticket, code: await generateTotp(secret) }),
+  );
+  expect(res.status).toBe(500);
+  const body = (await res.json()) as { error?: string };
+  expect(typeof body.error).toBe('string');
+  expect(body.error).toContain('ENCRYPTION_KEY');
+  expect(body.error).toContain('备份码'); // 指出自救路径
+  expect(JSON.stringify(body)).not.toContain(ROTATED.ENCRYPTION_KEY);
+  expect(JSON.stringify(body)).not.toContain(SECRETS.ENCRYPTION_KEY);
+});
+
+test('换过密钥：备份码仍能登录（只存 SHA-256 哈希，不经 ENCRYPTION_KEY）', async () => {
+  const { app, db } = await setupApp();
+  const { backupCodes } = await enroll(app);
+  const rotated = createApp({ db, secrets: ROTATED });
+
+  const second = await login(rotated);
+  const res = await rotated.request('/api/login/totp', post({ ticket: second.body.ticket, code: backupCodes[0] }));
+  expect(res.status).toBe(200);
+  expect(res.headers.get('Set-Cookie') ?? '').toContain('rn_session=');
+});
+
+test('换过密钥：enable 解不开旧密钥时返回可读 error 而非裸 500', async () => {
+  const { app, db } = await setupApp();
+  const cookie = (await login(app)).cookie;
+  await authed(app, cookie, '/api/account/totp/setup', post({})); // 用旧密钥加密落库
+  const rotated = createApp({ db, secrets: ROTATED });
+
+  const res = await authed(rotated, cookie, '/api/account/totp/enable', post({ code: '000000' }));
+  expect(res.status).toBe(500);
+  const body = (await res.json()) as { error?: string };
+  expect(body.error).toContain('ENCRYPTION_KEY');
+  expect(body.error).toContain('重新生成');
+});
+
 // ==== disable ====
 
 test('disable 需当前密码；成功后登录回到单步', async () => {

@@ -78,8 +78,8 @@ cp .env.example .env
 | 變數 | 用途 | 生成方式 |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 首個 admin 的**初始**登入密碼（使用者名稱固定 `admin`） | 自定義強口令 |
-| `SESSION_SECRET` | 會話 cookie / MFA 短票 / Passkey 挑戰票的 HMAC 簽名金鑰 | `openssl rand -hex 32` |
-| `ENCRYPTION_KEY` | 上游 API Key 等敏感欄位的 AES-GCM 加密金鑰 | `openssl rand -hex 32` |
+| `SESSION_SECRET` | 會話 cookie / MFA 短票 / Passkey 挑戰票的 HMAC 簽名金鑰 | `openssl rand -hex 32`（任意長度均可） |
+| `ENCRYPTION_KEY` | 上游 API Key 等敏感欄位的 AES-GCM 加密金鑰 | `openssl rand -base64 32`（**必須**是 base64 編碼的 32 位元組：44 字元、末尾帶 `=`） |
 
 > `ADMIN_PASSWORD` **只在首次啟動、庫為空時**用於 seed 首個 admin。之後在設定頁改密，此變數便不再影響登入——可以留著，也可以清空。
 
@@ -132,7 +132,9 @@ Serverless，平臺自帶 HTTPS（無需自己配反代）。有三種方式，�
 4. **繫結 D1**：先在 **Storage & Databases → D1** 建立一個資料庫（名字隨意，如 `rrelaynest-db`）；再到該 Worker 的 **Settings → Bindings → Add binding → D1 database**，**Variable name 填 `DB`**（必須大寫、必須是 `DB`），下拉選剛建的庫；儲存後點 **Retry/Redeploy** 讓繫結生效
 5. 開啟分配的 `*.workers.dev` 地址，首訪自動建表 + seed admin，用 `admin` + 你填的初始密碼登入，進設定頁儘快改密
 
-> **為什麼方式 C 也要手動綁 D1？** 本專案的 `wrangler.toml` 預設不宣告 D1（改用面板繫結，配合 `keep_vars = true`，讓三種部署方式共用同一份乾淨配置），所以一鍵按鈕不會再自動建庫並寫回 ID——這一步挪到了部署後由你在面板點一下（第 4 步）。若你更想要「點完全自動、連 D1 都不用管」，用**本地 CLI 部署**（見頁面末尾），它會 `wrangler d1 create` 自動建庫。
+> **為什麼方式 C 也要手動綁 D1？** 本專案的 `wrangler.toml` 預設**不宣告 D1**（那段配置帶 `#@d1 ` 前綴註釋掉了），讓三種部署方式共用同一份乾淨配置、fork 的人開箱不用改檔案。代價是一鍵按鈕不會自動建庫並寫回 ID——這一步挪到了部署後由你在面板點一下（第 4 步）。若你更想要「點完全自動、連 D1 都不用管」，用**本地 CLI 部署**（見頁面末尾），它會 `wrangler d1 create` 自動建庫。
+>
+> ⚠️ **面板繫結只在「不會再自動部署」的前提下才穩。** 方式 C 建的是獨立克隆倉庫、沒接 Git 自動部署，所以平時綁一次就夠。但**只要之後又觸發了一次部署**（比如你手動 merge upstream 後推送、或在面板點 Redeploy），Cloudflare 會按倉庫裡那份「沒有 D1」的配置覆蓋，**面板上的 D1 繫結會被抹掉**，需要重新綁。若你會經常同步上游，建議改用下面方式 B 的 B1 甲/乙兩種「把 D1 寫進配置」的做法，一次到位。
 
 > **升級**：方式 C 在你 GitHub 帳戶下建的是**獨立克隆倉庫（不是 Fork）**，所以**沒有「Sync fork」一鍵同步按鈕**。想拿本專案後續更新，需手動操作：給你的倉庫加一個 upstream 遠端（`git remote add upstream <本倉庫地址>`），再 `git fetch upstream && git merge upstream/main` 並推送，Cloudflare 會自動重新構建部署。
 >
@@ -158,10 +160,17 @@ Serverless，平臺自帶 HTTPS（無需自己配反代）。有三種方式，�
 | 金鑰 | 說明 | 取值 |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 首個 admin 的**初始**登入密碼（使用者名稱固定 `admin`） | 自定義強口令 |
-| `SESSION_SECRET` | 會話 cookie / MFA 短票 / Passkey 挑戰票的 HMAC 簽名金鑰 | 隨機 32 位元組十六進位制串 |
-| `ENCRYPTION_KEY` | 上游 API Key 等敏感欄位的 AES-GCM 加密金鑰 | 隨機 32 位元組十六進位制串 |
+| `SESSION_SECRET` | 會話 cookie / MFA 短票 / Passkey 挑戰票的 HMAC 簽名金鑰 | 任意長度的隨機串（32 位元組十六進位制串即可） |
+| `ENCRYPTION_KEY` | 上游 API Key 等敏感欄位的 AES-GCM 加密金鑰 | **base64 編碼的 32 位元組** —— 44 字元、末尾帶 `=` |
 
-> `SESSION_SECRET` / `ENCRYPTION_KEY` 需要隨機值。本地有終端的話用 `openssl rand -hex 32` 生成；沒有也行，用任意線上隨機十六進位制生成器出兩串 64 位十六進位制即可。兩者務必不同。
+> 兩者**格式要求不同**，請分別生成：
+>
+> ```bash
+> openssl rand -hex 32      # SESSION_SECRET —— 任意長度均可
+> openssl rand -base64 32   # ENCRYPTION_KEY —— 必須正好解碼出 32 位元組
+> ```
+>
+> 沒有終端也行：`ENCRYPTION_KEY` 用任意「隨機 base64 / 32 位元組」線上生成器，`SESSION_SECRET` 用任意隨機串即可。`ENCRYPTION_KEY` 可自檢：形如 `ifgL8RczRrNJ03tJ93+jC2w10S78/OIHhyR7bqEVYH8=`，**44 字元、末尾帶 `=`**。64 位十六進位制串是**錯的**（它解碼出 48 位元組而非 32），填了之後儲存帶 Access Token 的站點會失敗。兩者的值務必不同。
 
 ---
 
@@ -202,13 +211,70 @@ Serverless，平臺自帶 HTTPS（無需自己配反代）。有三種方式，�
 
 ### 方式 B — Cloudflare 連線 Git（金鑰填在 Cloudflare）
 
-這條路是 Cloudflare 直接拉你的倉庫、讀倉庫裡的 `wrangler.toml` 跑 `wrangler deploy`，**不經過 GitHub Actions**。**全程不用編輯倉庫任何檔案**——D1 在 Cloudflare 面板裡下拉繫結即可。你只需在面板做兩件事：**配置三個金鑰**（B3）、**加一次 D1 繫結**（B4），建表則由首次訪問自動完成（B5）。
+這條路是 Cloudflare 直接拉你的倉庫、讀倉庫裡的配置跑 `wrangler deploy`，**不經過 GitHub Actions**。每次 push 到生產分支就自動重新部署。你需要做三件事：**讓 D1 生效**（B1，三種做法選一）、**配置三個金鑰**（B3）、其餘交給首次訪問自動建表（B5）。
 
-**B1. 無需改倉庫檔案**
+**B1. 讓 D1 繫結生效（三種做法，選一種）**
 
-倉庫裡的 `wrangler.toml` 預設**不宣告 D1**（那段配置是註釋的），配合檔案頂部的 `keep_vars = true`——意思是「部署時保留我在面板裡手動加的繫結，別用配置檔案覆蓋刪掉」。所以這條路你**不用碰 `wrangler.toml`**，D1 留到 B4 在面板裡綁。
+> ⚠️ **先理解這裡的坑，否則會反覆踩：** 方式 B 每次部署都以**倉庫裡的配置檔案**為準。而本倉庫的 `wrangler.toml` 預設把 D1 段註釋掉了（每行帶 `#@d1 ` 前綴，為的是讓 fork 的人開箱不用改檔案），這等於告訴 Cloudflare「這個 Worker 沒有 D1 繫結」——於是**你在面板裡手動加的 D1，每次自動部署都會被抹掉**。
+>
+> 檔案頂部的 `keep_vars = true` **救不了這個**：它只保留「變數 / Secrets」，**不保留資源繫結**（D1 / KV / R2 這類）。所以想讓 D1 穩定存在，得讓配置檔案裡真的有它。
 
-> 為什麼不寫進倉庫？`database_id` 雖然不是金鑰（提交進倉庫也沒安全問題），但寫死在配置裡就意味著每個 fork 的人都得改一次檔案。改用面板繫結後，倉庫保持乾淨、人人開箱即用，代價只是首次部署後去面板點一下繫結（B4）。
+下面三種做法效果不同，按你的使用習慣選：
+
+---
+
+**甲、改 `wrangler.toml`（最簡單，推薦大多數人）**
+
+在你 Fork 的倉庫裡編輯 `wrangler.toml`：把 D1 那 4 行的 `#@d1 ` 前綴去掉，並把 `database_id` 換成你自己的（在面板 **Storage & Databases → D1 → 點開你的庫**，頁面上的 **Database ID**，形如 `b48ad7cc-1e14-4fe7-a6aa-798485bfa0fc`）：
+
+```toml
+[[d1_databases]]
+binding = "DB"                        # 必須是大寫 DB，與程式碼裡的 env.DB 一致
+database_name = "rrelaynest-db"
+database_id = "換成你自己的 Database ID"
+```
+
+提交推送即可，面板的構建配置不用改。
+
+- ✅ 步驟最少、最好懂，一次到位不會再掉
+- ⚠️ 以後點 **Sync fork** 同步上游時，這一行可能和上游衝突（上游那行是佔位符）。衝突時保留你自己的版本即可
+
+---
+
+**乙、專用部署分支 + 獨立配置（避開 Sync fork 衝突）**
+
+適合會頻繁同步上游的人。思路是讓 `wrangler.toml` 跟上游**永遠保持一致**（所以永不衝突），把你的 `database_id` 放進一個**只存在於你部署分支**的獨立檔案裡。
+
+1. 從主分支拉一條部署分支，例如 `deploy/cloudflare`
+2. 在該分支上新建 `wrangler.deploy.toml`：內容複製 `wrangler.toml`，但把 D1 段解註釋並填上你的真實 `database_id`（其餘保持一致）
+3. 只在這條分支上提交這個檔案（主分支不要有它）
+4. 面板 **Settings → Build（構建配置）** 改兩處：
+   - **生產分支** → `deploy/cloudflare`
+   - **部署命令** → `npx wrangler deploy --config wrangler.deploy.toml`
+   - 構建命令保持 `npm run build`、非生產分支部署命令保持預設即可
+5. 以後要部署：把主分支合進部署分支再推送
+   ```bash
+   git checkout deploy/cloudflare
+   git merge main        # wrangler.toml 兩邊一致，不會衝突
+   git push
+   ```
+
+- ✅ 同步上游零衝突；你的 ID 不出現在主分支上
+- ⚠️ 步驟多一些，需要理解分支操作
+
+---
+
+**丙、只在面板繫結（零檔案編輯，但每次部署後要重綁）**
+
+完全不動倉庫檔案，只在面板 **Settings → Bindings → Add binding → D1 database** 綁一次（Variable name 填 `DB`，大寫）。
+
+- ✅ 不用碰任何檔案，首次上手最快
+- ❌ **每次自動部署後繫結都會消失，必須再去面板綁一次**；而且在你重綁之前，應用是連不上資料庫的（頁面會報錯）。方式 B 是 push 就自動部署，所以這個代價會反覆出現
+- 只建議在「先跑起來看看效果」的試用階段用；打算長期用請選甲或乙
+
+> `database_id` 不是金鑰，提交進公開倉庫沒有安全問題——光有 ID 沒有你的 API Token 訪問不了資料。
+
+**B2. 在 Cloudflare 匯入倉庫**
 
 **B2. 在 Cloudflare 匯入倉庫**
 
@@ -225,14 +291,15 @@ Serverless，平臺自帶 HTTPS（無需自己配反代）。有三種方式，�
 
 > 若在 B2 已點 Save and Deploy 部署過一次，配置完金鑰後需再觸發一次部署讓金鑰生效（改倉庫推一下，或在面板點 Retry/Redeploy）。
 
-**B4. 在面板繫結 D1 資料庫**
+**B4. 確認 D1 已生效**
 
-這是這條路唯一需要在面板手動做的繫結。在該 Worker 的 **Settings → Bindings → Add binding → D1 database**：
+D1 的處理在 **B1** 就做完了（甲/乙寫進配置檔案，丙在面板繫結），這一步只是確認：
 
-- **Variable name** 填 `DB`（**必須大寫、必須是 `DB`**，要與程式碼裡的 `env.DB` 一致，填錯執行時會報 D1 未繫結）
-- **D1 database** 下拉選擇通用準備第 2 步建立的 `rrelaynest-db`
+- 部署完成後到該 Worker 的 **Settings → Bindings**，應能看到一條 D1 繫結，**Variable name 是 `DB`**（必須大寫、必須是 `DB`，與程式碼裡的 `env.DB` 一致；名字不對執行時會報 D1 未繫結）
+- 若走的是 B1 甲/乙，這條繫結由配置檔案生成，之後每次部署都在，不用管
+- 若走的是 B1 丙，**每次部署後都要回來檢查並重綁**（這就是丙的代價）
 
-儲存後**再觸發一次部署**讓繫結生效（改倉庫推一下，或面板點 Retry/Redeploy）。因為 `wrangler.toml` 裡有 `keep_vars = true`，這個繫結在之後每次自動部署都會保留，無需重複操作。
+> 如果繫結在但應用仍報資料庫錯誤，先確認 Variable name 是大寫 `DB` 而不是 `db` 或別的名字。
 
 **B5. 首次訪問，完成建表 + seed admin**
 
@@ -245,11 +312,21 @@ Serverless，平臺自帶 HTTPS（無需自己配反代）。有三種方式，�
 > ```
 > 成功返回 `{"ok":true,...}`，`alreadyInitialized:true` 表示首次訪問已引導過。
 
-**B6. 升級**：在 Fork 倉庫點 **Sync fork** 同步上游並推到 `main`，Cloudflare 會自動重新構建部署。新增遷移會在下一次訪問時自動應用（冪等）。D1 繫結因 `keep_vars = true` 會一直保留，升級時無需再動。
+**B6. 升級**：在 Fork 倉庫點 **Sync fork** 同步上游並推到生產分支，Cloudflare 會自動重新構建部署。新增遷移會在下一次訪問時自動應用（冪等）。
+
+D1 繫結在升級時是否需要重新處理，取決於 B1 選了哪種：
+
+| B1 做法 | 升級後 D1 |
+|---|---|
+| 甲（改 `wrangler.toml`） | 不用管。但 Sync fork 時那一行可能衝突，保留你自己的版本 |
+| 乙（部署分支 + 獨立配置） | 不用管，也不會衝突。記得把主分支合進部署分支再推 |
+| 丙（只在面板繫結） | **每次都要重新綁一遍**，重綁前應用連不上資料庫 |
 
 ---
 
-> **想用本地 CLI 部署？** 也支援：`npx wrangler d1 create rrelaynest-db` 拿到 ID → 開啟 `wrangler.toml` 把 D1 段每行開頭的 `#@d1 ` 刪掉（取消註釋），並把佔位符換成你的真實 ID（**這個改動留在本地即可，別提交**，否則會汙染面板繫結方案）→ `npx wrangler secret put` 設三個金鑰 → `npm run deploy` → 瀏覽器訪問一次自動建表。或者更省事：跳過改檔案，直接 `npm run deploy` 後按 B4 在面板繫結 D1。方式 A 的 GitHub Actions 本質就是把「取消註釋 + 填 ID」這套搬到了雲端。
+> **想用本地 CLI 部署？** 也支援：`npx wrangler d1 create rrelaynest-db` 拿到 ID → 開啟 `wrangler.toml` 把 D1 段每行開頭的 `#@d1 ` 刪掉（取消註釋），並把佔位符換成你的真實 ID → `npx wrangler secret put` 設三個金鑰 → `npm run deploy` → 瀏覽器訪問一次自動建表。
+>
+> 這個改動**提交或不提交都可以**：不提交就只在本地生效（每台機器各自改一次）；提交了就等於 B1 甲，以後 CLI、面板連 Git 都能用，代價是 Sync fork 時那行可能衝突。方式 A 的 GitHub Actions 本質就是把「取消註釋 + 填 ID」這套搬到了雲端（用倉庫 Secret 存 ID）。
 
 ---
 
@@ -262,7 +339,7 @@ npm run dev            # 前端 (Vite)
 # 另開一個終端，起 Node 後端：
 export ADMIN_PASSWORD=dev-admin
 export SESSION_SECRET=$(openssl rand -hex 32)
-export ENCRYPTION_KEY=$(openssl rand -hex 32)
+export ENCRYPTION_KEY=$(openssl rand -base64 32)   # 必須是 base64 的 32 位元組，不是 hex
 npm run build:server && npm run start:node   # http://localhost:3100
 
 # 或 Workers 本地：

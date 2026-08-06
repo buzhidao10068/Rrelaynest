@@ -3,9 +3,9 @@ main = "src/worker/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# 保留在 Cloudflare 面板里手动配置的变量/绑定，部署时不被本配置覆盖删除。
-# 这是「面板绑定 D1」方案（方式 B / 本地）的关键：仓库不写死 database_id，
-# 面板 Settings → Bindings 里加的 D1 绑定在后续每次部署都能保住。
+# 保留在 Cloudflare 面板里手动配置的「变量 / Secrets」，部署时不被本配置覆盖删除。
+# ⚠️ 只保留变量，不保留资源绑定（D1 / KV / R2 这类）——面板里手绑的 D1
+# 仍会被每次部署按本文件覆盖抹掉，详见下面 D1 段的说明。
 keep_vars = true
 
 # 本地开发端口（7738 也是用户的本地代理出口，固定）
@@ -22,11 +22,16 @@ not_found_handling = "single-page-application"
 [triggers]
 crons = ["*/5 * * * *"]
 
-# D1 数据库绑定 —— 默认「不在此声明」，改用 Cloudflare 面板绑定（配合上面的 keep_vars）。
-#   · 方式 B / 本地部署：保持下面这段注释不动，去面板 Settings → Bindings 加 D1，
-#     绑定名（Variable name）必须填 DB（与代码里的 env.DB 一致），无需改本文件。
-#   · 方式 A（GitHub Actions）：CI 会用仓库 Secret D1_DATABASE_ID 自动「取消注释 + 填 ID」，
+# D1 数据库绑定 —— 默认「不在此声明」（注释掉），让 fork 本仓库的人开箱不用改文件。
+# ⚠️ 代价：Cloudflare 每次部署都以本文件为准，这段注释着就等于「该 Worker 没有 D1」，
+#    于是你在面板 Settings → Bindings 手动加的 D1 绑定会在每次部署后被抹掉
+#    （keep_vars 不保绑定，救不了）。想让 D1 稳定生效，得让配置文件里真的有它：
+#   · 方式 A（GitHub Actions）：CI 用仓库 Secret D1_DATABASE_ID 自动「取消注释 + 填 ID」，
 #     即把下面每行开头的「#@d1 」标记去掉并替换占位符——所以标记前缀不要手改。
+#   · 方式 B（连接 Git）/ 本地 CLI：把下面 4 行的「#@d1 」前缀去掉并填上你的真实
+#     database_id（README 方式 B 的 B1 甲）；或只在你的部署分支放一份 wrangler.deploy.toml
+#     写上 ID、部署命令加 --config 指向它（B1 乙，同步上游零冲突）。
+#     只在面板绑定（B1 丙）也能跑，但每次部署后都要重新绑一次。
 #@d1 [[d1_databases]]
 #@d1 binding = "DB"
 #@d1 database_name = "rrelaynest-db"
@@ -34,5 +39,6 @@ crons = ["*/5 * * * *"]
 
 # 需要通过 `wrangler secret put` 设置的密钥（勿写入仓库）：
 #   ADMIN_PASSWORD  登录密码
-#   SESSION_SECRET  会话 cookie 签名密钥
-#   ENCRYPTION_KEY  站点 access token 的加密密钥（32 字节，base64）
+#   SESSION_SECRET  会话 cookie 签名密钥（任意长度随机串：openssl rand -hex 32）
+#   ENCRYPTION_KEY  站点 access token 的加密密钥（32 字节，base64：openssl rand -base64 32）
+#                   必须是 44 字符、末尾带 '='；64 位十六进制串是错的（解码得 48 字节）
