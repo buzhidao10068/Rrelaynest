@@ -705,5 +705,9 @@
     "sessionExpired": "Not signed in or your session has expired",
     "httpError": "Request failed (HTTP {status})",
     "invalidJson": "Response is not valid JSON"
+  },
+  "configWarning": {
+    "encryptionKeyTitle": "Server ENCRYPTION_KEY is invalid",
+    "encryptionKeyDesc": "Sensitive fields (upstream API keys, proxy passwords, 2FA secrets) cannot be encrypted right now. This key must be a base64-encoded 32 bytes — 44 characters ending with an equals sign. If you followed the old docs and used a 64-character hex string, replace it with the output of the command below and redeploy."
   }
 }
