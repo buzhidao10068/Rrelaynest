@@ -1,0 +1,21 @@
+# 仓库统一以 LF 存储文本；工作区行尾由下面的规则决定。
+* text=auto eol=lf
+
+# 生成产物：由脚本写出 LF（scripts/gen-zh-tw.mjs 用 JSON.stringify + '\n'）。
+# 不锁 eol=lf 的话，core.autocrlf=true 的机器上 checkout 会转成 CRLF，
+# 每次 npm run build 重新生成又变回 LF，文件永远显示为「已修改」。
+src/frontend/i18n/locales/zh-TW.json text eol=lf
+
+# Windows 批处理必须 CRLF，否则可能无法正确执行。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制：不做行尾转换，也不参与 diff。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
