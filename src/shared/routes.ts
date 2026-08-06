@@ -115,11 +115,11 @@ export function createApp(deps: AppDeps) {
   const UPDATE_REPO = 'buzhidao10068/Rrelaynest';
   const app = new Hono<{ Variables: AppVariables }>();
 
-  // 加密助手：把 encryptToken 的异常收敛成可读的 { error } 文案，避免异常冒出 handler 变裸 500。
-  // 五个加密调用点（站点 token ×2、代理密码 ×2、TOTP 密钥）共用它，漏一个就留一条同样的裸 500 路径。
+  // 加解密助手：把 crypto 异常收敛成可读的 { error } 文案，避免异常冒出 handler 变裸 500。
+  // 五个加密调用点（站点 token ×2、代理密码 ×2、TOTP 密钥）共用 encryptOrFail，漏一个就留一条同样的裸 500 路径。
   // 刻意不加 app.onError：全局错误行为变更的风险面比本 bug 本身大，不该顺手夹带。
-  type EncryptOutcome = { ok: true; value: string } | { ok: false; message: string };
-  async function encryptOrFail(plain: string): Promise<EncryptOutcome> {
+  type CryptoOutcome = { ok: true; value: string } | { ok: false; message: string };
+  async function encryptOrFail(plain: string): Promise<CryptoOutcome> {
     if (!encryptionKeyCheck.ok) {
       return { ok: false, message: `服务端加密密钥配置无效：${encryptionKeyErrorMessage(encryptionKeyCheck)}` };
     }
@@ -128,6 +128,22 @@ export function createApp(deps: AppDeps) {
     } catch (err) {
       // 密钥合法却仍失败（如运行时 crypto 异常）：带上原始 message 便于排查，不含密钥内容。
       return { ok: false, message: `加密失败：${err instanceof Error ? err.message : String(err)}` };
+    }
+  }
+
+  // 解密同款兜底：TOTP 两处解密（两步登录、确认启用）此前直接 await decryptToken，
+  // 密钥非法或**已更换**时异常冒出 handler 又变成裸 500 —— 与本任务要消灭的形状完全一样。
+  // 站点 token / 代理密码的解密路径本就各有兜底（ping、渠道测试的 .catch，scrape-runner 写 error 列），
+  // 只有 TOTP 这两处是裸的。文案不含密钥内容，也不回显密文。
+  async function decryptOrFail(stored: string): Promise<CryptoOutcome> {
+    if (!encryptionKeyCheck.ok) {
+      return { ok: false, message: `服务端加密密钥配置无效：${encryptionKeyErrorMessage(encryptionKeyCheck)}` };
+    }
+    try {
+      return { ok: true, value: await decryptToken(secrets.ENCRYPTION_KEY, stored) };
+    } catch {
+      // AES-GCM 校验失败的原始文案（OperationError）对用户无意义，换成能指向原因的话。
+      return { ok: false, message: '解密失败：ENCRYPTION_KEY 可能已更换（换回原密钥，或重新设置该项）' };
     }
   }
 
@@ -265,12 +281,18 @@ export function createApp(deps: AppDeps) {
     if (!user || user.session_version !== claims.ver || !user.totp_enabled || !user.totp_secret_encrypted) {
       return fail();
     }
-    const secret = await decryptToken(secrets.ENCRYPTION_KEY, user.totp_secret_encrypted);
     const trimmed = code.trim();
     // 先试 TOTP 码；不匹配再试一次性备份码（用后即焚）。
-    let ok = await verifyTotp(secret, trimmed);
+    // 密钥解不开时不能直接抛（会变裸 500，用户看不懂也无从恢复）：跳过 TOTP 验证，
+    // 仍放行备份码 —— 备份码只存 SHA-256 哈希、不经 ENCRYPTION_KEY，所以换过密钥的用户
+    // 还有这条自救路径。两者都不通才带可读原因返回。
+    const dec = await decryptOrFail(user.totp_secret_encrypted);
+    let ok = dec.ok ? await verifyTotp(dec.value, trimmed) : false;
     if (!ok) ok = await consumeBackupCode(user.id, trimmed);
-    if (!ok) return fail();
+    if (!ok) {
+      if (!dec.ok) return c.json({ error: `${dec.message}。也可用备份码登录（备份码不经加密密钥）` }, 500);
+      return fail();
+    }
     const token = await createSession(secrets.SESSION_SECRET, user.id, user.role, user.session_version);
     c.header('Set-Cookie', sessionCookie(token));
     return c.json({ ok: true });
@@ -434,8 +456,10 @@ export function createApp(deps: AppDeps) {
     if (!user) return c.json({ error: '用户不存在' }, 404);
     if (user.totp_enabled) return c.json({ error: '两步验证已启用' }, 400);
     if (!user.totp_secret_encrypted) return c.json({ error: '请先调用 setup 生成密钥' }, 400);
-    const secret = await decryptToken(secrets.ENCRYPTION_KEY, user.totp_secret_encrypted);
-    if (!(await verifyTotp(secret, code.trim()))) return c.json({ error: '验证码错误，请重试' }, 400);
+    // 解不开则给可读原因（重新 setup 即可覆盖旧密钥），不让异常冒出 handler 变裸 500。
+    const dec = await decryptOrFail(user.totp_secret_encrypted);
+    if (!dec.ok) return c.json({ error: `${dec.message}，请重新生成两步验证密钥` }, 500);
+    if (!(await verifyTotp(dec.value, code.trim()))) return c.json({ error: '验证码错误，请重试' }, 400);
     // 生成 10 个一次性备份码（明文仅此次返回；库里只存 SHA-256 哈希）。
     const backupCodes = Array.from({ length: 10 }, () => randomBackupCode());
     const now = Date.now();
