@@ -705,5 +705,9 @@
     "sessionExpired": "未登入或會話已失效",
     "httpError": "請求失敗（HTTP {status}）",
     "invalidJson": "響應不是合法 JSON"
+  },
+  "configWarning": {
+    "encryptionKeyTitle": "服務端 ENCRYPTION_KEY 配置無效",
+    "encryptionKeyDesc": "敏感欄位（上游 API Key、代理密碼、兩步驗證金鑰）暫時無法加密儲存。該金鑰必須是 base64 編碼的 32 位元組，即 44 個字元、末尾帶等號；若你按舊文件用了 64 位十六進位制串，請換成下面命令的輸出後重新部署。"
   }
 }

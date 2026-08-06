@@ -78,8 +78,8 @@ cp .env.example .env
 | 變數 | 用途 | 生成方式 |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 首個 admin 的**初始**登入密碼（使用者名稱固定 `admin`） | 自定義強口令 |
-| `SESSION_SECRET` | 會話 cookie / MFA 短票 / Passkey 挑戰票的 HMAC 簽名金鑰 | `openssl rand -hex 32` |
-| `ENCRYPTION_KEY` | 上游 API Key 等敏感欄位的 AES-GCM 加密金鑰 | `openssl rand -hex 32` |
+| `SESSION_SECRET` | 會話 cookie / MFA 短票 / Passkey 挑戰票的 HMAC 簽名金鑰 | `openssl rand -hex 32`（任意長度均可） |
+| `ENCRYPTION_KEY` | 上游 API Key 等敏感欄位的 AES-GCM 加密金鑰 | `openssl rand -base64 32`（**必須**是 base64 編碼的 32 位元組：44 字元、末尾帶 `=`） |
 
 > `ADMIN_PASSWORD` **只在首次啟動、庫為空時**用於 seed 首個 admin。之後在設定頁改密，此變數便不再影響登入——可以留著，也可以清空。
 
@@ -160,10 +160,17 @@ Serverless，平臺自帶 HTTPS（無需自己配反代）。有三種方式，�
 | 金鑰 | 說明 | 取值 |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 首個 admin 的**初始**登入密碼（使用者名稱固定 `admin`） | 自定義強口令 |
-| `SESSION_SECRET` | 會話 cookie / MFA 短票 / Passkey 挑戰票的 HMAC 簽名金鑰 | 隨機 32 位元組十六進位制串 |
-| `ENCRYPTION_KEY` | 上游 API Key 等敏感欄位的 AES-GCM 加密金鑰 | 隨機 32 位元組十六進位制串 |
+| `SESSION_SECRET` | 會話 cookie / MFA 短票 / Passkey 挑戰票的 HMAC 簽名金鑰 | 任意長度的隨機串（32 位元組十六進位制串即可） |
+| `ENCRYPTION_KEY` | 上游 API Key 等敏感欄位的 AES-GCM 加密金鑰 | **base64 編碼的 32 位元組** —— 44 字元、末尾帶 `=` |
 
-> `SESSION_SECRET` / `ENCRYPTION_KEY` 需要隨機值。本地有終端的話用 `openssl rand -hex 32` 生成；沒有也行，用任意線上隨機十六進位制生成器出兩串 64 位十六進位制即可。兩者務必不同。
+> 兩者**格式要求不同**，請分別生成：
+>
+> ```bash
+> openssl rand -hex 32      # SESSION_SECRET —— 任意長度均可
+> openssl rand -base64 32   # ENCRYPTION_KEY —— 必須正好解碼出 32 位元組
+> ```
+>
+> 沒有終端也行：`ENCRYPTION_KEY` 用任意「隨機 base64 / 32 位元組」線上生成器，`SESSION_SECRET` 用任意隨機串即可。`ENCRYPTION_KEY` 可自檢：形如 `ifgL8RczRrNJ03tJ93+jC2w10S78/OIHhyR7bqEVYH8=`，**44 字元、末尾帶 `=`**。64 位十六進位制串是**錯的**（它解碼出 48 位元組而非 32），填了之後儲存帶 Access Token 的站點會失敗。兩者的值務必不同。
 
 ---
 
@@ -332,7 +339,7 @@ npm run dev            # 前端 (Vite)
 # 另開一個終端，起 Node 後端：
 export ADMIN_PASSWORD=dev-admin
 export SESSION_SECRET=$(openssl rand -hex 32)
-export ENCRYPTION_KEY=$(openssl rand -hex 32)
+export ENCRYPTION_KEY=$(openssl rand -base64 32)   # 必須是 base64 的 32 位元組，不是 hex
 npm run build:server && npm run start:node   # http://localhost:3100
 
 # 或 Workers 本地：

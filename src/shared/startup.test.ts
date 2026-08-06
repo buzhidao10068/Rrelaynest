@@ -71,7 +71,9 @@ function memDb(): { db: Database; raw: DatabaseSync } {
 const SECRETS: AppSecrets = {
   ADMIN_PASSWORD: 'initial-admin-pw',
   SESSION_SECRET: 'sess',
-  ENCRYPTION_KEY: 'enc',
+  // 与其他测试文件一致的合法密钥（base64 的 32 字节全 0）。此前这里是 'enc'（解码仅 2 字节，
+  // 实际非法），runStartupMigration 用不到它所以一直没暴露；换成合法值避免误导后来人。
+  ENCRYPTION_KEY: btoa(String.fromCharCode(...new Uint8Array(32))),
 };
 
 test('全新库：seed 默认 admin，密码取自 ADMIN_PASSWORD 且已哈希', async () => {

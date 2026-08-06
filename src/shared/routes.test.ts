@@ -9,6 +9,7 @@ import { runStartupMigration } from './startup.js';
 import { runMigrations } from './migrate.js';
 import { MIGRATIONS } from './migrations.js';
 import { hashPassword } from './password.js';
+import { decryptToken } from './crypto.js';
 
 function normalize(values: unknown[]): unknown[] {
   return values.map((v) => {
@@ -75,11 +76,13 @@ const DEPS = { runMigrations, hashPassword, migrations: MIGRATIONS };
 
 // 起一个已迁移 + seed 好 admin 的 app；再直接建两个普通用户 A/B（绕过 admin 端点，
 // 那是步骤6的事）。返回 app 与工具。
-async function setupApp(platform?: 'node' | 'workers') {
+// secretsOverride：给「坏 ENCRYPTION_KEY」这类配置场景用（迁移/seed 仍用合法密钥的那一份，
+// 它们用不到加密，与被测的加密路径无关）。
+async function setupApp(platform?: 'node' | 'workers', secretsOverride?: AppSecrets) {
   const { db, raw } = memDb();
   const app = createApp({
     db,
-    secrets: SECRETS,
+    secrets: secretsOverride ?? SECRETS,
     runStartup: (d, s) => runStartupMigration(d, s, DEPS),
     ...(platform ? { platform } : {}),
   });
@@ -324,4 +327,122 @@ test('GET /api/session 已登录时同样带回 platform', async () => {
   expect(body.authenticated).toBe(true);
   expect(body.username).toBe('userA');
   expect(body.platform).toBe('workers');
+});
+
+// ---- ENCRYPTION_KEY 格式契约：坏密钥不再表现为裸 500 ----
+// 历史 bug：文档教用户用 `openssl rand -hex 32`（64 字符 hex → 解码 48 字节 ≠ 32），
+// 于是「只要填了 Access Token 保存就 HTTP 500」。下面锁定三件事：
+//   1) 合法密钥的成功路径（填 token 能存、列表显示 has_token、密文可解回原值）
+//   2) 坏密钥走到保存路径时返回可读的 { error }，而不是无响应体的裸 500
+//   3) configWarnings 随 /api/session 两个分支下发，前端登录页就能提示
+
+// 旧文档产出的坏密钥形态。
+const HEX_SECRETS: AppSecrets = { ...SECRETS, ENCRYPTION_KEY: 'a'.repeat(64) };
+
+test('合法密钥：新增站点带 token 能保存，列表显示 has_token 且不回显明文', async () => {
+  const { app } = await setupApp();
+  const cookie = await login(app, 'userA');
+  const create = await app.request(
+    '/api/sites',
+    authed(cookie, { name: 'S', base_url: 'https://s.example.com', token: 'sk-secret-abc' }),
+  );
+  expect(create.status).toBe(200);
+
+  const list = await (await app.request('/api/sites', authed(cookie))).json();
+  expect(list.sites[0].has_token).toBe(true);
+  expect(JSON.stringify(list.sites[0])).not.toContain('sk-secret-abc');
+});
+
+test('合法密钥：编辑站点改 token 能保存，落库密文可解回原值', async () => {
+  const { app, raw } = await setupApp();
+  const cookie = await login(app, 'userA');
+  const created = await (
+    await app.request('/api/sites', authed(cookie, { name: 'S', base_url: 'https://s.example.com' }))
+  ).json();
+
+  const put = await app.request(`/api/sites/${created.id}`, {
+    ...authed(cookie, { token: 'sk-updated-xyz' }),
+    method: 'PUT',
+  });
+  expect(put.status).toBe(200);
+
+  const row = raw
+    .prepare('SELECT token_encrypted FROM sites WHERE id = ?')
+    .get(created.id) as { token_encrypted: string };
+  expect(row.token_encrypted).not.toContain('sk-updated-xyz'); // 存的是密文
+  expect(await decryptToken(SECRETS.ENCRYPTION_KEY, row.token_encrypted)).toBe('sk-updated-xyz');
+});
+
+test('坏密钥（64 字符 hex）：新增站点带 token 返回可读 error 而非裸 500', async () => {
+  const { app } = await setupApp(undefined, HEX_SECRETS);
+  const cookie = await login(app, 'userA');
+  const res = await app.request(
+    '/api/sites',
+    authed(cookie, { name: 'S', base_url: 'https://s.example.com', token: 'sk-x' }),
+  );
+  expect(res.status).toBe(500);
+  const body = await res.json();
+  // 关键改进不在状态码，而在有响应体：前端 readError 取 data.error 即可显示可行动的原因。
+  expect(typeof body.error).toBe('string');
+  expect(body.error).toContain('ENCRYPTION_KEY');
+  expect(body.error).toContain('openssl rand -base64 32');
+  expect(body.error).toContain('48 字节');
+  expect(body.error).not.toContain(HEX_SECRETS.ENCRYPTION_KEY); // 不回显密钥内容
+});
+
+test('坏密钥：不填 token 的站点仍能正常保存（不波及无关路径）', async () => {
+  const { app } = await setupApp(undefined, HEX_SECRETS);
+  const cookie = await login(app, 'userA');
+  const res = await app.request(
+    '/api/sites',
+    authed(cookie, { name: 'S', base_url: 'https://s.example.com' }),
+  );
+  expect(res.status).toBe(200);
+});
+
+test('坏密钥：编辑站点改 token / 新建代理带密码 也返回可读 error', async () => {
+  const { app } = await setupApp(undefined, HEX_SECRETS);
+  const cookie = await login(app, 'userA');
+  const created = await (
+    await app.request('/api/sites', authed(cookie, { name: 'S', base_url: 'https://s.example.com' }))
+  ).json();
+
+  const put = await app.request(`/api/sites/${created.id}`, {
+    ...authed(cookie, { token: 'sk-x' }),
+    method: 'PUT',
+  });
+  expect(put.status).toBe(500);
+  expect((await put.json()).error).toContain('openssl rand -base64 32');
+
+  const proxy = await app.request(
+    '/api/proxies',
+    authed(cookie, { name: 'p', host: '1.2.3.4', port: 1080, password: 'pw' }),
+  );
+  expect(proxy.status).toBe(500);
+  expect((await proxy.json()).error).toContain('openssl rand -base64 32');
+});
+
+test('GET /api/session：密钥合法时 configWarnings 为空（两个分支）', async () => {
+  const { app } = await setupApp();
+  const anon = await (await app.request('/api/session')).json();
+  expect(anon.configWarnings).toEqual([]);
+
+  const cookie = await login(app, 'userA');
+  const authedBody = await (await app.request('/api/session', authed(cookie))).json();
+  expect(authedBody.configWarnings).toEqual([]);
+});
+
+test('GET /api/session：坏密钥时两个分支都带 ENCRYPTION_KEY_INVALID', async () => {
+  const { app } = await setupApp(undefined, HEX_SECRETS);
+  // 未登录分支也必须带 —— 否则登录页看不到提示，「部署后尽早看到」就落空了。
+  const anon = await (await app.request('/api/session')).json();
+  expect(anon.authenticated).toBe(false);
+  expect(anon.configWarnings).toEqual(['ENCRYPTION_KEY_INVALID']);
+
+  const cookie = await login(app, 'userA');
+  const authedBody = await (await app.request('/api/session', authed(cookie))).json();
+  expect(authedBody.authenticated).toBe(true);
+  expect(authedBody.configWarnings).toEqual(['ENCRYPTION_KEY_INVALID']);
+  // 标记只有枚举名，不含密钥内容。
+  expect(JSON.stringify(authedBody)).not.toContain(HEX_SECRETS.ENCRYPTION_KEY);
 });
