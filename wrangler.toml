@@ -39,5 +39,6 @@ crons = ["*/5 * * * *"]
 
 # 需要通过 `wrangler secret put` 设置的密钥（勿写入仓库）：
 #   ADMIN_PASSWORD  登录密码
-#   SESSION_SECRET  会话 cookie 签名密钥
-#   ENCRYPTION_KEY  站点 access token 的加密密钥（32 字节，base64）
+#   SESSION_SECRET  会话 cookie 签名密钥（任意长度随机串：openssl rand -hex 32）
+#   ENCRYPTION_KEY  站点 access token 的加密密钥（32 字节，base64：openssl rand -base64 32）
+#                   必须是 44 字符、末尾带 '='；64 位十六进制串是错的（解码得 48 字节）

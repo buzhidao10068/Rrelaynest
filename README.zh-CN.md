@@ -78,8 +78,8 @@ cp .env.example .env
 | 变量 | 用途 | 生成方式 |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 首个 admin 的**初始**登录密码（用户名固定 `admin`） | 自定义强口令 |
-| `SESSION_SECRET` | 会话 cookie / MFA 短票 / Passkey 挑战票的 HMAC 签名密钥 | `openssl rand -hex 32` |
-| `ENCRYPTION_KEY` | 上游 API Key 等敏感字段的 AES-GCM 加密密钥 | `openssl rand -hex 32` |
+| `SESSION_SECRET` | 会话 cookie / MFA 短票 / Passkey 挑战票的 HMAC 签名密钥 | `openssl rand -hex 32`（任意长度均可） |
+| `ENCRYPTION_KEY` | 上游 API Key 等敏感字段的 AES-GCM 加密密钥 | `openssl rand -base64 32`（**必须**是 base64 编码的 32 字节：44 字符、末尾带 `=`） |
 
 > `ADMIN_PASSWORD` **只在首次启动、库为空时**用于 seed 首个 admin。之后在设置页改密，此变量便不再影响登录——可以留着，也可以清空。
 
@@ -160,10 +160,17 @@ Serverless，平台自带 HTTPS（无需自己配反代）。有三种方式，�
 | 密钥 | 说明 | 取值 |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | 首个 admin 的**初始**登录密码（用户名固定 `admin`） | 自定义强口令 |
-| `SESSION_SECRET` | 会话 cookie / MFA 短票 / Passkey 挑战票的 HMAC 签名密钥 | 随机 32 字节十六进制串 |
-| `ENCRYPTION_KEY` | 上游 API Key 等敏感字段的 AES-GCM 加密密钥 | 随机 32 字节十六进制串 |
+| `SESSION_SECRET` | 会话 cookie / MFA 短票 / Passkey 挑战票的 HMAC 签名密钥 | 任意长度的随机串（32 字节十六进制串即可） |
+| `ENCRYPTION_KEY` | 上游 API Key 等敏感字段的 AES-GCM 加密密钥 | **base64 编码的 32 字节** —— 44 字符、末尾带 `=` |
 
-> `SESSION_SECRET` / `ENCRYPTION_KEY` 需要随机值。本地有终端的话用 `openssl rand -hex 32` 生成；没有也行，用任意在线随机十六进制生成器出两串 64 位十六进制即可。两者务必不同。
+> 两者**格式要求不同**，请分别生成：
+>
+> ```bash
+> openssl rand -hex 32      # SESSION_SECRET —— 任意长度均可
+> openssl rand -base64 32   # ENCRYPTION_KEY —— 必须正好解码出 32 字节
+> ```
+>
+> 没有终端也行：`ENCRYPTION_KEY` 用任意「随机 base64 / 32 字节」在线生成器，`SESSION_SECRET` 用任意随机串即可。`ENCRYPTION_KEY` 可自检：形如 `ifgL8RczRrNJ03tJ93+jC2w10S78/OIHhyR7bqEVYH8=`，**44 字符、末尾带 `=`**。64 位十六进制串是**错的**（它解码出 48 字节而非 32），填了之后保存带 Access Token 的站点会失败。两者的值务必不同。
 
 ---
 
@@ -330,7 +337,7 @@ npm run dev            # 前端 (Vite)
 # 另开一个终端，起 Node 后端：
 export ADMIN_PASSWORD=dev-admin
 export SESSION_SECRET=$(openssl rand -hex 32)
-export ENCRYPTION_KEY=$(openssl rand -hex 32)
+export ENCRYPTION_KEY=$(openssl rand -base64 32)   # 必须是 base64 的 32 字节，不是 hex
 npm run build:server && npm run start:node   # http://localhost:3100
 
 # 或 Workers 本地：

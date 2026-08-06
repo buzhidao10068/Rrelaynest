@@ -78,8 +78,8 @@ Edit `.env` and fill in the three required values (missing any one causes the co
 | Variable | Purpose | How to generate |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | The **initial** login password for the first admin (username is fixed as `admin`) | A custom strong password |
-| `SESSION_SECRET` | HMAC signing key for session cookies / MFA short-lived tickets / Passkey challenge tickets | `openssl rand -hex 32` |
-| `ENCRYPTION_KEY` | AES-GCM encryption key for sensitive fields such as upstream API keys | `openssl rand -hex 32` |
+| `SESSION_SECRET` | HMAC signing key for session cookies / MFA short-lived tickets / Passkey challenge tickets | `openssl rand -hex 32` (any length works) |
+| `ENCRYPTION_KEY` | AES-GCM encryption key for sensitive fields such as upstream API keys | `openssl rand -base64 32` (**must** be base64-encoded 32 bytes: 44 chars ending in `=`) |
 
 > `ADMIN_PASSWORD` is **only used to seed the first admin on the initial startup when the database is empty**. After you change the password on the settings page, this variable no longer affects login — you can keep it or clear it.
 
@@ -160,10 +160,17 @@ Open this project's page, click **Fork** in the top-right, and fork it to your o
 | Secret | Description | Value |
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | The **initial** login password for the first admin (username is fixed as `admin`) | A custom strong password |
-| `SESSION_SECRET` | HMAC signing key for session cookies / MFA short-lived tickets / Passkey challenge tickets | A random 32-byte hex string |
-| `ENCRYPTION_KEY` | AES-GCM encryption key for sensitive fields such as upstream API keys | A random 32-byte hex string |
+| `SESSION_SECRET` | HMAC signing key for session cookies / MFA short-lived tickets / Passkey challenge tickets | A random string, any length (a 32-byte hex string is fine) |
+| `ENCRYPTION_KEY` | AES-GCM encryption key for sensitive fields such as upstream API keys | **base64-encoded 32 bytes** — 44 characters ending with `=` |
 
-> `SESSION_SECRET` / `ENCRYPTION_KEY` need random values. If you have a terminal, generate them with `openssl rand -hex 32`; if not, any online random hex generator works — produce two 64-character hex strings. Make sure the two are different.
+> The two need **different formats**, so generate them separately:
+>
+> ```bash
+> openssl rand -hex 32      # SESSION_SECRET — any length works
+> openssl rand -base64 32   # ENCRYPTION_KEY — must decode to exactly 32 bytes
+> ```
+>
+> No terminal? Any online "random base64 / 32 bytes" generator works for `ENCRYPTION_KEY`, and any random string works for `SESSION_SECRET`. Self-check for `ENCRYPTION_KEY`: it should look like `ifgL8RczRrNJ03tJ93+jC2w10S78/OIHhyR7bqEVYH8=` — **44 characters, ending in `=`**. A 64-character hex string is **wrong** (it decodes to 48 bytes, not 32) and saving a site with an Access Token will fail. Make sure the two values are different.
 
 ---
 
@@ -330,7 +337,7 @@ npm run dev            # frontend (Vite)
 # In another terminal, start the Node backend:
 export ADMIN_PASSWORD=dev-admin
 export SESSION_SECRET=$(openssl rand -hex 32)
-export ENCRYPTION_KEY=$(openssl rand -hex 32)
+export ENCRYPTION_KEY=$(openssl rand -base64 32)   # must be base64 32 bytes, not hex
 npm run build:server && npm run start:node   # http://localhost:3100
 
 # Or Workers locally:
