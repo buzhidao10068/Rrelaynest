@@ -8,6 +8,7 @@ import { runStartupMigration, type StartupDeps } from '../shared/startup.js';
 import { runMigrations } from '../shared/migrate.js';
 import { MIGRATIONS } from '../shared/migrations.js';
 import { hashPassword } from '../shared/password.js';
+import { checkEncryptionKey, encryptionKeyErrorMessage } from '../shared/crypto.js';
 // 版本从 package.json 构建期内联（Workers 无文件系统，靠 esbuild/wrangler 打包 JSON import）。
 import pkg from '../../package.json';
 
@@ -26,12 +27,26 @@ const startupDeps: StartupDeps = { runMigrations, hashPassword, migrations: MIGR
 let bootstrapPromise: Promise<unknown> | null = null;
 function ensureBootstrap(db: ReturnType<typeof wrapD1>, secrets: AppSecrets): Promise<unknown> {
   if (!bootstrapPromise) {
+    warnIfEncryptionKeyInvalid(secrets);
     bootstrapPromise = runStartupMigration(db, secrets, startupDeps).catch((err) => {
       bootstrapPromise = null; // 失败不缓存，下次重试
       throw err;
     });
   }
   return bootstrapPromise;
+}
+
+// ENCRYPTION_KEY 格式校验：Workers 无启动钩子，只能挂在首访引导上（每 isolate 记一次日志）。
+// 刻意「不阻断 /api/*」：密钥配错只影响敏感字段加密，把它升级成「应用完全打不开」是过度反应
+// （用户可能只想先登录看看、或根本不用 token 功能）。用户可见的提示走另两条渠道：
+//   1) /api/session 的 configWarnings → 前端常驻提示条（登录页就能看到，见 shared/routes.ts）
+//   2) 加密调用点返回可读的 { error } 文案，作为最后兜底
+// 这里只负责让运维在 `wrangler tail` 里看到明确原因。文案不含密钥内容（见 crypto.ts 红线）。
+function warnIfEncryptionKeyInvalid(secrets: AppSecrets): void {
+  const check = checkEncryptionKey(secrets.ENCRYPTION_KEY);
+  if (!check.ok) {
+    console.error(`[配置错误] ${encryptionKeyErrorMessage(check)}`);
+  }
 }
 
 interface WorkerEnv {

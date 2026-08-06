@@ -13,6 +13,7 @@ import { runStartupMigration, type StartupDeps } from '../shared/startup.js';
 import { runMigrations } from '../shared/migrate.js';
 import { MIGRATIONS } from '../shared/migrations.js';
 import { hashPassword } from '../shared/password.js';
+import { checkEncryptionKey, encryptionKeyErrorMessage } from '../shared/crypto.js';
 import { createProxyFetch } from './proxy.js';
 
 const PORT = Number(process.env.PORT ?? '3100');
@@ -23,6 +24,13 @@ function loadSecrets(): AppSecrets {
   const missing = ['ADMIN_PASSWORD', 'SESSION_SECRET', 'ENCRYPTION_KEY'].filter((k) => !process.env[k]);
   if (missing.length) {
     throw new Error(`缺少必需的环境变量：${missing.join(', ')}`);
+  }
+  // 只校验存在还不够：格式不对的 ENCRYPTION_KEY 会一路拖到用户保存 token 那一刻才炸成裸 500。
+  // Node 有真正的启动时机，故直接拒绝启动 —— 用户立刻在容器日志看到原因，不会带着坏配置服务用户。
+  // SESSION_SECRET 无长度约束（HMAC 接受任意长度），故不在此校验，两者不可一刀切。
+  const keyCheck = checkEncryptionKey(process.env.ENCRYPTION_KEY ?? '');
+  if (!keyCheck.ok) {
+    throw new Error(encryptionKeyErrorMessage(keyCheck));
   }
   return {
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD!,
