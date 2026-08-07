@@ -193,6 +193,23 @@ CREATE TABLE IF NOT EXISTS webauthn_credentials (
 CREATE INDEX IF NOT EXISTS idx_webauthn_user ON webauthn_credentials(user_id);
 `;
 
+// 0007：回填存量 base_url 的协议头。纯数据迁移，无 DDL。
+// 背景：前端保存站点时曾主动剥掉 scheme（注释称「scrape 时按需补」，而后端从未补），
+// 于是界面新建的站点在库里是裸域名，爬取拼出 'astu.online/api/pricing' 被 fetch 拒收。
+// 契约已收敛为「库里只存绝对 URL」（见 shared/site-url.ts），此处把存量补齐。
+//
+// 一律补 https://：裸域名已丢失原协议，无法恢复，https 是唯一合理默认；补错的（原本
+// http-only 的站点）用户可在界面改回，改回后走入口校验、此后不再丢协议。已记入 CHANGELOG。
+// 排除已带协议头的行：SQLite 的 LIKE 对 ASCII 大小写不敏感，故 'HTTPS://E.F' 也会被
+// NOT LIKE 'https://%' 排除，不会被二次加前缀（已实测）。
+// 排除空串：否则 'https://' || '' 得到一个没有主机名的 'https://'。
+const M0007_BASE_URL_SCHEME = `
+UPDATE sites SET base_url = 'https://' || base_url
+ WHERE base_url <> ''
+   AND base_url NOT LIKE 'http://%'
+   AND base_url NOT LIKE 'https://%';
+`;
+
 // 顺序即应用序。
 export const MIGRATIONS: Migration[] = [
   { version: '0001_init', sql: M0001_INIT },
@@ -201,4 +218,5 @@ export const MIGRATIONS: Migration[] = [
   { version: '0004_group_label', sql: M0004_GROUP_LABEL },
   { version: '0005_totp', sql: M0005_TOTP },
   { version: '0006_webauthn', sql: M0006_WEBAUTHN },
+  { version: '0007_base_url_scheme', sql: M0007_BASE_URL_SCHEME },
 ];

@@ -40,6 +40,7 @@ import {
   encryptionKeyErrorMessage,
 } from './crypto.js';
 import { scrapeAndStore, checkinAndStore, readScrapeConfig, resolveFetch } from './scrape-runner.js';
+import { normalizeBaseUrl } from './site-url.js';
 import { mapWithConcurrency } from './concurrency.js';
 import { fetchLatestRelease } from './version.js';
 import { pingSite, channelTest } from './scraper.js';
@@ -977,6 +978,21 @@ export function createApp(deps: AppDeps) {
     if (!body.name || !body.base_url) {
       return c.json({ error: 'name 和 base_url 必填' }, 400);
     }
+    // base_url 入口强校验：库里只许存绝对 URL（含 http(s)://）。非法一律 400，不静默兜底 ——
+    // 此前只去末尾斜杠，前端剥掉协议头后的裸域名能原样入库，爬取时才炸 Invalid URL。
+    //
+    // ⚠ 这里比 normalizeBaseUrl 本身更严：连「能补出协议头」的裸域名也拒（addedScheme）。
+    // 两种严格度的分界是「信息还在不在」：
+    //   - 用户新填的值，协议头还在用户手里 → 退回去让他填全，我们不替他猜；
+    //     猜错（http-only 站点被补成 https）只会变成更难查的连接失败。
+    //   - 存量库里的值（迁移 0007、下面 PUT 未传 base_url 的分支），协议头早已被旧前端剥掉、
+    //     不可恢复 → 只能接受补出来的 https，否则历史数据一条也编辑不了。
+    // 故同一个函数在两个调用点用两种严格度，宽严由调用点定，不要挪进 site-url.ts。
+    const norm = normalizeBaseUrl(body.base_url);
+    if (!norm.ok) return c.json({ error: norm.message }, 400);
+    if (norm.addedScheme) {
+      return c.json({ error: '站点地址需填完整，请带上 http:// 或 https://' }, 400);
+    }
     const now = Date.now();
     // 只有填了 token 才走加密；密钥配错时返回可读文案而非裸 500（见 encryptOrFail）。
     let tokenEnc: string | null = null;
@@ -994,7 +1010,7 @@ export function createApp(deps: AppDeps) {
       .bind(
         uid,
         body.name,
-        body.base_url.replace(/\/+$/, ''),
+        norm.value,
         tokenEnc,
         body.rate ?? null,
         body.currency ?? 'USD',
@@ -1023,6 +1039,24 @@ export function createApp(deps: AppDeps) {
       .bind(id, uid)
       .first<SiteRow>();
     if (!existing) return c.json({ error: '站点不存在' }, 404);
+
+    // base_url 的两种严格度（分界理由见上面 POST 的注释）：
+    //  - 显式传了 = 用户新填的 → 与 POST 同一把尺：非法 400，裸域名也 400。
+    //  - 没传 = 只改别的字段（备注/分组…）→ 对存量值尽力归一化，接受补出来的协议头，
+    //    连归一化都失败就原样保留、不报错。既不让历史脏数据把无关编辑堵死，
+    //    又顺手把这一行修成绝对 URL（0007 已回填过一轮，此处是兜底）。
+    let baseUrl: string;
+    if (body.base_url !== undefined) {
+      const norm = normalizeBaseUrl(body.base_url);
+      if (!norm.ok) return c.json({ error: norm.message }, 400);
+      if (norm.addedScheme) {
+        return c.json({ error: '站点地址需填完整，请带上 http:// 或 https://' }, 400);
+      }
+      baseUrl = norm.value;
+    } else {
+      const norm = normalizeBaseUrl(existing.base_url);
+      baseUrl = norm.ok ? norm.value : existing.base_url;
+    }
 
     // token: undefined=不变, ''=清除, 非空=更新
     let tokenEnc = existing.token_encrypted;
@@ -1060,7 +1094,7 @@ export function createApp(deps: AppDeps) {
       )
       .bind(
         body.name ?? existing.name,
-        (body.base_url ?? existing.base_url).replace(/\/+$/, ''),
+        baseUrl,
         tokenEnc,
         body.rate ?? existing.rate,
         body.currency ?? existing.currency,

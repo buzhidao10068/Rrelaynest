@@ -303,10 +303,10 @@ function checkinTitle(s: Site): string {
                     </Tooltip>
                   </span>
                 </template>
-                <!-- 地址：可点链接 -->
+                <!-- 地址：链接用权威的 baseUrl（http 站点/非标端口才打得开），文本仍显示短地址 -->
                 <template v-else-if="c.key === 'url'">
                   <a
-                    :href="'https://' + s.url"
+                    :href="s.baseUrl"
                     class="truncate underline-offset-2 hover:text-foreground hover:underline"
                     @click="emit('openAddr', s.url)"
                   >{{ s.url }}</a>
@@ -423,7 +423,7 @@ function checkinTitle(s: Site): string {
             </template>
             <template v-else-if="c.key === 'url'">
               <a
-                :href="'https://' + s.url"
+                :href="s.baseUrl"
                 class="truncate underline-offset-2 hover:text-foreground hover:underline"
                 @click="emit('openAddr', s.url)"
               >{{ s.url }}</a>
