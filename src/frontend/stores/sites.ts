@@ -20,7 +20,11 @@ export type CheckinState = 'signed' | 'pending' | 'off';
 export interface Site {
   id: number;
   name: string;
-  url: string; // 后端 base_url 去 scheme（展示用）
+  baseUrl: string; // 后端 base_url 原样：绝对 URL（含 http(s)://），权威值。链接与编辑回填都用它
+  // ⚠ 展示专用（去掉协议头的短地址），禁止用于构造请求或链接：
+  // 协议头一旦丢掉就无法恢复，硬编码拼回 'https://' 会把 http 站点静默升级、非标端口站点打不开。
+  // 本轮故障就是保存时剥掉协议头、爬取时又没补，拼出相对 URL 被 fetch 拒收。要请求就用 baseUrl。
+  url: string;
   balNum: number | null;
   bal: string;
   rmb: string;
@@ -115,6 +119,8 @@ function mapRow(r: SiteApiRow): Site {
   return {
     id: r.id,
     name: r.name,
+    baseUrl: r.base_url || '',
+    // 派生的展示值（有损）；权威值是上面的 baseUrl。
     url: (r.base_url || '').replace(/^https?:\/\//i, '').replace(/\/+$/, ''),
     balNum,
     bal: balNum == null ? '—' : curSign(cur) + balNum.toFixed(2),
@@ -467,11 +473,6 @@ export async function clearAll(): Promise<void> {
   await loadSites();
 }
 
-// URL 归一化成 host（去 scheme / 末尾斜杠）
-export function normHost(u: string): string {
-  return (u || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
-}
-
 // 名称唯一性校验（编辑时排除自身 id）。仅前端友好提示；后端无 name 唯一约束。
 export function nameExists(name: string, excludeId: number | null): boolean {
   return sitesState.list.some((s) => s.name === name && s.id !== excludeId);
@@ -488,7 +489,9 @@ export async function saveSite(form: SiteForm, editingId: number | null): Promis
 
   const body: Record<string, unknown> = {
     name: form.name.trim(),
-    base_url: normHost(form.url), // 后端存 host（无 scheme）；scrape 时按需补
+    // 原样发绝对 URL（弹窗已校验必须含 http(s)://），由后端归一化落库。
+    // 别再在这里剥协议头：库里存裸域名 → 爬取拼出相对 URL → fetch 直接拒收（本轮故障根因）。
+    base_url: form.url.trim(),
     rate,
     currency: cur,
     checkin_enabled: form.ckMaster,

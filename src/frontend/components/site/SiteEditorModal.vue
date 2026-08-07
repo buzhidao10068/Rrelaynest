@@ -87,7 +87,7 @@ watch(
     if (site) {
       const rate = parseFloat(site.rate) || 1;
       name.value = site.name;
-      url.value = 'https://' + site.url;
+      url.value = site.baseUrl; // 回填权威值；不要拿展示用的 site.url 拼回 'https://'
       token.value = '';
       balRaw.value = site.balNum != null ? String(site.balNum) : '';
       // rate = 每 1 单位站点货币折多少 RMB。回填成「充 rate 元 = 到账 1」。
