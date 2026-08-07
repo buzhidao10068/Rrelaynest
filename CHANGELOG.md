@@ -8,7 +8,7 @@
 每次发布新版时：先在这里新增一节，再 bump `package.json` 的 `version`，
 并在 GitHub 打上对应的 `vX.Y.Z` tag 发 Release——应用内的「检查更新」据此判断新版。
 
-## [未发布]
+## [0.3.2] - 2026-08-07
 
 ### 修复
 - **从界面新建的站点一律爬取失败（重要）**：根因是「站点地址」这一个值在三层之间的约定互相矛盾——编辑弹窗**要求**填带 `http://` / `https://` 的完整地址，前端保存时却又把协议头**剥掉**（注释写着「爬取时按需补」），而后端与爬虫**从未补**过。于是库里存的是不带协议头的裸域名，爬取时拼出 `astu.online/api/pricing` 这种相对地址，`fetch` 在发出网络请求之前就直接拒收。**两个部署平台同时受影响**（Cloudflare 上报 `Invalid URL: ...`，Node / Docker 报 `Failed to parse URL from ...`，只是措辞不同）；用 API 直接建站（地址带协议头）则一切正常，这也是它此前一直没被发现的原因。同一个地址还喂给测活与渠道测试，故这三条路径此前一并是坏的。修法是把契约收敛到一处：
@@ -81,6 +81,8 @@
 - CSV / JSON 导出、检查更新
 - Worker 首访自动引导（幂等建表 + seed 首个 admin）
 
-[未发布]: https://github.com/buzhidao10068/Rrelaynest/compare/v0.2.0...HEAD
+[0.3.2]: https://github.com/buzhidao10068/Rrelaynest/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/buzhidao10068/Rrelaynest/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/buzhidao10068/Rrelaynest/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/buzhidao10068/Rrelaynest/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/buzhidao10068/Rrelaynest/releases/tag/v0.1.0
