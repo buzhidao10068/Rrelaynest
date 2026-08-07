@@ -3,7 +3,7 @@
 // 两个用户 A/B 各建站点/代理，验证互相看不到、改不了、删不了、爬不了（404 而非 403）。
 import { test, expect } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
-import type { Database, PreparedStatement, AppSecrets } from './types.js';
+import type { Database, PreparedStatement, AppSecrets, MakeFetch } from './types.js';
 import { createApp } from './routes.js';
 import { runStartupMigration } from './startup.js';
 import { runMigrations } from './migrate.js';
@@ -78,13 +78,19 @@ const DEPS = { runMigrations, hashPassword, migrations: MIGRATIONS };
 // 那是步骤6的事）。返回 app 与工具。
 // secretsOverride：给「坏 ENCRYPTION_KEY」这类配置场景用（迁移/seed 仍用合法密钥的那一份，
 // 它们用不到加密，与被测的加密路径无关）。
-async function setupApp(platform?: 'node' | 'workers', secretsOverride?: AppSecrets) {
+// makeFetch：注入假 fetch 拦截出站请求（跨层守卫用，见文件末 base_url 契约那一组）。
+async function setupApp(
+  platform?: 'node' | 'workers',
+  secretsOverride?: AppSecrets,
+  makeFetch?: MakeFetch,
+) {
   const { db, raw } = memDb();
   const app = createApp({
     db,
     secrets: secretsOverride ?? SECRETS,
     runStartup: (d, s) => runStartupMigration(d, s, DEPS),
     ...(platform ? { platform } : {}),
+    ...(makeFetch ? { makeFetch } : {}),
   });
   await runStartupMigration(db, SECRETS, DEPS);
 
@@ -445,4 +451,194 @@ test('GET /api/session：坏密钥时两个分支都带 ENCRYPTION_KEY_INVALID',
   expect(authedBody.configWarnings).toEqual(['ENCRYPTION_KEY_INVALID']);
   // 标记只有枚举名，不含密钥内容。
   expect(JSON.stringify(authedBody)).not.toContain(HEX_SECRETS.ENCRYPTION_KEY);
+});
+
+// ==== base_url 契约：库里只许存绝对 URL（本轮修复的跨层缺口）====
+// 为什么单开一组：既有全部 fixture 的 base_url 都自带协议头（'https://a.example.com' 等），
+// 只覆盖「后端收到合法 URL」这一半，从不覆盖**前端真实发出的形状**（剥掉协议头的裸域名），
+// 这正是这个 bug 能一路溜到线上的原因。下面的用例按前端真实形状打。
+
+test('base_url 契约：POST /api/sites 传裸域名 → 400，不再静默入库', async () => {
+  const { app } = await setupApp();
+  const cookie = await login(app, 'userA');
+  // 'astu.online' 就是修复前前端 normHost() 剥完协议头发出的形状。
+  const res = await app.request('/api/sites', authed(cookie, { name: 'S', base_url: 'astu.online' }));
+  expect(res.status).toBe(400);
+  expect((await res.json()).error).toContain('http');
+
+  // 一条都不该入库。
+  const list = await (await app.request('/api/sites', authed(cookie))).json();
+  expect(list.sites.length).toBe(0);
+});
+
+test('base_url 契约：POST /api/sites 传 javascript: / ftp:// / 带 query → 400', async () => {
+  const { app } = await setupApp();
+  const cookie = await login(app, 'userA');
+  for (const bad of ['javascript:alert(1)', 'ftp://x.example.com', 'https://s.example.com?x=1', '']) {
+    const res = await app.request('/api/sites', authed(cookie, { name: 'S', base_url: bad }));
+    expect(res.status, `base_url=${JSON.stringify(bad)} 应被拒`).toBe(400);
+  }
+});
+
+test('base_url 契约：合法 URL 入库为归一化值（去末尾斜杠、协议与主机小写）', async () => {
+  const { app } = await setupApp();
+  const cookie = await login(app, 'userA');
+  const create = await app.request(
+    '/api/sites',
+    authed(cookie, { name: 'S', base_url: 'HTTPS://S.Example.com/' }),
+  );
+  expect(create.status).toBe(200);
+  const list = await (await app.request('/api/sites', authed(cookie))).json();
+  expect(list.sites[0].base_url).toBe('https://s.example.com');
+});
+
+// addedScheme 分流存在的意义就是这条：存量裸域名行（0007 之前建的，或迁移没覆盖到的）
+// 在「只改备注」时不能被 400 堵死，且该顺手修成绝对 URL。
+test('base_url 契约：PUT 不传 base_url 能编辑存量裸域名行，并把它修成绝对 URL', async () => {
+  const { app, raw } = await setupApp();
+  const cookie = await login(app, 'userA');
+  const created = await (
+    await app.request('/api/sites', authed(cookie, { name: 'S', base_url: 'https://s.example.com' }))
+  ).json();
+  // 绕开入口校验，直接把库里改成裸域名 —— 模拟旧前端存下的历史脏数据。
+  raw.prepare('UPDATE sites SET base_url = ? WHERE id = ?').run('legacy.example.com', created.id);
+
+  const res = await app.request(`/api/sites/${created.id}`, {
+    ...authed(cookie, { note: '只改备注' }),
+    method: 'PUT',
+  });
+  expect(res.status, '历史脏数据不能把无关编辑堵死').toBe(200);
+
+  const list = await (await app.request('/api/sites', authed(cookie))).json();
+  expect(list.sites[0].base_url).toBe('https://legacy.example.com'); // 顺手修好
+  expect(list.sites[0].note).toBe('只改备注');
+});
+
+test('base_url 契约：PUT 显式传裸域名 → 400；不传 base_url 只改备注 → 放行', async () => {
+  const { app } = await setupApp();
+  const cookie = await login(app, 'userA');
+  const created = await (
+    await app.request('/api/sites', authed(cookie, { name: 'S', base_url: 'https://s.example.com' }))
+  ).json();
+
+  // 显式传非法值 → 400，且不落库
+  const bad = await app.request(`/api/sites/${created.id}`, {
+    ...authed(cookie, { base_url: 'astu.online' }),
+    method: 'PUT',
+  });
+  expect(bad.status).toBe(400);
+
+  // 不传 base_url（只改备注）→ 放行，地址保持原样。历史脏数据不能把无关编辑一起堵死。
+  const ok = await app.request(`/api/sites/${created.id}`, {
+    ...authed(cookie, { note: 'hello' }),
+    method: 'PUT',
+  });
+  expect(ok.status).toBe(200);
+  const list = await (await app.request('/api/sites', authed(cookie))).json();
+  expect(list.sites[0].base_url).toBe('https://s.example.com');
+  expect(list.sites[0].note).toBe('hello');
+});
+
+// 真正的跨层守卫：拿**前端修复前真实发出的形状**（剥掉协议头的裸域名）走完整条链，
+// 断言「爬虫绝不会收到相对 URL」。
+//
+// ⚠ 这条用例的写法是被回归验证逼出来的：最初它用 'https://astu.online:8080' 建站，
+// 把后端校验临时还原成修复前的样子后**它照样绿** —— 因为带协议头的输入根本不经过那段逻辑，
+// 它证明的只是 happy path，不是守卫。故改成从裸域名出发，并接受两种正确结局：
+// 入口拒收（当前实现），或入口放行但已归一化、爬虫仍收到绝对 URL。
+// 唯一不可接受的第三种结局 = 放行了裸值 + 爬虫收到相对 URL，也就是本次故障本身。
+test('base_url 契约（跨层守卫）：裸域名走完整条链，爬虫绝不会收到相对 URL', async () => {
+  const seen: string[] = [];
+  const makeFetch: MakeFetch = () => async (url: string) => {
+    seen.push(String(url));
+    return new Response(JSON.stringify({ success: true, group_ratio: {}, usable_group: {}, data: [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+  const { app } = await setupApp(undefined, undefined, makeFetch);
+  const cookie = await login(app, 'userA');
+
+  // 绑一个启用的代理，resolveFetch 才会返回注入的假 fetch（否则回落全局 fetch，拦不住）。
+  const proxy = await (
+    await app.request('/api/proxies', authed(cookie, { name: 'p', host: '127.0.0.1', port: 7890 }))
+  ).json();
+  // 带 token 才会真正走爬取（无 token 时 scrapeAndStore 直接短路，碰不到 fetch）。
+  // 带非标端口：修复前 'https://' + host 那种拼法会把端口一起弄错。
+  const create = await app.request(
+    '/api/sites',
+    authed(cookie, {
+      name: 'S',
+      base_url: 'astu.online:8080', // ← 修复前前端 normHost() 剥完协议头发出的形状
+      token: 'sk-test',
+      proxy_id: proxy.id,
+    }),
+  );
+
+  if (create.status === 200) {
+    // 入口放行了 → 那它必须已经把值补成绝对 URL，且爬虫拿到的也必须是绝对的。
+    const created = await create.json();
+    const scrape = await app.request(`/api/sites/${created.id}/scrape`, {
+      ...authed(cookie),
+      method: 'POST',
+    });
+    expect(scrape.status).toBe(200);
+    const outcome = await scrape.json();
+    expect(outcome.ok, `爬取应成功，实际 error=${outcome.error}`).toBe(true);
+
+    expect(seen.length, '应当真的发出了请求').toBeGreaterThan(0);
+    for (const url of seen) {
+      // ⚠ 有牙的是下面那条正则，不是 new URL。实测 new URL('astu.online:8080/api/pricing')
+      // **不抛**（被当成协议 astu.online: + 路径 8080/api/pricing）—— 这正是本次故障能
+      // 一路走到 fetch 的原因之一，所以「new URL 没抛」证明不了 URL 是绝对的。
+      // 保留这条只作解析健全性兜底（'a b' 那类彻底畸形的值仍会在这里抛）。
+      expect(() => new URL(url), `爬虫收到的不是可解析的 URL：${url}`).not.toThrow();
+      expect(/^https?:\/\//.test(url), `爬虫收到的 URL 缺协议头：${url}`).toBe(true);
+    }
+    expect(seen[0]).toBe('https://astu.online:8080/api/pricing');
+  } else {
+    // 当前实现：入口就把裸域名拦掉，链路后半段无从发生（库里不会有这种行）。
+    expect(create.status).toBe(400);
+    const list = await (await app.request('/api/sites', authed(cookie))).json();
+    expect(list.sites.length, '被拒的站点不该入库').toBe(0);
+    expect(seen.length, '没有站点就不该有任何出站请求').toBe(0);
+  }
+});
+
+// 补上另一半：合法地址建站后，爬虫确实收到拼好的绝对 URL（含非标端口与子路径）。
+// 这条不依赖入口校验，故不能替代上面那条守卫 —— 两条各管一半。
+test('base_url 契约：合法地址建站后，爬虫收到的 URL 由 base_url 原样拼出', async () => {
+  const seen: string[] = [];
+  const makeFetch: MakeFetch = () => async (url: string) => {
+    seen.push(String(url));
+    return new Response(
+      JSON.stringify({ success: true, group_ratio: {}, usable_group: {}, data: [] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  };
+  const { app } = await setupApp(undefined, undefined, makeFetch);
+  const cookie = await login(app, 'userA');
+  const proxy = await (
+    await app.request('/api/proxies', authed(cookie, { name: 'p', host: '127.0.0.1', port: 7890 }))
+  ).json();
+  // http（不是 https）+ 非标端口 + 子路径：三样都必须原样保留，不被静默改写。
+  const created = await (
+    await app.request(
+      '/api/sites',
+      authed(cookie, {
+        name: 'S',
+        base_url: 'http://1.2.3.4:3000/v1/',
+        token: 'sk-test',
+        proxy_id: proxy.id,
+      }),
+    )
+  ).json();
+
+  const scrape = await app.request(`/api/sites/${created.id}/scrape`, {
+    ...authed(cookie),
+    method: 'POST',
+  });
+  expect(scrape.status).toBe(200);
+  expect((await scrape.json()).ok).toBe(true);
+  expect(seen[0]).toBe('http://1.2.3.4:3000/v1/api/pricing');
 });
