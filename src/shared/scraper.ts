@@ -152,6 +152,13 @@ export async function scrapeSite(baseUrl: string, token: string, opts?: ScrapeOp
   return { balance, groups, models };
 }
 
+// 签到接口的响应体形状（new-api 及其兼容面板）。
+interface CheckinResponseBody {
+  success?: boolean;
+  message?: string;
+  data?: { quota_awarded?: number };
+}
+
 // 执行签到。对齐 QuantumNous/new-api：POST /api/user/checkin
 // 成功 {success:true, message:'签到成功', data:{quota_awarded, checkin_date}}
 // 失败 {success:false, message:'...'}；该端点挂 TurnstileCheck 中间件。
@@ -177,23 +184,34 @@ export async function checkinSite(baseUrl: string, token: string, opts?: ScrapeO
     };
   }
 
-  // Turnstile 中间件在验证缺失时常返回 4xx；识别为需手动签到
-  if (resp.status === 400 || resp.status === 403) {
-    const text = await resp.text().catch(() => '');
-    if (/turnstile|captcha|验证/i.test(text)) {
-      return {
-        ok: false,
-        message: '该站开启了人机验证(Turnstile)，需手动到网页签到',
-        needsManual: true,
-      };
-    }
+  // 响应体只能读一次，故先取文本，后面的 JSON 从这个字符串解析。
+  const raw = await resp.text().catch(() => '');
+
+  // 人机验证识别**不以状态码为门槛**：实测 aigc789.top 是 HTTP 200 +
+  // {"message":"Turnstile token 为空","success":false}，业务失败只体现在响应体里，
+  // 按 4xx 判断会漏掉（该站因此被反复自动重试，且用户看不到「需手动」提示）。
+  // 关键词宽严分层，依据是误判代价：
+  //  - 400/403：验证中间件是这两个码的压倒性主因，沿用宽松式（含裸「验证」），保持既有行为；
+  //  - 其他状态码（含 200）：响应体是正常业务应答、什么话都可能出现，必须要求明确的
+  //    人机验证信号，否则「请先验证邮箱」这类提示会被误导向「去过人机验证」。
+  const captchaPattern =
+    resp.status === 400 || resp.status === 403
+      ? /turnstile|captcha|验证/i
+      : /turnstile|captcha|人机验证|验证码/i;
+  if (captchaPattern.test(raw)) {
+    return {
+      ok: false,
+      message: '该站开启了人机验证(Turnstile)，需手动到网页签到',
+      needsManual: true,
+    };
   }
 
-  const data = (await resp.json().catch(() => null)) as {
-    success?: boolean;
-    message?: string;
-    data?: { quota_awarded?: number };
-  } | null;
+  let data: CheckinResponseBody | null = null;
+  try {
+    data = JSON.parse(raw) as CheckinResponseBody;
+  } catch {
+    data = null;
+  }
   if (!data) {
     return { ok: false, message: `签到接口返回异常 (HTTP ${resp.status})`, needsManual: false };
   }
