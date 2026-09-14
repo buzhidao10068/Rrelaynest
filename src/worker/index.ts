@@ -4,6 +4,7 @@ import type { AppSecrets } from '../shared/types.js';
 import { createApp } from '../shared/routes.js';
 import { wrapD1 } from './db-d1.js';
 import { runScheduledTick } from '../shared/scheduler.js';
+import { handleCronTick, CRON_TICK_PATH } from '../shared/cron-tick.js';
 import { runStartupMigration, type StartupDeps } from '../shared/startup.js';
 import { runMigrations } from '../shared/migrate.js';
 import { MIGRATIONS } from '../shared/migrations.js';
@@ -55,6 +56,8 @@ interface WorkerEnv {
   ADMIN_PASSWORD: string;
   SESSION_SECRET: string;
   ENCRYPTION_KEY: string;
+  // 可选：仅当把 cron slot 让给外部中枢（cron-hub）时才需要，见 shared/cron-tick.ts
+  CRON_SECRET?: string;
 }
 
 function secretsOf(env: WorkerEnv): AppSecrets {
@@ -69,6 +72,15 @@ export default {
   // HTTP：/api/* 交给 Hono，其余回落到前端静态资源（SPA）
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    // 外部 cron 中枢（cron-hub）的触发入口。放在 /api/* 之前：它不走 Hono 的会话鉴权，
+    // 自带共享密钥校验，且不需要引导（runScheduledTick 只读已建好的表）。
+    if (url.pathname === CRON_TICK_PATH) {
+      return handleCronTick(request, {
+        secret: env.CRON_SECRET,
+        run: () => runScheduledTick(wrapD1(env.DB), secretsOf(env), Date.now()),
+        waitUntil: (p) => ctx.waitUntil(p),
+      });
+    }
     if (url.pathname.startsWith('/api/')) {
       const db = wrapD1(env.DB);
       const secrets = secretsOf(env);
