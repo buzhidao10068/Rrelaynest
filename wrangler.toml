@@ -19,6 +19,10 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 
 # Cron 每 5 分钟触发一次；实际是否执行由面板设定的间隔（settings.scrape_interval_min）决定
+#
+# 注意：本仓库的部署配置 wrangler.deploy.toml 里这段是**注释掉**的 —— 那边改成由外部
+# cron-hub 打 /internal/tick 来驱动，以省下一个 Cron Trigger 名额（免费版账号级只有 5 个）。
+# 这里保留 cron，是因为本文件面向 fork 者：没有 hub 的话，自带 cron 才是能跑起来的默认值。
 [triggers]
 crons = ["*/5 * * * *"]
 
